@@ -21,7 +21,6 @@ with Files('GetUserMedia*'):
 
 DIRS += [
     'encoder',
-	'glovepuppetry',
     'gmp',
     'gmp-plugin',
     'gmp-plugin-openh264',
