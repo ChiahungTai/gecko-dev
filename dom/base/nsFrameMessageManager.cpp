@@ -47,6 +47,10 @@
 #include "nsQueryObject.h"
 #include <algorithm>
 
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
+
 #ifdef ANDROID
 #include <android/log.h>
 #endif
@@ -137,6 +141,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameMessageManager)
   tmp->mListeners.EnumerateRead(CycleCollectorTraverseListeners,
                                 static_cast<void*>(&cb));
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildManagers)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParentManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -151,6 +156,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFrameMessageManager)
       Disconnect(false);
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildManagers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParentManager)
   tmp->mInitialProcessData.setNull();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -798,7 +804,10 @@ nsFrameMessageManager::DispatchAsyncMessageInternal(JSContext* aCx,
     return NS_OK;
   }
 
-  NS_ENSURE_TRUE(mCallback, NS_ERROR_NOT_INITIALIZED);
+  if (!mCallback) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
   if (!mCallback->DoSendAsyncMessage(aCx, aMessage, aData, aCpows, aPrincipal)) {
     return NS_ERROR_FAILURE;
   }
@@ -902,7 +911,7 @@ nsFrameMessageManager::Dump(const nsAString& aStr)
 NS_IMETHODIMP
 nsFrameMessageManager::PrivateNoteIntentionalCrash()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_IsContentProcess()) {
     mozilla::NoteIntentionalCrash("tab");
     return NS_OK;
   } else {
@@ -1423,6 +1432,14 @@ nsFrameMessageManager::GetInitialProcessData(JSContext* aCx, JS::MutableHandleVa
     init.setObject(*obj);
   }
 
+  if (!mChrome && XRE_IsParentProcess()) {
+    // This is the cpmm in the parent process. We should use the same object as the ppmm.
+    nsCOMPtr<nsIGlobalProcessScriptLoader> ppmm =
+      do_GetService("@mozilla.org/parentprocessmessagemanager;1");
+    ppmm->GetInitialProcessData(aCx, &init);
+    mInitialProcessData = init;
+  }
+
   if (!JS_WrapValue(aCx, &init)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1442,7 +1459,7 @@ struct MessageManagerReferentCount
   nsDataHashtable<nsStringHashKey, uint32_t> mMessageCounter;
 };
 
-} // anonymous namespace
+} // namespace
 
 namespace mozilla {
 namespace dom {
@@ -1576,7 +1593,7 @@ MessageManagerReporter::CollectReports(nsIMemoryReporterCallback* aCb,
 {
   nsresult rv;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_IsParentProcess()) {
     nsCOMPtr<nsIMessageBroadcaster> globalmm =
       do_GetService("@mozilla.org/globalmessagemanager;1");
     if (globalmm) {
@@ -1612,7 +1629,7 @@ MessageManagerReporter::CollectReports(nsIMemoryReporterCallback* aCb,
 nsresult
 NS_NewGlobalMessageManager(nsIMessageBroadcaster** aResult)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default,
+  NS_ENSURE_TRUE(XRE_IsParentProcess(),
                  NS_ERROR_NOT_AVAILABLE);
   nsRefPtr<nsFrameMessageManager> mm = new nsFrameMessageManager(nullptr,
                                                                  nullptr,
@@ -2141,7 +2158,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
                "Re-creating sChildProcessManager");
 
   MessageManagerCallback* cb;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_IsParentProcess()) {
     cb = new SameChildProcessMessageManagerCallback();
   } else {
     cb = new ChildProcessMessageManagerCallback();
@@ -2155,7 +2172,6 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
   NS_ENSURE_TRUE(global->Init(), NS_ERROR_UNEXPECTED);
   global.forget(aResult);
   return NS_OK;
-
 }
 
 static PLDHashOperator
@@ -2194,6 +2210,10 @@ nsSameProcessAsyncMessageBase::nsSameProcessAsyncMessageBase(JSContext* aCx,
     mPrincipal(aPrincipal)
 {
   if (aData.mDataLength && !mData.copy(aData.mData, aData.mDataLength)) {
+#ifdef MOZ_CRASHREPORTER
+    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AsyncMessageOOM"),
+                                       NS_ConvertUTF16toUTF8(aMessage));
+#endif
     NS_ABORT_OOM(aData.mDataLength);
   }
   mClosure = aData.mClosure;

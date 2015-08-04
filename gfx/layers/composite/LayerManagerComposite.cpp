@@ -22,7 +22,6 @@
 #include "TiledContentHost.h"
 #include "Units.h"                      // for ScreenIntRect
 #include "UnitTransforms.h"             // for ViewAs
-#include "gfx2DGlue.h"                  // for ToMatrix4x4
 #include "gfxPrefs.h"                   // for gfxPrefs
 #ifdef XP_MACOSX
 #include "gfxPlatformMac.h"
@@ -45,7 +44,7 @@
 #include "ipc/ShadowLayerUtils.h"
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "nsAppRunner.h"
-#include "nsRefPtr.h"                   // for nsRefPtr
+#include "mozilla/nsRefPtr.h"                   // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_WARNING, NS_RUNTIMEABORT, etc
 #include "nsISupportsImpl.h"            // for Layer::AddRef, etc
@@ -248,27 +247,13 @@ LayerManagerComposite::ApplyOcclusionCulling(Layer* aLayer, nsIntRegion& aOpaque
   }
 }
 
-bool
-LayerManagerComposite::EndEmptyTransaction(EndTransactionFlags aFlags)
-{
-  NS_ASSERTION(mInTransaction, "Didn't call BeginTransaction?");
-  if (!mRoot) {
-    mInTransaction = false;
-    mIsCompositorReady = false;
-    return false;
-  }
-
-  EndTransaction(nullptr, nullptr);
-  return true;
-}
-
 void
-LayerManagerComposite::EndTransaction(DrawPaintedLayerCallback aCallback,
-                                      void* aCallbackData,
+LayerManagerComposite::EndTransaction(const TimeStamp& aTimeStamp,
                                       EndTransactionFlags aFlags)
 {
   NS_ASSERTION(mInTransaction, "Didn't call BeginTransaction?");
-  NS_ASSERTION(!aCallback && !aCallbackData, "Not expecting callbacks here");
+  NS_ASSERTION(!(aFlags & END_NO_COMPOSITE),
+               "Shouldn't get END_NO_COMPOSITE here");
   mInTransaction = false;
 
   if (!mIsCompositorReady) {
@@ -286,6 +271,11 @@ LayerManagerComposite::EndTransaction(DrawPaintedLayerCallback aCallback,
     return;
   }
 
+  // Set composition timestamp here because we need it in
+  // ComputeEffectiveTransforms (so the correct video frame size is picked) and
+  // also to compute invalid regions properly.
+  mCompositor->SetCompositionTime(aTimeStamp);
+
   if (mRoot && mClonedLayerTreeProperties) {
     MOZ_ASSERT(!mTarget);
     nsIntRegion invalid =
@@ -297,13 +287,13 @@ LayerManagerComposite::EndTransaction(DrawPaintedLayerCallback aCallback,
     mInvalidRegion.Or(mInvalidRegion, mRenderBounds);
   }
 
-  if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
-    if (aFlags & END_NO_COMPOSITE) {
-      // Apply pending tree updates before recomputing effective
-      // properties.
-      mRoot->ApplyPendingUpdatesToSubtree();
-    }
+  if (mInvalidRegion.IsEmpty() && !mTarget) {
+    // Composition requested, but nothing has changed. Don't do any work.
+    return;
+  }
 
+ if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
+    MOZ_ASSERT(!aTimeStamp.IsNull());
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
     mRoot->ComputeEffectiveTransforms(gfx::Matrix4x4());
@@ -769,11 +759,11 @@ LayerManagerComposite::Render()
       js::ProfileEntry::Category::GRAPHICS);
 
     mCompositor->EndFrame();
-    mCompositor->SetDispAcquireFence(mRoot);
   }
 
   if (composer2D) {
     composer2D->Render(mCompositor->GetWidget());
+    mCompositor->SetDispAcquireFence(mRoot);
   }
 
   mCompositor->GetWidget()->PostRender(this);
@@ -1366,5 +1356,5 @@ LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
 
 #endif  // !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 
-} /* layers */
-} /* mozilla */
+} // namespace layers
+} // namespace mozilla

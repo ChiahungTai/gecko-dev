@@ -98,7 +98,7 @@ HttpChannelParent::ActorDestroy(ActorDestroyReason why)
   // If this is an intercepted channel, we need to make sure that any resources are
   // cleaned up to avoid leaks.
   if (mInterceptedChannel) {
-    mInterceptedChannel->Cancel();
+    mInterceptedChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
     mInterceptedChannel = nullptr;
   }
 }
@@ -120,7 +120,8 @@ HttpChannelParent::Init(const HttpChannelCreationArgs& aArgs)
                        a.thirdPartyFlags(), a.resumeAt(), a.startPos(),
                        a.entityID(), a.chooseApplicationCache(),
                        a.appCacheClientID(), a.allowSpdy(), a.allowAltSvc(), a.fds(),
-                       a.loadInfo(), a.synthesizedResponseHead(), a.cacheKey());
+                       a.loadInfo(), a.synthesizedResponseHead(), a.cacheKey(),
+                       a.schedulingContextID());
   }
   case HttpChannelCreationArgs::THttpChannelConnectArgs:
   {
@@ -227,7 +228,7 @@ HttpChannelParent::GetInterface(const nsIID& aIID, void **result)
   }
 
   // Only support nsIAuthPromptProvider in Content process
-  if (XRE_GetProcessType() == GeckoProcessType_Default &&
+  if (XRE_IsParentProcess() &&
       aIID.Equals(NS_GET_IID(nsIAuthPromptProvider))) {
     *result = nullptr;
     return NS_OK;
@@ -274,9 +275,10 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
                                  const bool&                allowSpdy,
                                  const bool&                allowAltSvc,
                                  const OptionalFileDescriptorSet& aFds,
-                                 const LoadInfoArgs&        aLoadInfoArgs,
+                                 const OptionalLoadInfoArgs& aLoadInfoArgs,
                                  const OptionalHttpResponseHead& aSynthesizedResponseHead,
-                                 const uint32_t&            aCacheKey)
+                                 const uint32_t&            aCacheKey,
+                                 const nsCString&           aSchedulingContextID)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   if (!uri) {
@@ -460,6 +462,10 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
       appCacheChan->SetChooseApplicationCache(chooseAppCache);
     }
   }
+
+  nsID schedulingContextID;
+  schedulingContextID.Parse(aSchedulingContextID.BeginReading());
+  mChannel->SetSchedulingContextID(schedulingContextID);
 
   rv = mChannel->AsyncOpen(mParentListener, nullptr);
   if (NS_FAILED(rv))
@@ -1314,11 +1320,13 @@ nsresult
 HttpChannelParent::ReportSecurityMessage(const nsAString& aMessageTag,
                                          const nsAString& aMessageCategory)
 {
-  if (NS_WARN_IF(!SendReportSecurityMessage(nsString(aMessageTag),
+  if (mIPCClosed ||
+      NS_WARN_IF(!SendReportSecurityMessage(nsString(aMessageTag),
                                             nsString(aMessageCategory)))) {
     return NS_ERROR_UNEXPECTED;
   }
   return NS_OK;
 }
 
-}} // mozilla::net
+} // namespace net
+} // namespace mozilla

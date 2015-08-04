@@ -35,6 +35,8 @@
 #include "PeriodicWave.h"
 #include "ConvolverNode.h"
 #include "OscillatorNode.h"
+#include "nsNetCID.h"
+#include "blink/PeriodicWave.h"
 #include "nsNetUtil.h"
 #include "AudioStream.h"
 #include "mozilla/dom/Promise.h"
@@ -99,12 +101,22 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
   , mIsShutDown(false)
   , mCloseCalled(false)
 {
-  aWindow->AddAudioContext(this);
+  bool mute = aWindow->AddAudioContext(this);
 
   // Note: AudioDestinationNode needs an AudioContext that must already be
   // bound to the window.
   mDestination = new AudioDestinationNode(this, aIsOffline, aChannel,
                                           aNumberOfChannels, aLength, aSampleRate);
+
+  // The context can't be muted until it has a destination.
+  if (mute) {
+    Mute();
+  }
+}
+
+void
+AudioContext::Init()
+{
   // We skip calling SetIsOnlyNodeForContext and the creation of the
   // audioChannelAgent during mDestination's constructor, because we can only
   // call them after mDestination has been set up.
@@ -145,6 +157,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
   nsRefPtr<AudioContext> object =
     new AudioContext(window, false,
                      AudioChannelService::GetDefaultAudioChannel());
+  object->Init();
 
   RegisterWeakMemoryReporter(object);
 
@@ -163,6 +176,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
   }
 
   nsRefPtr<AudioContext> object = new AudioContext(window, false, aChannel);
+  object->Init();
 
   RegisterWeakMemoryReporter(object);
 
@@ -257,7 +271,7 @@ bool IsValidBufferSize(uint32_t aBufferSize) {
   }
 }
 
-}
+} // namespace
 
 already_AddRefed<MediaStreamAudioDestinationNode>
 AudioContext::CreateMediaStreamDestination(ErrorResult& aRv)
@@ -619,17 +633,12 @@ AudioContext::UnregisterPannerNode(PannerNode* aNode)
   }
 }
 
-static PLDHashOperator
-FindConnectedSourcesOn(nsPtrHashKey<PannerNode>* aEntry, void* aData)
-{
-  aEntry->GetKey()->FindConnectedSources();
-  return PL_DHASH_NEXT;
-}
-
 void
 AudioContext::UpdatePannerSource()
 {
-  mPannerNodes.EnumerateEntries(FindConnectedSourcesOn, nullptr);
+  for (auto iter = mPannerNodes.Iter(); !iter.Done(); iter.Next()) {
+    iter.Get()->GetKey()->FindConnectedSources();
+  }
 }
 
 uint32_t
@@ -843,6 +852,8 @@ AudioContext::Suspend(ErrorResult& aRv)
     return promise.forget();
   }
 
+  Destination()->DestroyAudioChannelAgent();
+
   MediaStream* ds = DestinationStream();
   if (ds) {
     ds->BlockStreamIfNeeded();
@@ -881,6 +892,8 @@ AudioContext::Resume(ErrorResult& aRv)
     return promise.forget();
   }
 
+  Destination()->CreateAudioChannelAgent();
+
   MediaStream* ds = DestinationStream();
   if (ds) {
     ds->UnblockStreamIfNeeded();
@@ -914,6 +927,10 @@ AudioContext::Close(ErrorResult& aRv)
   }
 
   mCloseCalled = true;
+
+  if (Destination()) {
+    Destination()->DestroyAudioChannelAgent();
+  }
 
   mPromiseGripArray.AppendElement(promise);
 
@@ -1019,12 +1036,12 @@ AudioContext::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   if (mListener) {
     amount += mListener->SizeOfIncludingThis(aMallocSizeOf);
   }
-  amount += mDecodeJobs.SizeOfExcludingThis(aMallocSizeOf);
+  amount += mDecodeJobs.ShallowSizeOfExcludingThis(aMallocSizeOf);
   for (uint32_t i = 0; i < mDecodeJobs.Length(); ++i) {
     amount += mDecodeJobs[i]->SizeOfIncludingThis(aMallocSizeOf);
   }
-  amount += mActiveNodes.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-  amount += mPannerNodes.SizeOfExcludingThis(nullptr, aMallocSizeOf);
+  amount += mActiveNodes.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  amount += mPannerNodes.ShallowSizeOfExcludingThis(aMallocSizeOf);
   return amount;
 }
 
@@ -1043,5 +1060,48 @@ AudioContext::ExtraCurrentTime() const
   return mDestination->ExtraCurrentTime();
 }
 
+BasicWaveFormCache*
+AudioContext::GetBasicWaveFormCache()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!mBasicWaveFormCache) {
+    mBasicWaveFormCache = new BasicWaveFormCache(SampleRate());
+  }
+  return mBasicWaveFormCache;
 }
+
+BasicWaveFormCache::BasicWaveFormCache(uint32_t aSampleRate)
+  : mSampleRate(aSampleRate)
+{
+  MOZ_ASSERT(NS_IsMainThread());
 }
+BasicWaveFormCache::~BasicWaveFormCache()
+{ }
+
+WebCore::PeriodicWave*
+BasicWaveFormCache::GetBasicWaveForm(OscillatorType aType)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+  if (aType == OscillatorType::Sawtooth) {
+    if (!mSawtooth) {
+      mSawtooth = WebCore::PeriodicWave::createSawtooth(mSampleRate);
+    }
+    return mSawtooth;
+  } else if (aType == OscillatorType::Square) {
+    if (!mSquare) {
+      mSquare = WebCore::PeriodicWave::createSquare(mSampleRate);
+    }
+    return mSquare;
+  } else if (aType == OscillatorType::Triangle) {
+    if (!mTriangle) {
+      mTriangle = WebCore::PeriodicWave::createTriangle(mSampleRate);
+    }
+    return mTriangle;
+  } else {
+    MOZ_ASSERT(false, "Not reached");
+    return nullptr;
+  }
+}
+
+} // namespace dom
+} // namespace mozilla

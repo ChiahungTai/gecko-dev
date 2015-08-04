@@ -287,6 +287,7 @@ DIST_FILES += \
   $(NULL)
 endif
 DIST_FILES += \
+  liblgpllibs.so \
   libxul.so \
   libnssckbi.so \
   libfreebl3.so \
@@ -613,7 +614,6 @@ NO_PKG_FILES += \
 	certutil* \
 	pk12util* \
 	BadCertServer* \
-	ClientAuthServer* \
 	OCSPStaplingServer* \
 	GenerateOCSPResponse* \
 	chrome/chrome.rdf \
@@ -715,12 +715,15 @@ CHECKSUM_ALGORITHM_PARAM = -d sha512 -d md5 -d sha1
 CHECKSUM_FILE = '$(DIST)/$(PKG_PATH)/$(CHECKSUMS_FILE_BASENAME).checksums'
 CHECKSUM_FILES = $(CHECKSUM_FILE)
 
+# Upload MAR tools only if AB_CD is unset or en_US
+ifeq (,$(AB_CD:en-US=))
 ifeq (WINNT,$(OS_TARGET))
 UPLOAD_EXTRA_FILES += host/bin/mar.exe
 UPLOAD_EXTRA_FILES += host/bin/mbsdiff.exe
 else
 UPLOAD_EXTRA_FILES += host/bin/mar
 UPLOAD_EXTRA_FILES += host/bin/mbsdiff
+endif
 endif
 
 UPLOAD_FILES= \
@@ -752,6 +755,13 @@ endif
 ifdef MOZ_CODE_COVERAGE
 UPLOAD_FILES += \
   $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(CODE_COVERAGE_ARCHIVE_BASENAME).zip)
+endif
+
+ifdef UNIFY_DIST
+UNIFY_ARCH := $(notdir $(patsubst %/,%,$(dir $(UNIFY_DIST))))
+UPLOAD_FILES += \
+  $(wildcard $(UNIFY_DIST)/$(SDK_PATH)$(PKG_BASENAME)-$(UNIFY_ARCH).sdk$(SDK_SUFFIX)) \
+  $(wildcard $(UNIFY_DIST)/$(SDK_PATH)$(PKG_BASENAME)-$(UNIFY_ARCH).sdk$(SDK_SUFFIX).asc)
 endif
 
 SIGN_CHECKSUM_CMD=

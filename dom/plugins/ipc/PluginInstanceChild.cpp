@@ -626,6 +626,14 @@ PluginInstanceChild::NPN_SetValue(NPPVariable aVar, void* aValue)
     }
 #endif
 
+    case NPPVpluginIsPlayingAudio: {
+        NPError rv = NPERR_GENERIC_ERROR;
+        if (!CallNPN_SetValue_NPPVpluginIsPlayingAudio((NPBool)(intptr_t)aValue, &rv)) {
+            return NPERR_GENERIC_ERROR;
+        }
+        return rv;
+    }
+
     default:
         MOZ_LOG(GetPluginLog(), LogLevel::Warning,
                ("In PluginInstanceChild::NPN_SetValue: Unhandled NPPVariable %i (%s)",
@@ -762,6 +770,20 @@ PluginInstanceChild::AnswerNPP_SetValue_NPNVprivateModeBool(const bool& value,
 
     NPBool v = value;
     *result = mPluginIface->setvalue(GetNPP(), NPNVprivateModeBool, &v);
+    return true;
+}
+
+bool
+PluginInstanceChild::AnswerNPP_SetValue_NPNVmuteAudioBool(const bool& value,
+                                                          NPError* result)
+{
+    if (!mPluginIface->setvalue) {
+        *result = NPERR_GENERIC_ERROR;
+        return true;
+    }
+
+    NPBool v = value;
+    *result = mPluginIface->setvalue(GetNPP(), NPNVmuteAudioBool, &v);
     return true;
 }
 
@@ -1501,22 +1523,25 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
     }
 
     // The plugin received keyboard focus, let the parent know so the dom is up to date.
-    if (message == WM_MOUSEACTIVATE)
+    if (message == WM_MOUSEACTIVATE) {
       self->CallPluginFocusChange(true);
+    }
 
     // Prevent lockups due to plugins making rpc calls when the parent
     // is making a synchronous SendMessage call to the child window. Add
     // more messages as needed.
     if ((InSendMessageEx(nullptr)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
         switch(message) {
+            case WM_CHILDACTIVATE:
             case WM_KILLFOCUS:
             ReplyMessage(0);
             break;
         }
     }
 
-    if (message == WM_KILLFOCUS)
+    if (message == WM_KILLFOCUS) {
       self->CallPluginFocusChange(false);
+    }
 
     if (message == WM_USER+1 &&
         (self->GetQuirks() & PluginModuleChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {
@@ -1547,11 +1572,13 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
       }
     }
 
-    if (message == WM_CLOSE)
+    if (message == WM_CLOSE) {
         self->DestroyPluginWindow();
+    }
 
-    if (message == WM_NCDESTROY)
+    if (message == WM_NCDESTROY) {
         RemoveProp(hWnd, kPluginInstanceChildProperty);
+    }
 
     return res;
 }
@@ -2853,8 +2880,7 @@ PluginInstanceChild::CreateOptSurface(void)
 #endif
 
 #ifdef XP_WIN
-    if (mSurfaceType == gfxSurfaceType::Win32 ||
-        mSurfaceType == gfxSurfaceType::D2D) {
+    if (mSurfaceType == gfxSurfaceType::Win32) {
         bool willHaveTransparentPixels = mIsTransparent && !mBackground;
 
         SharedDIBSurface* s = new SharedDIBSurface();
@@ -3802,39 +3828,6 @@ PluginInstanceChild::PostChildAsyncCall(ChildAsyncCall* aTask)
     ProcessChild::message_loop()->PostTask(FROM_HERE, aTask);
 }
 
-static PLDHashOperator
-InvalidateObject(DeletingObjectEntry* e, void* userArg)
-{
-    NPObject* o = e->GetKey();
-    if (!e->mDeleted && o->_class && o->_class->invalidate)
-        o->_class->invalidate(o);
-
-    return PL_DHASH_NEXT;
-}
-
-static PLDHashOperator
-DeleteObject(DeletingObjectEntry* e, void* userArg)
-{
-    NPObject* o = e->GetKey();
-    if (!e->mDeleted) {
-        e->mDeleted = true;
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-        {
-            int32_t refcnt = o->referenceCount;
-            while (refcnt) {
-                --refcnt;
-                NS_LOG_RELEASE(o, refcnt, "NPObject");
-            }
-        }
-#endif
-
-        PluginModuleChild::DeallocNPObject(o);
-    }
-
-    return PL_DHASH_NEXT;
-}
-
 void
 PluginInstanceChild::SwapSurfaces()
 {
@@ -3942,6 +3935,42 @@ PluginInstanceChild::ClearAllSurfaces()
 #endif
 }
 
+static void
+InvalidateObjects(nsTHashtable<DeletingObjectEntry>& aEntries)
+{
+    for (auto iter = aEntries.Iter(); !iter.Done(); iter.Next()) {
+        DeletingObjectEntry* e = iter.Get();
+        NPObject* o = e->GetKey();
+        if (!e->mDeleted && o->_class && o->_class->invalidate) {
+            o->_class->invalidate(o);
+        }
+    }
+}
+
+static void
+DeleteObjects(nsTHashtable<DeletingObjectEntry>& aEntries)
+{
+    for (auto iter = aEntries.Iter(); !iter.Done(); iter.Next()) {
+        DeletingObjectEntry* e = iter.Get();
+        NPObject* o = e->GetKey();
+        if (!e->mDeleted) {
+            e->mDeleted = true;
+
+#ifdef NS_BUILD_REFCNT_LOGGING
+            {
+                int32_t refcnt = o->referenceCount;
+                while (refcnt) {
+                    --refcnt;
+                    NS_LOG_RELEASE(o, refcnt, "NPObject");
+                }
+            }
+#endif
+
+            PluginModuleChild::DeallocNPObject(o);
+        }
+    }
+}
+
 void
 PluginInstanceChild::Destroy()
 {
@@ -3996,8 +4025,8 @@ PluginInstanceChild::Destroy()
     mDeletingHash = new nsTHashtable<DeletingObjectEntry>;
     PluginScriptableObjectChild::NotifyOfInstanceShutdown(this);
 
-    mDeletingHash->EnumerateEntries(InvalidateObject, nullptr);
-    mDeletingHash->EnumerateEntries(DeleteObject, nullptr);
+    InvalidateObjects(*mDeletingHash);
+    DeleteObjects(*mDeletingHash);
 
     // Null out our cached actors as they should have been killed in the
     // PluginInstanceDestroyed call above.

@@ -37,7 +37,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsIStyleRule.h"
 #include "nsIURL.h"
-#include "nsNetUtil.h"
 #include "nsEscape.h"
 #include "nsIFrameInlines.h"
 #include "nsIScrollableFrame.h"
@@ -105,8 +104,6 @@
 #include "nsGlobalWindow.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "imgIContainer.h"
-
-#include "mozilla/net/ReferrerPolicy.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2122,7 +2119,7 @@ nsGenericHTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                        const nsAttrValueOrString* aValue,
+                                        nsAttrValueOrString* aValue,
                                         bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {

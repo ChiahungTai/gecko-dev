@@ -110,14 +110,7 @@ let gFxAccounts = {
     // notified of fxa-migration:state-changed in response if necessary.
     Services.obs.notifyObservers(null, "fxa-migration:state-request", null);
 
-    let contentUri = Services.urlFormatter.formatURLPref("identity.fxaccounts.remote.webchannel.uri");
-    // The FxAccountsWebChannel listens for events and updates
-    // the state machine accordingly.
-    let fxAccountsWebChannel = new FxAccountsWebChannel({
-      content_uri: contentUri,
-      channel_id: this.FxAccountsCommon.WEBCHANNEL_ID
-    });
-
+    EnsureFxAccountsWebChannel();
     this._initialized = true;
 
     this.updateUI();
@@ -246,16 +239,21 @@ let gFxAccounts = {
       // fxAccountsEnabled is false because migration has not yet finished.  In
       // that case, hide the button.  We'll get another notification with a null
       // state once migration is complete.
+      this.panelUIFooter.hidden = true;
       this.panelUIFooter.removeAttribute("fxastatus");
       return;
     }
 
+    this.panelUIFooter.hidden = false;
+
     // Make sure the button is disabled in customization mode.
     if (this._inCustomizationMode) {
+      this.panelUIStatus.setAttribute("disabled", "true");
       this.panelUILabel.setAttribute("disabled", "true");
       this.panelUIAvatar.setAttribute("disabled", "true");
       this.panelUIIcon.setAttribute("disabled", "true");
     } else {
+      this.panelUIStatus.removeAttribute("disabled");
       this.panelUILabel.removeAttribute("disabled");
       this.panelUIAvatar.removeAttribute("disabled");
       this.panelUIIcon.removeAttribute("disabled");
@@ -266,6 +264,11 @@ let gFxAccounts = {
     let signedInTooltiptext = this.panelUIStatus.getAttribute("signedinTooltiptext");
 
     let updateWithUserData = (userData) => {
+      // Window might have been closed while fetching data.
+      if (window.closed) {
+        return;
+      }
+
       // Reset the button to its original state.
       this.panelUILabel.setAttribute("label", defaultLabel);
       this.panelUIStatus.removeAttribute("tooltiptext");
@@ -313,7 +316,7 @@ let gFxAccounts = {
     fxAccounts.getSignedInUser().then(userData => {
       // userData may be null here when the user is not signed-in, but that's expected
       updateWithUserData(userData);
-      return fxAccounts.getSignedInUserProfile();
+      return userData ? fxAccounts.getSignedInUserProfile() : null;
     }).then(profile => {
       if (!profile) {
         return;
@@ -475,5 +478,5 @@ XPCOMUtils.defineLazyGetter(gFxAccounts, "FxAccountsCommon", function () {
 XPCOMUtils.defineLazyModuleGetter(gFxAccounts, "fxaMigrator",
   "resource://services-sync/FxaMigrator.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "FxAccountsWebChannel",
+XPCOMUtils.defineLazyModuleGetter(this, "EnsureFxAccountsWebChannel",
   "resource://gre/modules/FxAccountsWebChannel.jsm");

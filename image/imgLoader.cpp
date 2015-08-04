@@ -20,15 +20,19 @@
 #include "nsContentUtils.h"
 #include "nsCORSListenerProxy.h"
 #include "nsNetUtil.h"
+#include "nsNetCID.h"
+#include "nsIProtocolHandler.h"
 #include "nsMimeTypes.h"
 #include "nsStreamUtils.h"
 #include "nsIHttpChannel.h"
 #include "nsICachingChannel.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIFileURL.h"
+#include "nsIFile.h"
 #include "nsCRT.h"
 #include "nsINetworkPredictor.h"
 #include "mozilla/dom/nsMixedContentBlocker.h"
@@ -37,8 +41,10 @@
 #include "nsIApplicationCacheContainer.h"
 
 #include "nsIMemoryReporter.h"
+#include "DecoderFactory.h"
 #include "Image.h"
 #include "gfxPrefs.h"
+#include "prtime.h"
 
 // we want to explore making the document own the load group
 // so we can associate the document URI with the load group.
@@ -72,8 +78,13 @@ public:
       mKnownLoaders[i]->mChromeCache.EnumerateRead(DoRecordCounter, &chrome);
       mKnownLoaders[i]->mCache.EnumerateRead(DoRecordCounter, &content);
       MutexAutoLock lock(mKnownLoaders[i]->mUncachedImagesMutex);
-      mKnownLoaders[i]->
-        mUncachedImages.EnumerateEntries(DoRecordCounterUncached, &uncached);
+      for (auto iter = mKnownLoaders[i]->mUncachedImages.Iter();
+           !iter.Done();
+           iter.Next()) {
+        nsPtrHashKey<imgRequest>* entry = iter.Get();
+        nsRefPtr<imgRequest> req = entry->GetKey();
+        RecordCounterForRequest(req, &uncached, req->HasConsumers());
+      }
     }
 
     // Note that we only need to anonymize content image URIs.
@@ -401,16 +412,6 @@ private:
     RecordCounterForRequest(req,
                            static_cast<nsTArray<ImageMemoryCounter>*>(aUserArg),
                            !aEntry->HasNoProxies());
-    return PL_DHASH_NEXT;
-  }
-
-  static PLDHashOperator
-  DoRecordCounterUncached(nsPtrHashKey<imgRequest>* aEntry, void* aUserArg)
-  {
-    nsRefPtr<imgRequest> req = aEntry->GetKey();
-    RecordCounterForRequest(req,
-                           static_cast<nsTArray<ImageMemoryCounter>*>(aUserArg),
-                           req->HasConsumers());
     return PL_DHASH_NEXT;
   }
 
@@ -788,7 +789,9 @@ NewImageChannel(nsIChannel** aResult,
     // we should always have a requestingNode, or we are loading something
     // outside a document, in which case the triggeringPrincipal
     // should always be the systemPrincipal.
-    MOZ_ASSERT(nsContentUtils::IsSystemPrincipal(triggeringPrincipal));
+    // However, there are two exceptions: one is Notifications and the
+    // other one is Favicons which create a channel in the parent prcoess
+    // in which case we can't get a requestingNode.
     rv = NS_NewChannel(aResult,
                        aURI,
                        triggeringPrincipal,
@@ -1149,15 +1152,6 @@ imgLoader::GetInstance()
   return loader.forget();
 }
 
-static PLDHashOperator
-ClearLoaderPointer(nsPtrHashKey<imgRequest>* aEntry, void* aUserArg)
-{
-  nsRefPtr<imgRequest> req = aEntry->GetKey();
-  req->ClearLoader();
-
-  return PL_DHASH_NEXT;
-}
-
 imgLoader::~imgLoader()
 {
   ClearChromeImageCache();
@@ -1166,7 +1160,11 @@ imgLoader::~imgLoader()
     // If there are any of our imgRequest's left they are in the uncached
     // images set, so clear their pointer to us.
     MutexAutoLock lock(mUncachedImagesMutex);
-    mUncachedImages.EnumerateEntries(ClearLoaderPointer, nullptr);
+    for (auto iter = mUncachedImages.Iter(); !iter.Done(); iter.Next()) {
+      nsPtrHashKey<imgRequest>* entry = iter.Get();
+      nsRefPtr<imgRequest> req = entry->GetKey();
+      req->ClearLoader();
+    }
   }
   sMemReporter->UnregisterLoader(this);
   sMemReporter->Release();
@@ -2480,7 +2478,8 @@ imgLoader::SupportImageWithMimeType(const char* aMimeType,
     return true;
   }
 
-  return Image::GetDecoderType(mimeType.get()) != Image::eDecoderType_unknown;
+  DecoderType type = DecoderFactory::GetDecoderType(mimeType.get());
+  return type != DecoderType::UNKNOWN;
 }
 
 NS_IMETHODIMP

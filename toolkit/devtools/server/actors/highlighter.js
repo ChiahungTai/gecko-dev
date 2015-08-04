@@ -11,6 +11,7 @@ const {Arg, Option, method, RetVal} = protocol;
 const events = require("sdk/event/core");
 const Heritage = require("sdk/core/heritage");
 const EventEmitter = require("devtools/toolkit/event-emitter");
+const LayoutHelpers = require("devtools/toolkit/layout-helpers");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 loader.lazyRequireGetter(this, "CssLogic",
@@ -20,8 +21,6 @@ loader.lazyRequireGetter(this, "setIgnoreLayoutChanges",
 loader.lazyGetter(this, "DOMUtils", function() {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
 });
-loader.lazyImporter(this, "LayoutHelpers",
-  "resource://gre/modules/devtools/LayoutHelpers.jsm");
 
 // FIXME: add ":visited" and ":link" after bug 713106 is fixed
 const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
@@ -158,6 +157,15 @@ let HighlighterActor = exports.HighlighterActor = protocol.ActorClass({
     return this._inspector && this._inspector.conn;
   },
 
+  form: function() {
+    return {
+      actor: this.actorID,
+      traits: {
+        autoHideOnDestroy: true
+      }
+    }
+  },
+
   _createHighlighter: function() {
     this._isPreviousWindowXUL = isXUL(this._tabActor.window);
 
@@ -199,6 +207,7 @@ let HighlighterActor = exports.HighlighterActor = protocol.ActorClass({
   destroy: function() {
     protocol.Actor.prototype.destroy.call(this);
 
+    this.hideBoxModel();
     this._destroyHighlighter();
     events.off(this._tabActor, "navigate", this._onNavigate);
 
@@ -416,7 +425,14 @@ let HighlighterActor = exports.HighlighterActor = protocol.ActorClass({
   })
 });
 
-let HighlighterFront = protocol.FrontClass(HighlighterActor, {});
+let HighlighterFront = protocol.FrontClass(HighlighterActor, {
+  // Update the object given a form representation off the wire.
+  form: function(json) {
+    this.actorID = json.actor;
+    // FF42+ HighlighterActors starts exposing custom form, with traits object
+    this.traits = json.traits || {};
+  }
+});
 
 /**
  * A generic highlighter actor class that instantiate a highlighter given its

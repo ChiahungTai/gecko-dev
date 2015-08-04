@@ -83,12 +83,13 @@ js::GetLengthProperty(JSContext* cx, HandleObject obj, uint32_t* lengthp)
     if (!GetProperty(cx, obj, obj, cx->names().length, &value))
         return false;
 
-    if (value.isInt32()) {
-        *lengthp = uint32_t(value.toInt32()); // uint32_t cast does ToUint32
-        return true;
+    bool overflow;
+    if (!ToLengthClamped(cx, value, lengthp, &overflow)) {
+        if (!overflow)
+            return false;
+        *lengthp = UINT32_MAX;
     }
-
-    return ToUint32(cx, value, lengthp);
+    return true;
 }
 
 /*
@@ -1632,7 +1633,8 @@ enum ComparatorMatchResult {
     Match_RightMinusLeft
 };
 
-} /* namespace anonymous */
+} // namespace
+
 
 /*
  * Specialize behavior for comparator functions with particular common bytecode
@@ -2561,40 +2563,41 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
     return true;
 }
 
-template <JSValueType Type>
+template <JSValueType TypeOne, JSValueType TypeTwo>
 DenseElementResult
 ArrayConcatDenseKernel(JSContext* cx, JSObject* obj1, JSObject* obj2, JSObject* result)
 {
-    uint32_t initlen1 = GetBoxedOrUnboxedInitializedLength<Type>(obj1);
+    uint32_t initlen1 = GetBoxedOrUnboxedInitializedLength<TypeOne>(obj1);
     MOZ_ASSERT(initlen1 == GetAnyBoxedOrUnboxedArrayLength(obj1));
 
-    uint32_t initlen2 = GetBoxedOrUnboxedInitializedLength<Type>(obj2);
+    uint32_t initlen2 = GetBoxedOrUnboxedInitializedLength<TypeTwo>(obj2);
     MOZ_ASSERT(initlen2 == GetAnyBoxedOrUnboxedArrayLength(obj2));
 
     /* No overflow here due to nelements limit. */
     uint32_t len = initlen1 + initlen2;
 
-    MOZ_ASSERT(GetBoxedOrUnboxedInitializedLength<Type>(result) == 0);
+    MOZ_ASSERT(GetBoxedOrUnboxedInitializedLength<TypeOne>(result) == 0);
 
-    if (!EnsureBoxedOrUnboxedDenseElements<Type>(cx, result, len))
-        return DenseElementResult::Failure;
+    DenseElementResult rv = EnsureBoxedOrUnboxedDenseElements<TypeOne>(cx, result, len);
+    if (rv != DenseElementResult::Success)
+        return rv;
 
-    CopyBoxedOrUnboxedDenseElements<Type>(cx, result, obj1, 0, 0, initlen1);
-    CopyBoxedOrUnboxedDenseElements<Type>(cx, result, obj2, initlen1, 0, initlen2);
+    CopyBoxedOrUnboxedDenseElements<TypeOne, TypeOne>(cx, result, obj1, 0, 0, initlen1);
+    CopyBoxedOrUnboxedDenseElements<TypeOne, TypeTwo>(cx, result, obj2, initlen1, 0, initlen2);
 
     SetAnyBoxedOrUnboxedArrayLength(cx, result, len);
     return DenseElementResult::Success;
 }
 
-DefineBoxedOrUnboxedFunctor4(ArrayConcatDenseKernel,
-                             JSContext*, JSObject*, JSObject*, JSObject*);
+DefineBoxedOrUnboxedFunctorPair4(ArrayConcatDenseKernel,
+                                 JSContext*, JSObject*, JSObject*, JSObject*);
 
 bool
 js::array_concat_dense(JSContext* cx, HandleObject obj1, HandleObject obj2,
                        HandleObject result)
 {
     ArrayConcatDenseKernelFunctor functor(cx, obj1, obj2, result);
-    DenseElementResult rv = CallBoxedOrUnboxedSpecialization(functor, result);
+    DenseElementResult rv = CallBoxedOrUnboxedSpecialization(functor, obj1, obj2);
     MOZ_ASSERT(rv != DenseElementResult::Incomplete);
     return rv == DenseElementResult::Success;
 }
@@ -2625,17 +2628,63 @@ js::array_concat(JSContext* cx, unsigned argc, Value* vp)
         narr = NewFullyAllocatedArrayTryReuseGroup(cx, aobj, initlen);
         if (!narr)
             return false;
+        CopyAnyBoxedOrUnboxedDenseElements(cx, narr, aobj, 0, 0, initlen);
         SetAnyBoxedOrUnboxedArrayLength(cx, narr, length);
-
-        DebugOnly<DenseElementResult> result =
-            CopyAnyBoxedOrUnboxedDenseElements(cx, narr, aobj, 0, 0, initlen);
-        MOZ_ASSERT(result.value == DenseElementResult::Success);
 
         args.rval().setObject(*narr);
         if (argc == 0)
             return true;
         argc--;
         p++;
+
+        if (length == initlen) {
+            while (argc) {
+                HandleValue v = HandleValue::fromMarkedLocation(p);
+                if (!v.isObject())
+                    break;
+                RootedObject obj(cx, &v.toObject());
+
+                // This should be IsConcatSpreadable
+                if (!IsArray(obj, cx) || ObjectMayHaveExtraIndexedProperties(obj))
+                    break;
+
+                uint32_t argLength;
+                if (!GetLengthProperty(cx, obj, &argLength))
+                    return false;
+
+                initlen = GetAnyBoxedOrUnboxedInitializedLength(obj);
+                if (argLength != initlen)
+                    break;
+
+                DenseElementResult result =
+                    EnsureAnyBoxedOrUnboxedDenseElements(cx, narr, length + argLength);
+                if (result == DenseElementResult::Failure)
+                    return false;
+                if (result == DenseElementResult::Incomplete)
+                    break;
+
+                SetAnyBoxedOrUnboxedInitializedLength(cx, narr, length + argLength);
+
+                bool success = true;
+                for (size_t i = 0; i < initlen; i++) {
+                    Value v = GetAnyBoxedOrUnboxedDenseElement(obj, i);
+                    if (!InitAnyBoxedOrUnboxedDenseElement(cx, narr, length + i, v)) {
+                        success = false;
+                        break;
+                    }
+                }
+                if (!success) {
+                    SetAnyBoxedOrUnboxedInitializedLength(cx, narr, length);
+                    break;
+                }
+
+                length += argLength;
+                SetAnyBoxedOrUnboxedArrayLength(cx, narr, length);
+
+                argc--;
+                p++;
+            }
+        }
     } else {
         narr = NewDenseEmptyArray(cx);
         if (!narr)
@@ -2932,9 +2981,10 @@ ArraySliceDenseKernel(JSContext* cx, JSObject* obj, int32_t beginArg, int32_t en
     if (initlen > begin) {
         size_t count = Min<size_t>(initlen - begin, end - begin);
         if (count) {
-            if (!EnsureBoxedOrUnboxedDenseElements<Type>(cx, result, count))
-                return DenseElementResult::Failure;
-            CopyBoxedOrUnboxedDenseElements<Type>(cx, result, obj, 0, begin, count);
+            DenseElementResult rv = EnsureBoxedOrUnboxedDenseElements<Type>(cx, result, count);
+            if (rv != DenseElementResult::Success)
+                return rv;
+            CopyBoxedOrUnboxedDenseElements<Type, Type>(cx, result, obj, 0, begin, count);
         }
     }
 
@@ -3253,8 +3303,10 @@ CreateArrayPrototype(JSContext* cx, JSProtoKey key)
     if (!shape)
         return nullptr;
 
+    AutoSetNewObjectMetadata metadata(cx);
     RootedArrayObject arrayProto(cx, ArrayObject::createArray(cx, gc::AllocKind::OBJECT4,
-                                                              gc::TenuredHeap, shape, group, 0));
+                                                              gc::TenuredHeap, shape, group, 0,
+                                                              metadata));
     if (!arrayProto ||
         !JSObject::setSingleton(cx, arrayProto) ||
         !AddLengthProperty(cx, arrayProto))
@@ -3276,7 +3328,7 @@ CreateArrayPrototype(JSContext* cx, JSProtoKey key)
 
 const Class ArrayObject::class_ = {
     "Array",
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_DELAY_METADATA_CALLBACK,
     array_addProperty,
     nullptr, /* delProperty */
     nullptr, /* getProperty */
@@ -3343,6 +3395,7 @@ NewArray(ExclusiveContext* cxArg, uint32_t length,
         NewObjectCache::EntryIndex entry = -1;
         if (cache.lookupGlobal(&ArrayObject::class_, cx->global(), allocKind, &entry)) {
             gc::InitialHeap heap = GetInitialHeap(newKind, &ArrayObject::class_);
+            AutoSetNewObjectMetadata metadata(cx);
             JSObject* obj = cache.newObjectFromHit(cx, entry, heap);
             if (obj) {
                 /* Fixup the elements pointer and length, which may be incorrect. */
@@ -3378,9 +3431,10 @@ NewArray(ExclusiveContext* cxArg, uint32_t length,
     if (!shape)
         return nullptr;
 
+    AutoSetNewObjectMetadata metadata(cxArg);
     RootedArrayObject arr(cxArg, ArrayObject::createArray(cxArg, allocKind,
                                                           GetInitialHeap(newKind, &ArrayObject::class_),
-                                                          shape, group, length));
+                                                          shape, group, length, metadata));
     if (!arr)
         return nullptr;
 
@@ -3462,6 +3516,7 @@ js::NewDenseCopiedArray(ExclusiveContext* cx, uint32_t length, const Value* valu
 ArrayObject*
 js::NewDenseFullyAllocatedArrayWithTemplate(JSContext* cx, uint32_t length, JSObject* templateObject)
 {
+    AutoSetNewObjectMetadata metadata(cx);
     gc::AllocKind allocKind = GuessArrayGCKind(length);
     MOZ_ASSERT(CanBeFinalizedInBackground(allocKind, &ArrayObject::class_));
     allocKind = GetBackgroundAllocKind(allocKind);
@@ -3471,7 +3526,7 @@ js::NewDenseFullyAllocatedArrayWithTemplate(JSContext* cx, uint32_t length, JSOb
 
     gc::InitialHeap heap = GetInitialHeap(GenericObject, &ArrayObject::class_);
     Rooted<ArrayObject*> arr(cx, ArrayObject::createArray(cx, allocKind,
-                                                          heap, shape, group, length));
+                                                          heap, shape, group, length, metadata));
     if (!arr)
         return nullptr;
 
@@ -3537,9 +3592,9 @@ NewArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group, size_t length
 
 JSObject*
 js::NewFullyAllocatedArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group, size_t length,
-                                      NewObjectKind newKind)
+                                      NewObjectKind newKind, bool forceAnalyze)
 {
-    return NewArrayTryUseGroup<UINT32_MAX>(cx, group, length, newKind);
+    return NewArrayTryUseGroup<UINT32_MAX>(cx, group, length, newKind, forceAnalyze);
 }
 
 JSObject*
@@ -3610,7 +3665,31 @@ js::NewCopiedArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group,
                               const Value* vp, size_t length, NewObjectKind newKind,
                               ShouldUpdateTypes updateTypes)
 {
-    JSObject* obj = NewFullyAllocatedArrayTryUseGroup(cx, group, length, newKind);
+    bool forceAnalyze = false;
+
+    static const size_t EagerPreliminaryObjectAnalysisThreshold = 800;
+
+    // Force analysis to see if an unboxed array can be used when making a
+    // sufficiently large array, to avoid excessive analysis and copying later
+    // on. If this is the first array of its group that is being created, first
+    // make a dummy array with the initial elements of the array we are about
+    // to make, so there is some basis for the unboxed array analysis.
+    if (length > EagerPreliminaryObjectAnalysisThreshold) {
+        if (PreliminaryObjectArrayWithTemplate* objects = group->maybePreliminaryObjects()) {
+            if (objects->empty()) {
+                size_t nlength = Min<size_t>(length, 100);
+                JSObject* obj = NewFullyAllocatedArrayTryUseGroup(cx, group, nlength);
+                if (!obj)
+                    return nullptr;
+                DebugOnly<DenseElementResult> result =
+                    SetOrExtendAnyBoxedOrUnboxedDenseElements(cx, obj, 0, vp, nlength, updateTypes);
+                MOZ_ASSERT(result.value == DenseElementResult::Success);
+            }
+        }
+        forceAnalyze = true;
+    }
+
+    JSObject* obj = NewFullyAllocatedArrayTryUseGroup(cx, group, length, newKind, forceAnalyze);
     if (!obj)
         return nullptr;
 

@@ -22,6 +22,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "ChromeManifestParser",
                                   "resource://gre/modules/ChromeManifestParser.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
                                   "resource://gre/modules/LightweightThemeManager.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Locale",
+                                  "resource://gre/modules/Locale.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ZipUtils",
@@ -67,8 +69,6 @@ const PREF_INSTALL_CACHE              = "extensions.installCache";
 const PREF_XPI_STATE                  = "extensions.xpiState";
 const PREF_BOOTSTRAP_ADDONS           = "extensions.bootstrappedAddons";
 const PREF_PENDING_OPERATIONS         = "extensions.pendingOperations";
-const PREF_MATCH_OS_LOCALE            = "intl.locale.matchOS";
-const PREF_SELECTED_LOCALE            = "general.useragent.locale";
 const PREF_EM_DSS_ENABLED             = "extensions.dss.enabled";
 const PREF_DSS_SWITCHPENDING          = "extensions.dss.switchPending";
 const PREF_DSS_SKIN_TO_SELECT         = "extensions.lastSelectedSkin";
@@ -515,84 +515,6 @@ SafeInstallOperation.prototype = {
 };
 
 /**
- * Gets the currently selected locale for display.
- * @return  the selected locale or "en-US" if none is selected
- */
-function getLocale() {
-  if (Preferences.get(PREF_MATCH_OS_LOCALE, false))
-    return Services.locale.getLocaleComponentForUserAgent();
-  try {
-    let locale = Preferences.get(PREF_SELECTED_LOCALE, null, Ci.nsIPrefLocalizedString);
-    if (locale)
-      return locale;
-  }
-  catch (e) {}
-  return Preferences.get(PREF_SELECTED_LOCALE, "en-US");
-}
-
-/**
- * Selects the closest matching locale from a list of locales.
- *
- * @param  aLocales
- *         An array of locales
- * @return the best match for the currently selected locale
- */
-function findClosestLocale(aLocales) {
-  let appLocale = getLocale();
-
-  // Holds the best matching localized resource
-  var bestmatch = null;
-  // The number of locale parts it matched with
-  var bestmatchcount = 0;
-  // The number of locale parts in the match
-  var bestpartcount = 0;
-
-  var matchLocales = [appLocale.toLowerCase()];
-  /* If the current locale is English then it will find a match if there is
-     a valid match for en-US so no point searching that locale too. */
-  if (matchLocales[0].substring(0, 3) != "en-")
-    matchLocales.push("en-us");
-
-  for each (var locale in matchLocales) {
-    var lparts = locale.split("-");
-    for each (var localized in aLocales) {
-      for each (let found in localized.locales) {
-        found = found.toLowerCase();
-        // Exact match is returned immediately
-        if (locale == found)
-          return localized;
-
-        var fparts = found.split("-");
-        /* If we have found a possible match and this one isn't any longer
-           then we dont need to check further. */
-        if (bestmatch && fparts.length < bestmatchcount)
-          continue;
-
-        // Count the number of parts that match
-        var maxmatchcount = Math.min(fparts.length, lparts.length);
-        var matchcount = 0;
-        while (matchcount < maxmatchcount &&
-               fparts[matchcount] == lparts[matchcount])
-          matchcount++;
-
-        /* If we matched more than the last best match or matched the same and
-           this locale is less specific than the last best match. */
-        if (matchcount > bestmatchcount ||
-           (matchcount == bestmatchcount && fparts.length < bestpartcount)) {
-          bestmatch = localized;
-          bestmatchcount = matchcount;
-          bestpartcount = fparts.length;
-        }
-      }
-    }
-    // If we found a valid match for this locale return it
-    if (bestmatch)
-      return bestmatch;
-  }
-  return null;
-}
-
-/**
  * Sets the userDisabled and softDisabled properties of an add-on based on what
  * values those properties had for a previous instance of the add-on. The
  * previous instance may be a previous install or in the case of an application
@@ -710,7 +632,8 @@ function createAddonDetails(id, aAddon) {
   return {
     id: id || aAddon.id,
     type: aAddon.type,
-    version: aAddon.version
+    version: aAddon.version,
+    multiprocessCompatible: aAddon.multiprocessCompatible
   };
 }
 
@@ -5125,7 +5048,7 @@ AddonInstall.prototype = {
     }
 
     let self = this;
-    this.loadManifest().then(() => {
+    this.loadManifest(this.file).then(() => {
       XPIDatabase.getVisibleAddonForID(self.addon.id, function initLocalInstall_getVisibleAddon(aAddon) {
         self.existingAddon = aAddon;
         if (aAddon)
@@ -5161,6 +5084,10 @@ AddonInstall.prototype = {
       logger.warn("Invalid XPI", message);
       this.state = AddonManager.STATE_DOWNLOAD_FAILED;
       this.error = error;
+      AddonManagerPrivate.callInstallListeners("onNewInstall",
+                                               self.listeners,
+                                               self.wrapper);
+
       aCallback(this);
     });
   },
@@ -5337,6 +5264,45 @@ AddonInstall.prototype = {
   },
 
   /**
+   * Fills out linkedInstalls with AddonInstall instances for the other files
+   * in a multi-package XPI.
+   *
+   * @param  aFiles
+   *         An array of { entryName, file } for each remaining file from the
+   *         multi-package XPI.
+   */
+  _createLinkedInstalls: Task.async(function* AI_createLinkedInstalls(aFiles) {
+    if (aFiles.length == 0)
+      return;
+
+    // Create new AddonInstall instances for every remaining file
+    if (!this.linkedInstalls)
+      this.linkedInstalls = [];
+
+    for (let { entryName, file } of aFiles) {
+      logger.debug("Creating linked install from " + entryName);
+      let install = yield new Promise(resolve => AddonInstall.createInstall(resolve, file));
+
+      // Make the new install own its temporary file
+      install.ownsTempFile = true;
+
+      this.linkedInstalls.push(install);
+
+      // If one of the internal XPIs was multipackage then move its linked
+      // installs to the outer install
+      if (install.linkedInstalls) {
+        this.linkedInstalls.push(...install.linkedInstalls);
+        install.linkedInstalls = null;
+      }
+
+      install.sourceURI = this.sourceURI;
+      install.releaseNotesURI = this.releaseNotesURI;
+      if (install.state != AddonManager.STATE_DOWNLOAD_FAILED)
+        install.updateAddonURIs();
+    }
+  }),
+
+  /**
    * Loads add-on manifests from a multi-package XPI file. Each of the
    * XPI and JAR files contained in the XPI will be extracted. Any that
    * do not contain valid add-ons will be ignored. The first valid add-on will
@@ -5346,97 +5312,58 @@ AddonInstall.prototype = {
    * @param  aZipReader
    *         An open nsIZipReader for the multi-package XPI's files. This will
    *         be closed before this method returns.
-   * @param  aCallback
-   *         A function to call when all of the add-on manifests have been
-   *         loaded. Because this loadMultipackageManifests is an internal API
-   *         we don't exception-wrap this callback
    */
   _loadMultipackageManifests: Task.async(function* AI_loadMultipackageManifests(aZipReader) {
     let files = [];
     let entries = aZipReader.findEntries("(*.[Xx][Pp][Ii]|*.[Jj][Aa][Rr])");
     while (entries.hasMore()) {
       let entryName = entries.getNext();
-      var target = getTemporaryFile();
+      let file = getTemporaryFile();
       try {
-        aZipReader.extract(entryName, target);
-        files.push(target);
+        aZipReader.extract(entryName, file);
+        files.push({ entryName, file });
       }
       catch (e) {
         logger.warn("Failed to extract " + entryName + " from multi-package " +
              "XPI", e);
-        target.remove(false);
+        file.remove(false);
       }
     }
 
     aZipReader.close();
 
     if (files.length == 0) {
-      throw new Error("Multi-package XPI does not contain any packages " +
-                      "to install");
+      return Promise.reject([AddonManager.ERROR_CORRUPT_FILE,
+                             "Multi-package XPI does not contain any packages to install"]);
     }
 
     let addon = null;
 
-    // Find the first file that has a valid install manifest and use it for
+    // Find the first file that is a valid install and use it for
     // the add-on that this AddonInstall instance will install.
-    while (files.length > 0) {
+    for (let { entryName, file } of files) {
       this.removeTemporaryFile();
-      this.file = files.shift();
-      this.ownsTempFile = true;
       try {
-        addon = yield loadManifestFromZipFile(this.file);
-        break;
+        yield this.loadManifest(file);
+        logger.debug("Base multi-package XPI install came from " + entryName);
+        this.file = file;
+        this.ownsTempFile = true;
+
+        yield this._createLinkedInstalls(files.filter(f => f.file != file));
+        return;
       }
       catch (e) {
-        logger.warn(this.file.leafName + " cannot be installed from multi-package " +
-             "XPI", e);
+        // _createLinkedInstalls will log errors when it tries to process this
+        // file
       }
     }
 
-    if (!addon) {
-      // No valid add-on was found
-      return;
-    }
+    // No valid add-on was found, delete all the temporary files
+    for (let { file } of files)
+      file.remove(true);
 
-    this.addon = addon;
-
-    this.updateAddonURIs();
-
-    this.addon._install = this;
-    this.name = this.addon.selectedLocale.name;
-    this.type = this.addon.type;
-    this.version = this.addon.version;
-
-    // Setting the iconURL to something inside the XPI locks the XPI and
-    // makes it impossible to delete on Windows.
-    //let newIcon = createWrapper(this.addon).iconURL;
-    //if (newIcon)
-    //  this.iconURL = newIcon;
-
-    // Create new AddonInstall instances for every remaining file
-    if (files.length > 0) {
-      this.linkedInstalls = [];
-      let self = this;
-      for (let file of files) {
-        let install = yield new Promise(resolve => AddonInstall.createInstall(resolve, file));
-
-        // Ignore bad add-ons (createInstall will have logged the error)
-        if (install.state == AddonManager.STATE_DOWNLOAD_FAILED) {
-          // Manually remove the temporary file
-          file.remove(true);
-        }
-        else {
-          // Make the new install own its temporary file
-          install.ownsTempFile = true;
-
-          self.linkedInstalls.push(install)
-
-          install.sourceURI = self.sourceURI;
-          install.releaseNotesURI = self.releaseNotesURI;
-          install.updateAddonURIs();
-        }
-      }
-    }
+    return Promise.reject([AddonManager.ERROR_CORRUPT_FILE,
+                           "Multi-package XPI does not contain any valid packages to install"]);
   }),
 
   /**
@@ -5448,11 +5375,11 @@ AddonInstall.prototype = {
    * @throws if the add-on does not contain a valid install manifest or the
    *         XPI is incorrectly signed
    */
-  loadManifest: Task.async(function* AI_loadManifest() {
+  loadManifest: Task.async(function* AI_loadManifest(file) {
     let zipreader = Cc["@mozilla.org/libjar/zip-reader;1"].
                     createInstance(Ci.nsIZipReader);
     try {
-      zipreader.open(this.file);
+      zipreader.open(file);
     }
     catch (e) {
       zipreader.close();
@@ -5770,7 +5697,7 @@ AddonInstall.prototype = {
         }
 
         let self = this;
-        this.loadManifest().then(() => {
+        this.loadManifest(this.file).then(() => {
           if (self.addon.isCompatible) {
             self.downloadCompleted();
           }
@@ -5859,9 +5786,10 @@ AddonInstall.prototype = {
         self.install();
 
         if (self.linkedInstalls) {
-          self.linkedInstalls.forEach(function(aInstall) {
-            aInstall.install();
-          });
+          for (let install of self.linkedInstalls) {
+            if (install.state == AddonManager.STATE_DOWNLOADED)
+              install.install();
+          }
         }
       }
     });
@@ -6487,7 +6415,7 @@ AddonInternal.prototype = {
   get selectedLocale() {
     if (this._selectedLocale)
       return this._selectedLocale;
-    let locale = findClosestLocale(this.locales);
+    let locale = Locale.findClosestLocale(this.locales);
     this._selectedLocale = locale ? locale : this.defaultLocale;
     return this._selectedLocale;
   },

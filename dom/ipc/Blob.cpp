@@ -1075,6 +1075,8 @@ BlobDataFromBlobImpl(BlobImpl* aBlobImpl, BlobData& aBlobData)
   const nsTArray<nsRefPtr<BlobImpl>>* subBlobs = aBlobImpl->GetSubBlobImpls();
 
   if (subBlobs) {
+    MOZ_ASSERT(subBlobs->Length());
+
     aBlobData = nsTArray<BlobData>();
 
     nsTArray<BlobData>& subBlobDatas = aBlobData.get_ArrayOfBlobData();
@@ -1097,8 +1099,6 @@ BlobDataFromBlobImpl(BlobImpl* aBlobImpl, BlobData& aBlobData)
     aBlobData = actor->ParentID();
     return;
   }
-
-  MOZ_ASSERT(aBlobImpl->IsMemoryFile());
 
   ErrorResult rv;
   nsCOMPtr<nsIInputStream> inputStream;
@@ -1489,7 +1489,7 @@ RemoteInputStream::BlockAndGetInternalStream()
   return mStream;
 }
 
-} // anonymous namespace
+} // namespace
 
 StaticAutoPtr<BlobParent::IDTable> BlobParent::sIDTable;
 StaticAutoPtr<Mutex> BlobParent::sIDTableMutex;
@@ -2153,6 +2153,9 @@ public:
 
   virtual void
   LookupAndCacheIsDirectory() override;
+
+  virtual void
+  SetIsDirectory(bool aIsDir) override;
 
   virtual bool
   IsDirectory() const override;
@@ -2944,6 +2947,13 @@ RemoteBlobImpl::LookupAndCacheIsDirectory()
   return mBlobImpl->LookupAndCacheIsDirectory();
 }
 
+void
+BlobParent::
+RemoteBlobImpl::SetIsDirectory(bool aIsDir)
+{
+  return mBlobImpl->SetIsDirectory(aIsDir);
+}
+
 bool
 BlobParent::
 RemoteBlobImpl::IsDirectory() const
@@ -3294,7 +3304,7 @@ BlobChild::AssertIsOnOwningThread() const
 void
 BlobChild::Startup(const FriendKey& /* aKey */)
 {
-  MOZ_ASSERT(XRE_GetProcessType() != GeckoProcessType_Default);
+  MOZ_ASSERT(!XRE_IsParentProcess());
 
   CommonStartup();
 }
@@ -3822,7 +3832,7 @@ BlobParent::AssertIsOnOwningThread() const
 void
 BlobParent::Startup(const FriendKey& /* aKey */)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_IsParentProcess());
 
   CommonStartup();
 

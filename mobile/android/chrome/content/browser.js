@@ -44,9 +44,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
 XPCOMUtils.defineLazyModuleGetter(this, "Messaging",
                                   "resource://gre/modules/Messaging.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
-                                  "resource://gre/modules/devtools/dbg-server.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "UserAgentOverrides",
                                   "resource://gre/modules/UserAgentOverrides.jsm");
 
@@ -130,6 +127,7 @@ let lazilyLoadedBrowserScripts = [
   ["Linkifier", "chrome://browser/content/Linkify.js"],
   ["ZoomHelper", "chrome://browser/content/ZoomHelper.js"],
   ["CastingApps", "chrome://browser/content/CastingApps.js"],
+  ["RemoteDebugger", "chrome://browser/content/RemoteDebugger.js"],
 ];
 if (AppConstants.NIGHTLY_BUILD) {
   lazilyLoadedBrowserScripts.push(
@@ -305,10 +303,8 @@ XPCOMUtils.defineLazyModuleGetter(
       // This is called only once when we receive a message for the first time.
       // With this, we trigger the import of Webapps.jsm and forward the message
       // to the real registry.
-      DOMApplicationRegistry.registryReady.then(() => {
-        DOMApplicationRegistry.receiveMessage.apply(
-            DOMApplicationRegistry, arguments);
-      });
+      return DOMApplicationRegistry.receiveMessage.apply(
+          DOMApplicationRegistry, arguments);
     }
   }
 );
@@ -456,6 +452,7 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Tab:Load", false);
     Services.obs.addObserver(this, "Tab:Selected", false);
     Services.obs.addObserver(this, "Tab:Closed", false);
+    Services.obs.addObserver(this, "Tab:ToggleMuteAudio", false);
     Services.obs.addObserver(this, "Session:Back", false);
     Services.obs.addObserver(this, "Session:Forward", false);
     Services.obs.addObserver(this, "Session:Navigate", false);
@@ -694,27 +691,35 @@ var BrowserApp = {
         });
       });
 
-    NativeWindow.contextmenus.add(stringGetter("contextmenu.openInPrivateTab"),
-      NativeWindow.contextmenus.linkOpenableContext,
-      function(aTarget) {
-        UITelemetry.addEvent("action.1", "contextmenu", null, "web_open_private_tab");
-        UITelemetry.addEvent("loadurl.1", "contextmenu", null);
+    let showOpenInPrivateTab = true;
+    if ("@mozilla.org/parental-controls-service;1" in Cc) {
+      let pc = Cc["@mozilla.org/parental-controls-service;1"].createInstance(Ci.nsIParentalControlsService);
+      showOpenInPrivateTab = pc.isAllowed(Ci.nsIParentalControlsService.PRIVATE_BROWSING);
+    }
 
-        let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-        ContentAreaUtils.urlSecurityCheck(url, aTarget.ownerDocument.nodePrincipal);
-        let tab = BrowserApp.addTab(url, { selected: false, parentId: BrowserApp.selectedTab.id, isPrivate: true });
+    if (showOpenInPrivateTab) {
+      NativeWindow.contextmenus.add(stringGetter("contextmenu.openInPrivateTab"),
+        NativeWindow.contextmenus.linkOpenableContext,
+        function (aTarget) {
+          UITelemetry.addEvent("action.1", "contextmenu", null, "web_open_private_tab");
+          UITelemetry.addEvent("loadurl.1", "contextmenu", null);
 
-        let newtabStrings = Strings.browser.GetStringFromName("newprivatetabpopup.opened");
-        let label = PluralForm.get(1, newtabStrings).replace("#1", 1);
-        let buttonLabel = Strings.browser.GetStringFromName("newtabpopup.switch");
-        NativeWindow.toast.show(label, "long", {
-          button: {
-            icon: "drawable://switch_button_icon",
-            label: buttonLabel,
-            callback: () => { BrowserApp.selectTab(tab); },
-          }
+          let url = NativeWindow.contextmenus._getLinkURL(aTarget);
+          ContentAreaUtils.urlSecurityCheck(url, aTarget.ownerDocument.nodePrincipal);
+          let tab = BrowserApp.addTab(url, {selected: false, parentId: BrowserApp.selectedTab.id, isPrivate: true});
+
+          let newtabStrings = Strings.browser.GetStringFromName("newprivatetabpopup.opened");
+          let label = PluralForm.get(1, newtabStrings).replace("#1", 1);
+          let buttonLabel = Strings.browser.GetStringFromName("newtabpopup.switch");
+          NativeWindow.toast.show(label, "long", {
+            button: {
+              icon: "drawable://switch_button_icon",
+              label: buttonLabel,
+              callback: () => { BrowserApp.selectTab(tab); },
+            }
+          });
         });
-      });
+    }
 
     NativeWindow.contextmenus.add(stringGetter("contextmenu.addToReadingList"),
       NativeWindow.contextmenus.linkOpenableContext,
@@ -1755,21 +1760,29 @@ var BrowserApp = {
               docShell.mixedContentChannel = null;
             }
           } else if (data.contentType === "tracking") {
+            // Convert document URI into the format used by
+            // nsChannelClassifier::ShouldEnableTrackingProtection
+            // (any scheme turned into https is correct)
+            let normalizedUrl = Services.io.newURI("https://" + browser.currentURI.hostPort, null, null);
             if (data.allowContent) {
-              // Convert document URI into the format used by
-              // nsChannelClassifier::ShouldEnableTrackingProtection
-              // (any scheme turned into https is correct)
-              let normalizedUrl = Services.io.newURI("https://" + browser.currentURI.hostPort, null, null);
               // Add the current host in the 'trackingprotection' consumer of
               // the permission manager using a normalized URI. This effectively
               // places this host on the tracking protection white list.
-              Services.perms.add(normalizedUrl, "trackingprotection", Services.perms.ALLOW_ACTION);
+              if (PrivateBrowsingUtils.isBrowserPrivate(browser)) {
+                PrivateBrowsingUtils.addToTrackingAllowlist(normalizedUrl);
+              } else {
+                Services.perms.add(normalizedUrl, "trackingprotection", Services.perms.ALLOW_ACTION);
+              }
               Telemetry.addData("TRACKING_PROTECTION_EVENTS", 1);
             } else {
               // Remove the current host from the 'trackingprotection' consumer
               // of the permission manager. This effectively removes this host
               // from the tracking protection white list (any list actually).
-              Services.perms.remove(browser.currentURI.host, "trackingprotection");
+              if (PrivateBrowsingUtils.isBrowserPrivate(browser)) {
+                PrivateBrowsingUtils.removeFromTrackingAllowlist(normalizedUrl);
+              } else {
+                Services.perms.remove(normalizedUrl, "trackingprotection");
+              }
               Telemetry.addData("TRACKING_PROTECTION_EVENTS", 2);
             }
           }
@@ -1849,6 +1862,13 @@ var BrowserApp = {
       case "Tab:Closed": {
         let data = JSON.parse(aData);
         this._handleTabClosed(this.getTabForId(data.tabId), data.showUndoToast);
+        break;
+      }
+
+      case "Tab:ToggleMuteAudio": {
+        let data = JSON.parse(aData);
+        let tab = this.getTabForId(data.tabId);
+        tab.toggleMuteAudio();
         break;
       }
 
@@ -3046,11 +3066,6 @@ var NativeWindow = {
       clipboard.copyString(aString);
     },
 
-    _shareStringWithDefault: function(aSharedString, aTitle) {
-      let sharing = Cc["@mozilla.org/uriloader/external-sharing-app-service;1"].getService(Ci.nsIExternalSharingAppService);
-      sharing.shareWithDefault(aSharedString, "text/plain", aTitle);
-    },
-
     _stripScheme: function(aString) {
       let index = aString.indexOf(":");
       return aString.slice(index + 1);
@@ -3571,6 +3586,8 @@ Tab.prototype = {
     this.browser.addEventListener("DOMLinkChanged", this, true);
     this.browser.addEventListener("DOMMetaAdded", this, false);
     this.browser.addEventListener("DOMTitleChanged", this, true);
+    this.browser.addEventListener("DOMMediaPlaybackStarted", this, true);
+    this.browser.addEventListener("DOMMediaPlaybackStopped", this, true);
     this.browser.addEventListener("DOMWindowClose", this, true);
     this.browser.addEventListener("DOMWillOpenModalDialog", this, true);
     this.browser.addEventListener("DOMAutoComplete", this, true);
@@ -3753,6 +3770,8 @@ Tab.prototype = {
     this.browser.removeEventListener("DOMLinkChanged", this, true);
     this.browser.removeEventListener("DOMMetaAdded", this, false);
     this.browser.removeEventListener("DOMTitleChanged", this, true);
+    this.browser.removeEventListener("DOMMediaPlaybackStarted", this, true);
+    this.browser.removeEventListener("DOMMediaPlaybackStopped", this, true);
     this.browser.removeEventListener("DOMWindowClose", this, true);
     this.browser.removeEventListener("DOMWillOpenModalDialog", this, true);
     this.browser.removeEventListener("DOMAutoComplete", this, true);
@@ -4236,6 +4255,14 @@ Tab.prototype = {
     }
   },
 
+  toggleMuteAudio: function() {
+    if (this.browser.audioMuted) {
+      this.browser.unmute();
+    } else {
+      this.browser.mute();
+    }
+  },
+
   handleEvent: function(aEvent) {
     switch (aEvent.type) {
       case "DOMContentLoaded": {
@@ -4375,6 +4402,26 @@ Tab.prototype = {
           title: truncate(aEvent.target.title, MAX_TITLE_LENGTH)
         });
         break;
+      }
+
+      case "DOMMediaPlaybackStarted":
+      case "DOMMediaPlaybackStopped": {
+        if (!Services.prefs.getBoolPref("browser.tabs.showAudioPlayingIcon") ||
+            !aEvent.isTrusted) {
+          return;
+        }
+
+        let browser = aEvent.originalTarget;
+        if (browser != this.browser) {
+          return;
+        }
+
+        Messaging.sendRequest({
+          type: "Tab:AudioPlayingChange",
+          tabID: this.id,
+          isAudioPlaying: aEvent.type === "DOMMediaPlaybackStarted"
+        });
+        return;
       }
 
       case "DOMWindowClose": {
@@ -4687,7 +4734,9 @@ Tab.prototype = {
       this.contentDocumentIsDisplayed = false;
       this.hasTouchListener = false;
     } else {
-      this.sendViewportUpdate();
+      setTimeout(function() {
+        this.sendViewportUpdate();
+      }.bind(this), 0);
     }
   },
 
@@ -5318,6 +5367,9 @@ var BrowserEventHandler = {
         if (this._inCluster && this._clickInZoomedView != true) {
           this._clusterClicked(x, y);
         } else {
+          if (this._clickInZoomedView != true) {
+            this._closeZoomedView();
+          }
           // The _highlightElement was chosen after fluffing the touch events
           // that led to this SingleTap, so by fluffing the mouse events, they
           // should find the same target since we fluff them again below.
@@ -5346,6 +5398,12 @@ var BrowserEventHandler = {
         dump('BrowserEventHandler.handleUserEvent: unexpected topic "' + aTopic + '"');
         break;
     }
+  },
+
+  _closeZoomedView: function() {
+    Messaging.sendRequest({
+      type: "Gesture:CloseZoomedView"
+    });
   },
 
   _clusterClicked: function(aX, aY) {
@@ -6002,6 +6060,10 @@ var FormAssistant = {
       aCallback(false);
       return;
     }
+    if (this._isDisabledElement(aElement)) {
+      aCallback(false);
+      return;
+    }
 
     // Don't display the form auto-complete popup after the user starts typing
     // to avoid confusing somes IME. See bug 758820 and bug 632744.
@@ -6068,6 +6130,17 @@ var FormAssistant = {
 
   _hideFormAssistPopup: function _hideFormAssistPopup() {
     Messaging.sendRequest({ type: "FormAssist:Hide" });
+  },
+
+  _isDisabledElement : function(aElement) {
+    let currentElement = aElement;
+    while (currentElement) {
+      if(currentElement.disabled)
+	return true;
+
+      currentElement = currentElement.parentElement;
+    }
+    return false;
   }
 };
 
@@ -6569,7 +6642,7 @@ var ViewportHandler = {
         minZoom: kViewportMinScale,
         maxZoom: kViewportMaxScale,
         width: kDefaultCSSViewportWidth,
-        height: kDefaultCSSViewportHeight,
+        height: -1,
         allowZoom: true,
         allowDoubleTapZoom: true,
         isSpecified: false
@@ -7020,7 +7093,7 @@ var IdentityHandler = {
   // Loaded active mixed content. Yellow triangle icon is shown.
   MIXED_MODE_CONTENT_LOADED: "mixed_content_loaded",
 
-  // The following tracking content modes are only used if "privacy.trackingprotection.enabled"
+  // The following tracking content modes are only used if tracking protection
   // is enabled. Our Java frontend coalesces them into one indicator.
 
   // No tracking content information. No tracking content icon is shown.
@@ -7091,22 +7164,25 @@ var IdentityHandler = {
 
     // Only show an indicator for loaded mixed content if the pref to block it is enabled
     if ((aState & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) &&
-         Services.prefs.getBoolPref("security.mixed_content.block_active_content")) {
+         !Services.prefs.getBoolPref("security.mixed_content.block_active_content")) {
       return this.MIXED_MODE_CONTENT_LOADED;
     }
 
     return this.MIXED_MODE_UNKNOWN;
   },
 
-  getTrackingMode: function getTrackingMode(aState) {
+  getTrackingMode: function getTrackingMode(aState, aBrowser) {
     if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_TRACKING_CONTENT) {
       Telemetry.addData("TRACKING_PROTECTION_SHIELD", 2);
       return this.TRACKING_MODE_CONTENT_BLOCKED;
     }
 
     // Only show an indicator for loaded tracking content if the pref to block it is enabled
-    if ((aState & Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT) &&
-         Services.prefs.getBoolPref("privacy.trackingprotection.enabled")) {
+    let tpEnabled = Services.prefs.getBoolPref("privacy.trackingprotection.enabled") ||
+                    (Services.prefs.getBoolPref("privacy.trackingprotection.pbmode.enabled") &&
+                     PrivateBrowsingUtils.isBrowserPrivate(aBrowser));
+
+    if ((aState & Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT) && tpEnabled) {
       Telemetry.addData("TRACKING_PROTECTION_SHIELD", 1);
       return this.TRACKING_MODE_CONTENT_LOADED;
     }
@@ -7143,7 +7219,7 @@ var IdentityHandler = {
 
     let identityMode = this.getIdentityMode(aState);
     let mixedMode = this.getMixedMode(aState);
-    let trackingMode = this.getTrackingMode(aState);
+    let trackingMode = this.getTrackingMode(aState, aBrowser);
     let result = {
       origin: locationObj.origin,
       mode: {
@@ -7541,126 +7617,6 @@ var ActivityObserver = {
     if (tab && tab.getActive() != isForeground) {
       tab.setActive(isForeground);
     }
-  }
-};
-
-var RemoteDebugger = {
-  init: function rd_init() {
-    Services.prefs.addObserver("devtools.debugger.", this, false);
-
-    if (this._isEnabled())
-      this._start();
-  },
-
-  observe: function rd_observe(aSubject, aTopic, aData) {
-    if (aTopic != "nsPref:changed")
-      return;
-
-    switch (aData) {
-      case "devtools.debugger.remote-enabled":
-        if (this._isEnabled())
-          this._start();
-        else
-          this._stop();
-        break;
-
-      case "devtools.debugger.remote-port":
-      case "devtools.debugger.unix-domain-socket":
-        if (this._isEnabled())
-          this._restart();
-        break;
-    }
-  },
-
-  _getPort: function _rd_getPort() {
-    return Services.prefs.getIntPref("devtools.debugger.remote-port");
-  },
-
-  _getPath: function _rd_getPath() {
-    return Services.prefs.getCharPref("devtools.debugger.unix-domain-socket");
-  },
-
-  _isEnabled: function rd_isEnabled() {
-    return Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
-  },
-
-  /**
-   * Prompt the user to accept or decline the incoming connection.
-   * This is passed to DebuggerService.init as a callback.
-   *
-   * @return An AuthenticationResult value.
-   *         A promise that will be resolved to the above is also allowed.
-   */
-  _showConnectionPrompt: function rd_showConnectionPrompt() {
-    let title = Strings.browser.GetStringFromName("remoteIncomingPromptTitle");
-    let msg = Strings.browser.GetStringFromName("remoteIncomingPromptMessage");
-    let disable = Strings.browser.GetStringFromName("remoteIncomingPromptDisable");
-    let cancel = Strings.browser.GetStringFromName("remoteIncomingPromptCancel");
-    let agree = Strings.browser.GetStringFromName("remoteIncomingPromptAccept");
-
-    // Make prompt. Note: button order is in reverse.
-    let prompt = new Prompt({
-      window: null,
-      hint: "remotedebug",
-      title: title,
-      message: msg,
-      buttons: [ agree, cancel, disable ],
-      priority: 1
-    });
-
-    // The debugger server expects a synchronous response, so spin on result since Prompt is async.
-    let result = null;
-
-    prompt.show(function(data) {
-      result = data.button;
-    });
-
-    // Spin this thread while we wait for a result.
-    let thread = Services.tm.currentThread;
-    while (result == null)
-      thread.processNextEvent(true);
-
-    if (result === 0)
-      return DebuggerServer.AuthenticationResult.ALLOW;
-    if (result === 2) {
-      return DebuggerServer.AuthenticationResult.DISABLE_ALL;
-    }
-    return DebuggerServer.AuthenticationResult.DENY;
-  },
-
-  _restart: function rd_restart() {
-    this._stop();
-    this._start();
-  },
-
-  _start: function rd_start() {
-    try {
-      if (!DebuggerServer.initialized) {
-        DebuggerServer.init();
-        DebuggerServer.addBrowserActors();
-        DebuggerServer.registerModule("resource://gre/modules/dbg-browser-actors.js");
-        DebuggerServer.allowChromeProcess = true;
-      }
-
-      let pathOrPort = this._getPath();
-      if (!pathOrPort)
-        pathOrPort = this._getPort();
-      let AuthenticatorType = DebuggerServer.Authenticators.get("PROMPT");
-      let authenticator = new AuthenticatorType.Server();
-      authenticator.allowConnection = this._showConnectionPrompt.bind(this);
-      let listener = DebuggerServer.createListener();
-      listener.portOrPath = pathOrPort;
-      listener.authenticator = authenticator;
-      listener.open();
-      dump("Remote debugger listening at path " + pathOrPort);
-    } catch(e) {
-      dump("Remote debugger didn't start: " + e);
-    }
-  },
-
-  _stop: function rd_start() {
-    DebuggerServer.closeAllListeners();
-    dump("Remote debugger stopped");
   }
 };
 

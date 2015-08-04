@@ -273,8 +273,7 @@ FrameAnimator::GetCompositedFrame(uint32_t aFrameNum)
 
   // If we have a composited version of this frame, return that.
   if (mLastCompositedFrameIndex == int32_t(aFrameNum)) {
-    return LookupResult(mCompositingFrame->DrawableRef(),
-                        /* aIsExactMatch = */ true);
+    return LookupResult(mCompositingFrame->DrawableRef(), MatchType::EXACT);
   }
 
   // Otherwise return the raw frame. DoBlend is required to ensure that we only
@@ -313,7 +312,7 @@ FrameAnimator::GetTimeoutForFrame(uint32_t aFrameNum) const
   // It seems that there are broken tools out there that set a 0ms or 10ms
   // timeout when they really want a "default" one.  So munge values in that
   // range.
-  if (data.mRawTimeout >= 0 && data.mRawTimeout <= 10 && mLoopCount != 0) {
+  if (data.mRawTimeout >= 0 && data.mRawTimeout <= 10) {
     return 100;
   }
 
@@ -335,12 +334,9 @@ DoCollectSizeOfCompositingSurfaces(const RawAccessFrameRef& aSurface,
   SurfaceMemoryCounter counter(key, /* aIsLocked = */ true, aType);
 
   // Extract the surface's memory usage information.
-  size_t heap = aSurface
-    ->SizeOfExcludingThis(gfxMemoryLocation::IN_PROCESS_HEAP, aMallocSizeOf);
+  size_t heap = 0, nonHeap = 0;
+  aSurface->AddSizeOfExcludingThis(aMallocSizeOf, heap, nonHeap);
   counter.Values().SetDecodedHeap(heap);
-
-  size_t nonHeap = aSurface
-    ->SizeOfExcludingThis(gfxMemoryLocation::IN_PROCESS_NONHEAP, nullptr);
   counter.Values().SetDecodedNonHeap(nonHeap);
 
   // Record it.

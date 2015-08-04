@@ -55,6 +55,7 @@
 #include "mozilla/Likely.h"
 #include "mozilla/TypedEnumBits.h"
 #include "RuleProcessorCache.h"
+#include "nsIDOMMutationEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -171,7 +172,7 @@ private:
 // Uses any of the sets of ops below.
 struct RuleHashTableEntry : public PLDHashEntryHdr {
   // If you add members that have heap allocated memory be sure to change the
-  // logic in SizeOfRuleHashTableEntry().
+  // logic in SizeOfRuleHashTable().
   // Auto length 1, because we always have at least one entry in mRules.
   nsAutoTArray<RuleValue, 1> mRules;
 };
@@ -746,10 +747,14 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
 }
 
 static size_t
-SizeOfRuleHashTableEntry(PLDHashEntryHdr* aHdr, MallocSizeOf aMallocSizeOf, void *)
+SizeOfRuleHashTable(const PLDHashTable& aTable, MallocSizeOf aMallocSizeOf)
 {
-  RuleHashTableEntry* entry = static_cast<RuleHashTableEntry*>(aHdr);
-  return entry->mRules.SizeOfExcludingThis(aMallocSizeOf);
+  size_t n = aTable.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  for (auto iter = aTable.ConstIter(); !iter.Done(); iter.Next()) {
+    auto entry = static_cast<RuleHashTableEntry*>(iter.Get());
+    n += entry->mRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  }
+  return n;
 }
 
 size_t
@@ -757,23 +762,15 @@ RuleHash::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {
   size_t n = 0;
 
-  n += PL_DHashTableSizeOfExcludingThis(&mIdTable,
-                                        SizeOfRuleHashTableEntry,
-                                        aMallocSizeOf);
+  n += SizeOfRuleHashTable(mIdTable, aMallocSizeOf);
 
-  n += PL_DHashTableSizeOfExcludingThis(&mClassTable,
-                                        SizeOfRuleHashTableEntry,
-                                        aMallocSizeOf);
+  n += SizeOfRuleHashTable(mClassTable, aMallocSizeOf);
 
-  n += PL_DHashTableSizeOfExcludingThis(&mTagTable,
-                                        SizeOfRuleHashTableEntry,
-                                        aMallocSizeOf);
+  n += SizeOfRuleHashTable(mTagTable, aMallocSizeOf);
 
-  n += PL_DHashTableSizeOfExcludingThis(&mNameSpaceTable,
-                                        SizeOfRuleHashTableEntry,
-                                        aMallocSizeOf);
+  n += SizeOfRuleHashTable(mNameSpaceTable, aMallocSizeOf);
 
-  n += mUniversalRules.SizeOfExcludingThis(aMallocSizeOf);
+  n += mUniversalRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
 
   return n;
 }
@@ -923,26 +920,14 @@ struct RuleCascadeData {
 };
 
 static size_t
-SizeOfSelectorsEntry(PLDHashEntryHdr* aHdr, MallocSizeOf aMallocSizeOf, void *)
+SizeOfSelectorsHashTable(const PLDHashTable& aTable, MallocSizeOf aMallocSizeOf)
 {
-  AtomSelectorEntry* entry = static_cast<AtomSelectorEntry*>(aHdr);
-  return entry->mSelectors.SizeOfExcludingThis(aMallocSizeOf);
-}
-
-static size_t
-SizeOfKeyframesRuleEntryExcludingThis(nsStringHashKey::KeyType aKey,
-                                      nsCSSKeyframesRule* const& aData,
-                                      mozilla::MallocSizeOf aMallocSizeOf,
-                                      void* aUserArg)
-{
-  // We don't own the nsCSSKeyframesRule objects so we don't count them. We do
-  // care about the size of the keys' nsAString members' buffers though.
-  //
-  // Note that we depend on nsStringHashKey::GetKey() returning a reference,
-  // since otherwise aKey would be a copy of the string key and we would not be
-  // measuring the right object here.
-
-  return aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
+  size_t n = aTable.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  for (auto iter = aTable.ConstIter(); !iter.Done(); iter.Next()) {
+    auto entry = static_cast<AtomSelectorEntry*>(iter.Get());
+    n += entry->mSelectors.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  }
+  return n;
 }
 
 size_t
@@ -956,33 +941,36 @@ RuleCascadeData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
       n += mPseudoElementRuleHashes[i]->SizeOfIncludingThis(aMallocSizeOf);
   }
 
-  n += mStateSelectors.SizeOfExcludingThis(aMallocSizeOf);
+  n += mStateSelectors.ShallowSizeOfExcludingThis(aMallocSizeOf);
 
-  n += PL_DHashTableSizeOfExcludingThis(&mIdSelectors,
-                                        SizeOfSelectorsEntry, aMallocSizeOf);
-  n += PL_DHashTableSizeOfExcludingThis(&mClassSelectors,
-                                        SizeOfSelectorsEntry, aMallocSizeOf);
+  n += SizeOfSelectorsHashTable(mIdSelectors, aMallocSizeOf);
+  n += SizeOfSelectorsHashTable(mClassSelectors, aMallocSizeOf);
 
-  n += mPossiblyNegatedClassSelectors.SizeOfExcludingThis(aMallocSizeOf);
-  n += mPossiblyNegatedIDSelectors.SizeOfExcludingThis(aMallocSizeOf);
+  n += mPossiblyNegatedClassSelectors.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  n += mPossiblyNegatedIDSelectors.ShallowSizeOfExcludingThis(aMallocSizeOf);
 
-  n += PL_DHashTableSizeOfExcludingThis(&mAttributeSelectors,
-                                        SizeOfSelectorsEntry, aMallocSizeOf);
-  n += PL_DHashTableSizeOfExcludingThis(&mAnonBoxRules,
-                                        SizeOfRuleHashTableEntry, aMallocSizeOf);
+  n += SizeOfSelectorsHashTable(mAttributeSelectors, aMallocSizeOf);
+  n += SizeOfRuleHashTable(mAnonBoxRules, aMallocSizeOf);
 #ifdef MOZ_XUL
-  n += PL_DHashTableSizeOfExcludingThis(&mXULTreeRules,
-                                        SizeOfRuleHashTableEntry, aMallocSizeOf);
+  n += SizeOfRuleHashTable(mXULTreeRules, aMallocSizeOf);
 #endif
 
-  n += mFontFaceRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mKeyframesRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mFontFeatureValuesRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mPageRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mCounterStyleRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mKeyframesRuleTable.SizeOfExcludingThis(SizeOfKeyframesRuleEntryExcludingThis,
-                                               aMallocSizeOf,
-                                               nullptr);
+  n += mFontFaceRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  n += mKeyframesRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  n += mFontFeatureValuesRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  n += mPageRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  n += mCounterStyleRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
+
+  n += mKeyframesRuleTable.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  for (auto iter = mKeyframesRuleTable.ConstIter(); !iter.Done(); iter.Next()) {
+    // We don't own the nsCSSKeyframesRule objects so we don't count them. We
+    // do care about the size of the keys' nsAString members' buffers though.
+    //
+    // Note that we depend on nsStringHashKey::GetKey() returning a reference,
+    // since otherwise aKey would be a copy of the string key and we would not
+    // be measuring the right object here.
+    n += iter.Key().SizeOfExcludingThisIfUnshared(aMallocSizeOf);
+  }
 
   return n;
 }
@@ -2807,17 +2795,39 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
     }
 
     if (aData->mAttribute == nsGkAtoms::_class) {
+      const nsAttrValue* otherClasses = aData->mOtherValue;
+      NS_ASSERTION(otherClasses ||
+                   aData->mModType == nsIDOMMutationEvent::REMOVAL,
+                   "All class values should be StoresOwnData and parsed"
+                   "via Element::BeforeSetAttr, so available here");
+      // For WillChange, enumerate classes that will be removed to see which
+      // rules apply before the change.
+      // For Changed, enumerate classes that have been added to see which rules
+      // apply after the change.
+      // In both cases we're interested in the classes that are currently on
+      // the element but not in mOtherValue.
       const nsAttrValue* elementClasses = aData->mElement->GetClasses();
       if (elementClasses) {
         int32_t atomCount = elementClasses->GetAtomCount();
-        for (int32_t i = 0; i < atomCount; ++i) {
-          nsIAtom* curClass = elementClasses->AtomAt(i);
-          AtomSelectorEntry *entry =
-            static_cast<AtomSelectorEntry*>
-                       (PL_DHashTableSearch(&cascade->mClassSelectors,
-                                            curClass));
-          if (entry) {
-            EnumerateSelectors(entry->mSelectors, &data);
+        if (atomCount > 0) {
+          nsTHashtable<nsPtrHashKey<nsIAtom>> otherClassesTable;
+          if (otherClasses) {
+            int32_t otherClassesCount = otherClasses->GetAtomCount();
+            for (int32_t i = 0; i < otherClassesCount; ++i) {
+              otherClassesTable.PutEntry(otherClasses->AtomAt(i));
+            }
+          }
+          for (int32_t i = 0; i < atomCount; ++i) {
+            nsIAtom* curClass = elementClasses->AtomAt(i);
+            if (!otherClassesTable.Contains(curClass)) {
+              AtomSelectorEntry *entry =
+                static_cast<AtomSelectorEntry*>
+                           (PL_DHashTableSearch(&cascade->mClassSelectors,
+                                                curClass));
+              if (entry) {
+                EnumerateSelectors(entry->mSelectors, &data);
+              }
+            }
           }
         }
       }
@@ -2906,7 +2916,7 @@ nsCSSRuleProcessor::CloneMQCacheKey()
 nsCSSRuleProcessor::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {
   size_t n = 0;
-  n += mSheets.SizeOfExcludingThis(aMallocSizeOf);
+  n += mSheets.ShallowSizeOfExcludingThis(aMallocSizeOf);
   for (RuleCascadeData* cascade = mRuleCascades; cascade;
        cascade = cascade->mNext) {
     n += cascade->SizeOfIncludingThis(aMallocSizeOf);

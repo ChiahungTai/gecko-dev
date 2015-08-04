@@ -31,6 +31,7 @@
 .standalone .conversation-toolbar {
   padding: 20px;
   height: 64px;
+  border: none;
 }
 
 .standalone .focus-stream {
@@ -54,7 +55,7 @@
     margin-right: 16px;
   }
 
-.btn-screen-share-entry {
+.btn-edit-entry {
   float: right !important;
   border-left: 1px solid #5a5a5a;
 }
@@ -210,10 +211,15 @@
 }
 
 /* Screen share button */
+.btn-mute-edit,
 .btn-screen-share {
   position: relative;
-  background-image: url(../img/icons-16x16.svg#screen-white);
+  background-image: url(../img/icons-10x10.svg#edit-white);
   background-size: 16px 16px;
+}
+
+.btn-screen-share {
+  background-image: url(../img/icons-16x16.svg#screen-white);
   width: 42px;
 }
 
@@ -225,6 +231,10 @@
 .btn-screen-share.active {
   background-image: url(../img/icons-16x16.svg#screenmute-white);
   background-color: #6CB23E;
+}
+
+.btn-mute-edit.muted,
+.btn-screen-share.active {
   opacity: 1;
 }
 
@@ -413,56 +423,47 @@
 }
 
 /* Feedback form */
-
-.feedback {
-  padding: 14px;
-}
-
-.feedback p {
-  margin: 0px;
-}
-
-.feedback h3 {
-  color: #666;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-  margin: 0 0 1em 0;
-}
-
-.feedback .faces {
+.feedback-view-container {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  flex-wrap: nowrap;
   justify-content: center;
-  padding: 20px 0;
+  align-content: center;
+  align-items: flex-start;
+  height: 100%;
 }
 
-.feedback .face {
-  border: 1px solid transparent;
-  box-shadow: 0 1px 2px #CCC;
-  cursor: pointer;
-  border-radius: 4px;
-  margin: 0 10px;
-  width: 80px;
-  height: 80px;
-  background-color: #fbfbfb;
-  background-size: 60px auto;
-  background-position: center center;
+.feedback-heading {
+  margin: 1em 0;
+  width: 100%;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+.feedback-hello-logo {
+  background-image: url("../img/helloicon.svg");
+  background-position: center;
+  background-size: contain;
   background-repeat: no-repeat;
+  flex: 2 1 auto;
+  width: 100%;
+  margin: 30px 0;
 }
 
-.feedback .face:hover {
-  border: 1px solid #DDD;
-  background-color: #FEFEFE;
+.feedback-button-container {
+  flex: 0 1 auto;
+  margin: 30px;
+  align-self: center;
 }
 
-.feedback .face.face-happy {
-  background-image: url("../img/happy.png");
-}
-
-.feedback .face.face-sad {
-  background-image: url("../img/sad.png");
+.feedback-button-container button {
+  margin: 0 30px;
+  padding: .5em 2em;
+  border: none;
+  background: #4E92DF;
+  color: #fff;
+  cursor: pointer;
 }
 
 .fx-embedded-btn-back {
@@ -501,28 +502,6 @@
   font-size: 10px;
   color: #CCC;
   text-align: center;
-}
-
-.fx-embedded .local-stream {
-  position: absolute;
-  right: 3px;
-  bottom: 5px;
-  /* next two lines are workaround for lack of object-fit; see bug 1020445 */
-  max-width: 140px;
-  width: 30%;
-  height: 28%;
-  max-height: 105px;
-}
-
-.fx-embedded .local-stream.room-preview {
-  top: 0px;
-  left: 0px;
-  right: 0px;
-  bottom: 0px;
-  height: 100%;
-  width: 100%;
-  max-width: none;
-  max-height: none;
 }
 
 .conversation .media.nested .focus-stream {
@@ -591,13 +570,9 @@
   z-index: 1;
 }
 
-.remote .avatar {
+.remote > .avatar {
   /* make visually distinct from local avatar */
   opacity: 0.25;
-}
-
-.fx-embedded .media.nested {
-  min-height: 200px;
 }
 
 .fx-embedded-call-identifier {
@@ -674,7 +649,9 @@
  * */
 html, .fx-embedded, #main,
 .video-layout-wrapper,
-.conversation {
+.conversation,
+.desktop-call-wrapper,
+.desktop-room-wrapper {
   height: 100%;
 }
 
@@ -930,15 +907,17 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
 }
 
 .room-context {
-  background: rgba(0,0,0,.6);
+  background: rgba(0,0,0,.8);
   border-top: 2px solid #444;
   border-bottom: 2px solid #444;
   padding: .5rem;
-  max-height: 400px;
   position: absolute;
   left: 0;
   bottom: 0;
   width: 100%;
+  /* Stretch to the maximum available space whilst not covering the conversation
+     toolbar (26px). */
+  height: calc(100% - 26px);
   font-size: .9em;
   display: flex;
   flex-flow: column nowrap;
@@ -947,13 +926,7 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
   overflow-x: hidden;
   overflow-y: auto;
   /* Make the context view float atop the video elements. */
-  z-index: 2;
-}
-
-.room-context.editMode {
-  /* Stretch to the maximum available space whilst not covering the conversation
-     toolbar (26px). */
-  height: calc(100% - 26px);
+  z-index: 3;
 }
 
 .room-invitation-overlay .room-context {
@@ -961,29 +934,7 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
   left: auto;
   bottom: auto;
   flex: 0 1 auto;
-}
-
-.room-invitation-overlay .room-context.editMode {
   height: 100%;
-}
-
-.room-context-content {
-  flex: 1 1 auto;
-  text-align: start;
-  display: flex;
-  flex-flow: row nowrap;
-  font-size: .9em;
-}
-
-.room-context-thumbnail {
-  /* 16px icon size + 3px border width. */
-  width: 19px;
-  max-height: 19px;
-  border: 3px solid #fff;
-  border-radius: 3px;
-  background-color: #fff;
-  -moz-margin-end: 1ch;
-  flex: 0 1 auto;
 }
 
 .room-context > .error-display-area.error {
@@ -1011,7 +962,7 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
   margin-bottom: 1em;
 }
 
-.room-context-description,
+.room-context-label,
 .room-context > .checkbox-wrapper > label {
   color: #fff;
 }
@@ -1020,7 +971,6 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
   color: #707070;
 }
 
-.room-context-description,
 .room-context-comment {
   word-wrap: break-word;
 }
@@ -1079,8 +1029,7 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
   align-self: flex-end;
 }
 
-.room-context-btn-close,
-.room-context-btn-edit {
+.room-context-btn-close {
   position: absolute;
   right: 8px;
   /* 8px offset + 2px border-top */
@@ -1096,42 +1045,30 @@ body[platform="win"] .share-service-dropdown.overflow > .dropdown-menu-item {
   cursor: pointer;
 }
 
-.room-context-btn-edit {
-  right: 20px;
-  background-image: url("../img/icons-10x10.svg#edit-darkergrey");
-}
-
-.room-context-btn-edit:hover,
-.room-context-btn-edit:hover:active {
-  background-image: url("../img/icons-10x10.svg#edit-active");
-}
-
 .room-context-btn-close:hover,
 .room-context-btn-close:hover:active {
   background-image: url("../img/icons-10x10.svg#close-active");
 }
 
-html[dir="rtl"] .room-context-btn-close,
-html[dir="rtl"] .room-context-btn-edit {
+html[dir="rtl"] .room-context-btn-close {
   right: auto;
   left: 8px;
 }
 
-html[dir="rtl"] .room-context-btn-edit {
-  left: 20px;
+.media-layout {
+  height: 100%;
 }
 
-.media-layout {
-  /* 50px is the header, 3em is the footer. */
-  height: calc(100% - 50px - 3em);
+.standalone-room-wrapper > .media-layout {
+  /* 50px is the header, 64px for toolbar, 3em is the footer. */
+  height: calc(100% - 50px - 64px - 3em);
+  margin: 0 10px;
 }
 
 .media-layout > .media-wrapper {
   display: flex;
   flex-flow: column wrap;
-  /* 64px for .conversation-toolbar */
-  height: calc(100% - 64px);
-  margin: 0 10px;
+  height: 100%;
 }
 
 .media-wrapper > .focus-stream {
@@ -1177,6 +1114,14 @@ html[dir="rtl"] .room-context-btn-edit {
   height: calc(100% - 300px);
 }
 
+.desktop-call-wrapper > .media-layout > .media-wrapper > .text-chat-view,
+.desktop-room-wrapper > .media-layout > .media-wrapper > .text-chat-view {
+  /* Account for height of .conversation-toolbar on desktop */
+  /* When we change the toolbar in bug 1184559 we can remove this. */
+  margin-top: 26px;
+  height: calc(100% - 150px - 26px);
+}
+
 /* Temporarily slaved from .media-wrapper until we use it in more places
    to avoid affecting the conversation window on desktop. */
 .media-wrapper > .text-chat-view > .text-chat-entries {
@@ -1215,17 +1160,19 @@ html[dir="rtl"] .room-context-btn-edit {
 }
 
 @media screen and (max-width:640px) {
-  .media-layout {
-    /* 50px is height of header, 25px is height of footer. */
-    height: calc(100% - 50px - 25px);
+  .media-layout-wrapper {
+    height: 100%;
+  }
+
+  .standalone-room-wrapper > .media-layout {
+    /* 50px is height of header, 38px is height of toolbar, 25px is height of footer. */
+    height: calc(100% - 50px - 38px - 25px);
   }
 
   .media-layout > .media-wrapper {
     flex-direction: row;
     margin: 0;
     width: 100%;
-    /* conversation toolbar is 38px in narrow mode */
-    height: calc(100% - 38px);
   }
 
   .media-wrapper > .focus-stream {
@@ -1240,7 +1187,7 @@ html[dir="rtl"] .room-context-btn-edit {
 
   /* Temporarily slaved from .media-wrapper until we use it in more places
      to avoid affecting the conversation window on desktop. */
-  .media-wrapper > .text-chat-view > .text-chat-entries {
+  .text-chat-view > .text-chat-entries {
     /* 40px is the height of .text-chat-box. */
     height: calc(100% - 40px);
     width: 100%;
@@ -1251,19 +1198,25 @@ html[dir="rtl"] .room-context-btn-edit {
     height: 100%;
   }
 
-  .media-wrapper > .local {
+  .media-wrapper > .focus-stream > .local {
     /* Position over the remote video */
     position: absolute;
     /* Make sure its on top */
-    z-index: 1001;
+    z-index: 2;
     margin: 3px;
     right: 0;
     /* 29px is (30% of 50px high header) + (height toolbar (38px) +
        height footer (25px) - height header (50px)) */
-    bottom: calc(30% + 29px);
+    bottom: 0;
     width: 120px;
     height: 120px;
   }
+
+  .standalone-room-wrapper > .media-layout > .media-wrapper > .local {
+    /* Add 10px for the margin on standalone */
+    right: 10px;
+  }
+
 
   html[dir="rtl"] .media-wrapper > .local {
     right: auto;
@@ -1280,6 +1233,15 @@ html[dir="rtl"] .room-context-btn-edit {
   .media-wrapper.showing-local-streams > .text-chat-view,
   .media-wrapper.showing-local-streams.receiving-screen-share > .text-chat-view {
     /* The remaining 30% that the .focus-stream doesn't use. */
+    height: 30%;
+  }
+
+  .desktop-call-wrapper > .media-layout > .media-wrapper > .text-chat-view,
+  .desktop-room-wrapper > .media-layout > .media-wrapper > .text-chat-view {
+    /* When we change the toolbar in bug 1184559 we can remove this. */
+    /* Reset back to 0 for .conversation-toolbar override on desktop */
+    margin-top: 0;
+    /* This is temp, to echo the .media-wrapper > .text-chat-view above */
     height: 30%;
   }
 
@@ -1321,6 +1283,47 @@ html[dir="rtl"] .room-context-btn-edit {
 
   .media-wrapper.receiving-screen-share > .text-chat-view {
     order: 4;
+  }
+}
+
+/* e.g. very narrow widths similar to conversation window */
+@media screen and (max-width:300px) {
+  .media-layout > .media-wrapper {
+    flex-flow: column nowrap;
+  }
+
+  .media-wrapper > .focus-stream > .local {
+    position: absolute;
+    right: 0;
+    /* 30% is the height of the text chat. As we have a margin,
+       we don't need to worry about any offset for a border */
+    bottom: 0;
+    margin: 3px;
+    object-fit: contain;
+    /* These make the avatar look reasonable and the local
+       video not too big */
+    width: 25%;
+    height: 25%;
+  }
+
+  .media-wrapper:not(.showing-remote-streams) > .focus-stream > .no-video {
+    display: none;
+  }
+
+  .media-wrapper:not(.showing-remote-streams) > .focus-stream > .local {
+    position: relative;
+    margin: 0;
+    right: auto;
+    left: auto;
+    bottom: auto;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+  }
+
+  .media-wrapper > .focus-stream {
+    flex: 1 1 auto;
+    height: auto;
   }
 }
 
@@ -1377,7 +1380,9 @@ html[dir="rtl"] .standalone .room-conversation-wrapper .room-inner-info-area {
   background-repeat: no-repeat;
   border: 1rem #fff solid;
   box-shadow: 0 0 5px #000;
-  margin: 0;
+  margin: auto;
+  /* `width` here is specified by the design spec. */
+  width: 250px;
 }
 
 .standalone .prompt-media-message.chrome {
@@ -1451,31 +1456,10 @@ html[dir="rtl"] .standalone .room-conversation-wrapper .room-inner-info-area {
   height: auto;
 }
 
-/* Text chat in rooms styles */
-
-.fx-embedded .room-conversation-wrapper {
-  display: flex;
-  flex-flow: column nowrap;
-}
-
-.fx-embedded .video-layout-wrapper {
-  flex: 1 1 auto;
-}
+/* Text chat in styles */
 
 .text-chat-view {
   background: white;
-}
-
-.fx-embedded .text-chat-view {
-  flex: 1 0 auto;
-  display: flex;
-  flex-flow: column nowrap;
-}
-
-.fx-embedded .text-chat-entries {
-  flex: 1 1 auto;
-  max-height: 120px;
-  min-height: 60px;
 }
 
 .text-chat-box {
@@ -1492,12 +1476,18 @@ html[dir="rtl"] .standalone .room-conversation-wrapper .room-inner-info-area {
 .text-chat-entry {
   display: flex;
   flex-direction: row;
+  margin-right: .2em;
   margin-bottom: .5em;
   text-align: end;
   flex-wrap: nowrap;
   justify-content: flex-start;
   align-content: stretch;
   align-items: flex-start;
+}
+
+html[dir="rtl"] .text-chat-entry {
+  margin-right: auto;
+  margin-left: .2em;
 }
 
 .text-chat-entry > p {
@@ -1510,9 +1500,8 @@ html[dir="rtl"] .standalone .room-conversation-wrapper .room-inner-info-area {
   max-width: 80%;
   border-width: 1px;
   border-style: solid;
-  border-color: #2ea4ff;
+  border-color: #5cccee;
   background: #fff;
-  word-wrap: break-word;
   word-wrap: break-word;
   flex: 0 1 auto;
   align-self: auto;
@@ -1561,11 +1550,10 @@ html[dir="rtl"] .text-chat-entry.received > p {
 
 /* Text chat entry timestamp */
 .text-chat-entry-timestamp {
-  margin: 0 .2em;
+  margin: 0 .5em;
   color: #aaa;
   font-style: italic;
   font-size: .8em;
-  order: 0;
   flex: 0 1 auto;
   align-self: center;
 }
@@ -1577,10 +1565,6 @@ html[dir="rtl"] .text-chat-entry.received > p {
 
 .received > .text-chat-entry-timestamp {
   order: 2;
-}
-
-.sent > .text-chat-entry-timestamp {
-  order: 0;
 }
 
 /* Pseudo element used to cover part between chat bubble and chat arrow. */
@@ -1649,7 +1633,6 @@ html[dir="rtl"] .text-chat-entry.received > p:after {
   margin-right: -9px;
   height: 10px;
   background-image: url("../img/chatbubble-arrow-left.svg");
-  order: 0;
   align-self: auto;
 }
 
@@ -1696,7 +1679,32 @@ html[dir="rtl"] .text-chat-entry.received .text-chat-arrow {
   padding: 0 .5em .5em;
   font-size: 1.1em;
   border: 0;
-  border-top: 1px solid #999;
+  border-top: 1px solid #d8d8d8;
+}
+
+.text-chat-box > form > input::-webkit-input-placeholder {
+  font-size: 1.1em;
+  color: #999;
+}
+
+.text-chat-box > form > input::-moz-placeholder {
+  font-size: 1.1em;
+  color: #999;
+}
+
+.text-chat-box > form > input:-moz-placeholder {
+  font-size: 1.1em;
+  color: #999;
+}
+
+.text-chat-box > form > input:-ms-input-placeholder {
+  font-size: 1.1em;
+  color: #999;
+}
+
+.text-chat-box > form > input:input-placeholder {
+  font-size: 1.1em;
+  color: #999;
 }
 
 /* turn the visible border blue as a visual indicator of focus */
@@ -1745,6 +1753,47 @@ html[dir="rtl"] .text-chat-entry.received .text-chat-arrow {
   .standalone .media.nested {
     /* This forces the remote video stream to fit within wrapper's height */
     min-height: 0px;
+  }
+}
+
+/* e.g. very narrow widths similar to conversation window */
+@media screen and (max-width:300px) {
+  .text-chat-view {
+    flex: 0 0 auto;
+    display: flex;
+    flex-flow: column nowrap;
+    /* 120px max-height of .text-chat-entries plus 40px of .text-chat-box */
+    max-height: 160px;
+    /* 60px min-height of .text-chat-entries plus 40px of .text-chat-box */
+    min-height: 100px;
+    /* The !important is to override the values defined above which have more
+       specificity when we fix bug 1184559, we should be able to remove it,
+       but this should be tests first. */
+    height: auto !important;
+  }
+
+  .text-chat-entries {
+    /* The !important is to override the values defined above which have more
+       specificity when we fix bug 1184559, we should be able to remove it,
+       but this should be tests first. */
+    flex: 1 1 auto !important;
+    max-height: 120px;
+    min-height: 60px;
+  }
+
+  .text-chat-entries-empty.text-chat-disabled {
+    display: none;
+  }
+
+  /* When the text chat entries are not present, then hide the entries view
+     and just show the chat box. */
+  .text-chat-entries-empty {
+    max-height: 40px;
+    min-height: 40px;
+  }
+
+  .text-chat-entries-empty > .text-chat-entries {
+    display: none;
   }
 }
 

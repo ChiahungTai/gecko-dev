@@ -46,6 +46,8 @@
 #include "SurfaceTexture.h"
 #include "GLContextProvider.h"
 
+#include "ANRReporter.h"
+
 using namespace mozilla;
 using namespace mozilla::gfx;
 using namespace mozilla::jni;
@@ -79,7 +81,7 @@ jclass AndroidBridge::GetClassGlobalRef(JNIEnv* env, const char* className)
         classRef = ClassObject::LocalRef::Adopt(env,
                 env->CallObjectMethod(sBridge->mClassLoader.Get(),
                                       sBridge->mClassLoaderLoadClass,
-                                      Param<String>::Type(className, env).Get()));
+                                      Param<String>(className, env).Get()));
     }
 
     if (!classRef) {
@@ -249,6 +251,7 @@ AndroidBridge::Init(JNIEnv *jEnv, Object::Param clsLoader)
     jAvailable = inputStream.getMethod("available", "()I");
 
     InitAndroidJavaWrappers(jEnv);
+    ANRReporter::Init();
 
     // jEnv should NOT be cached here by anything -- the jEnv here
     // is not valid for the real gecko main thread, which is set
@@ -469,6 +472,27 @@ AndroidBridge::GetHandlersForMimeType(const nsAString& aMimeType,
                                aDefaultApp, aAction,
                                NS_ConvertUTF16toUTF8(aMimeType));
     return true;
+}
+
+bool
+AndroidBridge::GetHWEncoderCapability()
+{
+  ALOG_BRIDGE("AndroidBridge::GetHWEncoderCapability");
+
+  bool value = GeckoAppShell::GetHWEncoderCapability();
+
+  return value;
+}
+
+
+bool
+AndroidBridge::GetHWDecoderCapability()
+{
+  ALOG_BRIDGE("AndroidBridge::GetHWDecoderCapability");
+
+  bool value = GeckoAppShell::GetHWDecoderCapability();
+
+  return value;
 }
 
 bool
@@ -740,7 +764,8 @@ AndroidBridge::CreateEGLSurfaceForCompositor()
     }
 
     JNIEnv* const env = GetJNIForThread(); // called on the compositor thread
-    return reinterpret_cast<EGLSurface>(
+    return reinterpret_cast<EGLSurface>(mAPIVersion >= 20 ?
+            env->GetLongField(eglSurface.Get(), jEGLSurfacePointerField) :
             env->GetIntField(eglSurface.Get(), jEGLSurfacePointerField));
 }
 
@@ -1651,9 +1676,9 @@ AndroidBridge::GetScreenOrientation()
 }
 
 void
-AndroidBridge::ScheduleComposite()
+AndroidBridge::InvalidateAndScheduleComposite()
 {
-    nsWindow::ScheduleComposite();
+    nsWindow::InvalidateAndScheduleComposite();
 }
 
 nsresult

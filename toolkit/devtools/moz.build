@@ -19,6 +19,7 @@ DIRS += [
     'shared',
     'styleinspector',
     'tern',
+    'touch',
     'transport',
     'webconsole'
 ]
@@ -34,16 +35,14 @@ EXTRA_JS_MODULES.devtools += [
     'DevToolsUtils.js',
     'event-emitter.js',
     'event-parsers.js',
+    'layout-helpers.js',
     'output-parser.js',
     'path.js',
-    'touch-events.js',
     'worker-loader.js',
 ]
 
 EXTRA_JS_MODULES.devtools += [
     'Console.jsm',
-    'DevToolsUtils.jsm',
-    'LayoutHelpers.jsm',
     'Loader.jsm',
     'Require.jsm',
 ]

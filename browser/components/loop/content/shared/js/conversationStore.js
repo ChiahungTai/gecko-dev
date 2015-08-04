@@ -6,6 +6,8 @@ var loop = loop || {};
 loop.store = loop.store || {};
 
 (function() {
+  "use strict";
+
   var sharedActions = loop.shared.actions;
   var CALL_TYPES = loop.shared.utils.CALL_TYPES;
   var REST_ERRNOS = loop.shared.utils.REST_ERRNOS;
@@ -144,21 +146,6 @@ loop.store = loop.store || {};
      * @param {sharedActions.ConnectionFailure} actionData The action data.
      */
     connectionFailure: function(actionData) {
-      /**
-       * XXX This is a workaround for desktop machines that do not have a
-       * camera installed. As we don't yet have device enumeration, when
-       * we do, this can be removed (bug 1138851), and the sdk should handle it.
-       */
-      if (this._isDesktop &&
-          actionData.reason === FAILURE_DETAILS.UNABLE_TO_PUBLISH_MEDIA &&
-          this.getStoreState().videoMuted === false) {
-        // We failed to publish with media, so due to the bug, we try again without
-        // video.
-        this.setStoreState({videoMuted: true});
-        this.sdkDriver.retryPublishWithoutVideo();
-        return;
-      }
-
       this._endSession();
       this.setStoreState({
         callState: CALL_STATES.TERMINATED,
@@ -439,11 +426,14 @@ loop.store = loop.store || {};
         maxSize: loop.store.MAX_ROOM_CREATION_SIZE,
         expiresIn: loop.store.DEFAULT_EXPIRES_IN
       }, function(err, createdRoomData) {
+        var buckets = this.mozLoop.ROOM_CREATE;
         if (err) {
           this.trigger("error:emailLink");
+          this.mozLoop.telemetryAddValue("LOOP_ROOM_CREATE", buckets.CREATE_FAIL);
           return;
         }
         this.setStoreState({"emailLink": createdRoomData.roomUrl});
+        this.mozLoop.telemetryAddValue("LOOP_ROOM_CREATE", buckets.CREATE_SUCCESS);
       }.bind(this));
     },
 

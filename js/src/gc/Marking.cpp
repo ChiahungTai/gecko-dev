@@ -35,6 +35,8 @@
 using namespace js;
 using namespace js::gc;
 
+using JS::MapTypeToTraceKind;
+
 using mozilla::ArrayLength;
 using mozilla::DebugOnly;
 using mozilla::IsBaseOf;
@@ -255,7 +257,7 @@ CheckTracedThing<jsid>(JSTracer* trc, jsid id)
 
 #define IMPL_CHECK_TRACED_THING(_, type, __) \
     template void CheckTracedThing<type*>(JSTracer*, type*);
-FOR_EACH_GC_LAYOUT(IMPL_CHECK_TRACED_THING);
+JS_FOR_EACH_TRACEKIND(IMPL_CHECK_TRACED_THING);
 #undef IMPL_CHECK_TRACED_THING
 } // namespace js
 
@@ -404,7 +406,7 @@ template <typename T,
 struct BaseGCType;
 #define IMPL_BASE_GC_TYPE(name, type_, _) \
     template <typename T> struct BaseGCType<T, JS::TraceKind:: name> { typedef type_ type; };
-FOR_EACH_GC_LAYOUT(IMPL_BASE_GC_TYPE);
+JS_FOR_EACH_TRACEKIND(IMPL_BASE_GC_TYPE);
 #undef IMPL_BASE_GC_TYPE
 
 // Our barrier templates are parameterized on the pointer types so that we can
@@ -451,6 +453,15 @@ js::TraceRoot(JSTracer* trc, T* thingp, const char* name)
 
 template <typename T>
 void
+js::TraceNullableRoot(JSTracer* trc, T* thingp, const char* name)
+{
+    AssertRootMarkingPhase(trc);
+    if (InternalGCMethods<T>::isMarkableTaggedPointer(*thingp))
+        DispatchToTracer(trc, ConvertToBase(thingp), name);
+}
+
+template <typename T>
+void
 js::TraceRange(JSTracer* trc, size_t len, BarrieredBase<T>* vec, const char* name)
 {
     JS::AutoTracingIndex index(trc);
@@ -479,6 +490,7 @@ js::TraceRootRange(JSTracer* trc, size_t len, T* vec, const char* name)
     template void js::TraceEdge<type>(JSTracer*, BarrieredBase<type>*, const char*); \
     template void js::TraceManuallyBarrieredEdge<type>(JSTracer*, type*, const char*); \
     template void js::TraceRoot<type>(JSTracer*, type*, const char*); \
+    template void js::TraceNullableRoot<type>(JSTracer*, type*, const char*); \
     template void js::TraceRange<type>(JSTracer*, size_t, BarrieredBase<type>*, const char*); \
     template void js::TraceRootRange<type>(JSTracer*, size_t, type*, const char*);
 FOR_EACH_GC_POINTER_TYPE(INSTANTIATE_ALL_VALID_TRACE_FUNCTIONS)
@@ -544,7 +556,7 @@ js::TraceGenericPointerRoot(JSTracer* trc, Cell** thingp, const char* name)
     if (!*thingp)
         return;
     TraceRootFunctor f;
-    CallTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
+    DispatchTraceKindTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
 }
 
 // A typed functor adaptor for TraceManuallyBarrieredEdge.
@@ -562,7 +574,7 @@ js::TraceManuallyBarrieredGenericPointerEdge(JSTracer* trc, Cell** thingp, const
     if (!*thingp)
         return;
     TraceManuallyBarrieredEdgeFunctor f;
-    CallTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
+    DispatchTraceKindTyped(f, (*thingp)->getTraceKind(), trc, thingp, name);
 }
 
 // This method is responsible for dynamic dispatch to the real tracer
@@ -574,7 +586,7 @@ DispatchToTracer(JSTracer* trc, T* thingp, const char* name)
 {
 #define IS_SAME_TYPE_OR(name, type, _) mozilla::IsSame<type*, T>::value ||
     static_assert(
-            FOR_EACH_GC_LAYOUT(IS_SAME_TYPE_OR)
+            JS_FOR_EACH_TRACEKIND(IS_SAME_TYPE_OR)
             mozilla::IsSame<T, JS::Value>::value ||
             mozilla::IsSame<T, jsid>::value,
             "Only the base cell layout types are allowed into marking/tracing internals");
@@ -1721,7 +1733,7 @@ struct PushArenaFunctor {
 void
 gc::PushArena(GCMarker* gcmarker, ArenaHeader* aheader)
 {
-    CallTyped(PushArenaFunctor(), MapAllocToTraceKind(aheader->getAllocKind()), gcmarker, aheader);
+    DispatchTraceKindTyped(PushArenaFunctor(), MapAllocToTraceKind(aheader->getAllocKind()), gcmarker, aheader);
 }
 
 #ifdef DEBUG
@@ -1803,8 +1815,8 @@ template void
 StoreBuffer::MonoTypeBuffer<StoreBuffer::SlotsEdge>::trace(StoreBuffer*, TenuringTracer&);
 template void
 StoreBuffer::MonoTypeBuffer<StoreBuffer::CellPtrEdge>::trace(StoreBuffer*, TenuringTracer&);
-} // namespace js
 } // namespace gc
+} // namespace js
 
 void
 js::gc::StoreBuffer::SlotsEdge::trace(TenuringTracer& mover) const
@@ -1883,7 +1895,7 @@ js::gc::StoreBuffer::ValueEdge::trace(TenuringTracer& mover) const
 void
 js::TenuringTracer::insertIntoFixupList(RelocationOverlay* entry) {
     *tail = entry;
-    tail = &entry->next_;
+    tail = &entry->nextRef();
     *tail = nullptr;
 }
 
@@ -1894,6 +1906,7 @@ js::TenuringTracer::moveToTenured(JSObject* src)
 
     AllocKind dstKind = src->allocKindForTenure(nursery());
     Zone* zone = src->zone();
+
     TenuredCell* t = zone->arenas.allocateFromFreeList(dstKind, Arena::thingSize(dstKind));
     if (!t) {
         zone->arenas.checkEmptyFreeList(dstKind);
@@ -1909,6 +1922,10 @@ js::TenuringTracer::moveToTenured(JSObject* src)
     RelocationOverlay* overlay = RelocationOverlay::fromCell(src);
     overlay->forwardTo(dst);
     insertIntoFixupList(overlay);
+
+    if (MOZ_UNLIKELY(zone->hasDebuggers())) {
+        zone->enqueueForPromotionToTenuredLogging(*dst);
+    }
 
     TracePromoteToTenured(src, dst);
     return dst;
@@ -2101,7 +2118,7 @@ CheckIsMarkedThing(T* thingp)
 {
 #define IS_SAME_TYPE_OR(name, type, _) mozilla::IsSame<type*, T>::value ||
     static_assert(
-            FOR_EACH_GC_LAYOUT(IS_SAME_TYPE_OR)
+            JS_FOR_EACH_TRACEKIND(IS_SAME_TYPE_OR)
             false, "Only the base cell layout types are allowed into marking/tracing internals");
 #undef IS_SAME_TYPE_OR
 

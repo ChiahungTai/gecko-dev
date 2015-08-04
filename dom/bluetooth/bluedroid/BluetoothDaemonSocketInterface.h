@@ -9,11 +9,12 @@
 
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothInterface.h"
-#include "BluetoothInterfaceHelpers.h"
+#include "mozilla/ipc/DaemonRunnables.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-using namespace mozilla::ipc;
+using mozilla::ipc::DaemonSocketPDU;
+using mozilla::ipc::DaemonSocketPDUHeader;
 
 class BluetoothDaemonSocketModule
 {
@@ -58,20 +59,21 @@ private:
   // Responses
   //
 
-  typedef BluetoothResultRunnable0<BluetoothSocketResultHandler, void>
+  typedef mozilla::ipc::DaemonResultRunnable0<
+    BluetoothSocketResultHandler, void>
     ResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
-                                   int, int>
+  typedef mozilla::ipc::DaemonResultRunnable1<
+    BluetoothSocketResultHandler, void, int, int>
     IntResultRunnable;
 
-  typedef BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
-                                   BluetoothStatus, BluetoothStatus>
+  typedef mozilla::ipc::DaemonResultRunnable1<
+    BluetoothSocketResultHandler, void, BluetoothStatus, BluetoothStatus>
     ErrorRunnable;
 
-  typedef BluetoothResultRunnable3<BluetoothSocketResultHandler, void,
-                                   int, nsString, int,
-                                   int, const nsAString_internal&, int>
+  typedef mozilla::ipc::DaemonResultRunnable3<
+    BluetoothSocketResultHandler, void, int, nsString, int, int,
+    const nsAString_internal&, int>
     IntStringIntResultRunnable;
 
   void ErrorRsp(const DaemonSocketPDUHeader& aHeader,

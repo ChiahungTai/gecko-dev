@@ -50,6 +50,7 @@ var ecmaGlobals =
     "Proxy",
     "RangeError",
     "ReferenceError",
+    "Reflect",
     "RegExp",
     "Set",
     {name: "SharedArrayBuffer", nightly: true},
@@ -123,6 +124,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBCursor",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "IDBCursorWithValue",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBDatabase",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBFactory",
@@ -140,6 +143,8 @@ var interfaceNamesInGlobalScope =
     "IDBTransaction",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBVersionChangeEvent",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "ImageBitmap",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "ImageData",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -160,6 +165,10 @@ var interfaceNamesInGlobalScope =
     "PerformanceMeasure",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Promise",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    { name: "PushManager", b2g: false, android: false, release: false },
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    { name: "PushSubscription", b2g: false, android: false, release: false },
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Request",
 // IMPORTANT: Do not change this list without review from a DOM peer!

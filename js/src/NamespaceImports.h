@@ -48,7 +48,7 @@ class MOZ_STACK_CLASS SourceBufferHolder;
 class HandleValueArray;
 
 class ObjectOpResult;
-}
+} // namespace JS
 
 // Do the importing.
 namespace js {
@@ -99,6 +99,7 @@ using JS::NativeImpl;
 using JS::OwningCompileOptions;
 using JS::ReadOnlyCompileOptions;
 using JS::SourceBufferHolder;
+using JS::TransitiveCompileOptions;
 
 using JS::Rooted;
 using JS::RootedFunction;

@@ -574,10 +574,10 @@ static gint
 ensure_menu_popup_widget()
 {
     if (!gMenuPopupWidget) {
-        ensure_menu_bar_item_widget();
+        ensure_window_widget();
         gMenuPopupWidget = gtk_menu_new();
-        gtk_menu_item_set_submenu(GTK_MENU_ITEM(gMenuBarItemWidget),
-                                  gMenuPopupWidget);
+        gtk_menu_attach_to_widget(GTK_MENU(gMenuPopupWidget), gProtoWindow,
+                                  NULL);
         gtk_widget_realize(gMenuPopupWidget);
     }
     return MOZ_GTK_SUCCESS;
@@ -901,9 +901,7 @@ moz_gtk_button_paint(cairo_t *cr, GdkRectangle* rect,
         y += default_top;
         width -= (default_left + default_right);
         height -= (default_top + default_bottom);
-    }
- 
-    if (relief != GTK_RELIEF_NONE || state->depressed ||
+    } else if (relief != GTK_RELIEF_NONE || state->depressed ||
         (state_flags & GTK_STATE_FLAG_PRELIGHT)) {
         /* the following line can trigger an assertion (Crux theme)
            file ../../gdk/gdkwindow.c: line 1846 (gdk_window_clear_area):
@@ -1133,6 +1131,7 @@ static gint
 moz_gtk_scrollbar_trough_paint(GtkThemeWidgetType widget,
                                cairo_t *cr, GdkRectangle* rect,
                                GtkWidgetState* state,
+                               GtkScrollbarTrackFlags flags,
                                GtkTextDirection direction)
 {
     GtkStyleContext* style;
@@ -1147,6 +1146,11 @@ moz_gtk_scrollbar_trough_paint(GtkThemeWidgetType widget,
 
     gtk_widget_set_direction(GTK_WIDGET(scrollbar), direction);
     
+    if (flags & MOZ_GTK_TRACK_OPAQUE) {
+        style = gtk_widget_get_style_context(GTK_WIDGET(gProtoWindow));
+        gtk_render_background(style, cr, rect->x, rect->y, rect->width, rect->height);
+    }
+
     style = gtk_widget_get_style_context(GTK_WIDGET(scrollbar));
     gtk_style_context_save(style);
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_TROUGH);
@@ -1264,7 +1268,7 @@ moz_gtk_scale_paint(cairo_t *cr, GdkRectangle* rect,
                     GtkOrientation flags, GtkTextDirection direction)
 {
   GtkStateFlags state_flags = GetStateFlagsFromGtkWidgetState(state);
-  gint x = 0, y = 0;
+  gint x, y, width, height, min_width, min_height;
   GtkStyleContext* style;
   GtkWidget* widget;
   GtkBorder margin;
@@ -1272,23 +1276,29 @@ moz_gtk_scale_paint(cairo_t *cr, GdkRectangle* rect,
   ensure_scale_widget();
   widget = ((flags == GTK_ORIENTATION_HORIZONTAL) ? gHScaleWidget : gVScaleWidget);
   gtk_widget_set_direction(widget, direction);
+  moz_gtk_get_scale_metrics(flags, &min_width, &min_height);
 
   style = gtk_widget_get_style_context(widget);
   gtk_style_context_save(style);
-  gtk_style_context_add_class(style, GTK_STYLE_CLASS_SCALE);
+  gtk_style_context_add_class(style, GTK_STYLE_CLASS_TROUGH);
   gtk_style_context_get_margin(style, state_flags, &margin); 
 
+  // Clamp the dimension perpendicular to the direction that the slider crosses
+  // to the minimum size.
   if (flags == GTK_ORIENTATION_HORIZONTAL) {
-    x = margin.left;
-    y++;
-  }
-  else {
-    x++;
-    y = margin.top;
+    width = rect->width - (margin.left + margin.right);
+    height = min_height - (margin.top + margin.bottom);
+    x = rect->x + margin.left;
+    y = rect->y + (rect->height - height)/2;
+  } else {
+    width = min_width - (margin.left + margin.right);
+    height = rect->height - (margin.top + margin.bottom);
+    x = rect->x + (rect->width - width)/2;
+    y = rect->y + margin.top;
   }
 
-  gtk_render_frame(style, cr, rect->x + x, rect->y + y,
-                   rect->width - 2*x, rect->height - 2*y);
+  gtk_render_background(style, cr, x, y, width, height);
+  gtk_render_frame(style, cr, x, y, width, height);
 
   if (state->focused)
     gtk_render_focus(style, cr, 
@@ -1909,14 +1919,25 @@ moz_gtk_resizer_paint(cairo_t *cr, GdkRectangle* rect,
     GtkStyleContext* style;
 
     ensure_frame_widget();
-    gtk_widget_set_direction(gStatusbarWidget, direction);
+    gtk_widget_set_direction(gStatusbarWidget, GTK_TEXT_DIR_LTR);
 
     style = gtk_widget_get_style_context(gStatusbarWidget);
     gtk_style_context_save(style);
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_GRIP);
     gtk_style_context_set_state(style, GetStateFlagsFromGtkWidgetState(state));
 
+    // Workaround unico not respecting the text direction for resizers.
+    // See bug 1174248.
+    cairo_save(cr);
+    if (direction == GTK_TEXT_DIR_RTL) {
+      cairo_matrix_t mat;
+      cairo_matrix_init_translate(&mat, 2 * rect->x + rect->width, 0);
+      cairo_matrix_scale(&mat, -1, 1);
+      cairo_transform(cr, &mat);
+    }
+
     gtk_render_handle(style, cr, rect->x, rect->y, rect->width, rect->height);
+    cairo_restore(cr);
     gtk_style_context_restore(style);
 
     return MOZ_GTK_SUCCESS;
@@ -2008,7 +2029,10 @@ moz_gtk_progress_chunk_paint(cairo_t *cr, GdkRectangle* rect,
     }
   
     gtk_render_background(style, cr, rect->x, rect->y, rect->width, rect->height);
-    gtk_render_activity(style, cr, rect->x, rect->y, rect->width, rect->height);
+    // gtk_render_activity was used to render progress chunks on GTK versions
+    // before 3.13.7, see bug 1173907.
+    if (gtk_check_version(3, 13, 7))
+      gtk_render_activity(style, cr, rect->x, rect->y, rect->width, rect->height);
     gtk_style_context_restore(style);
 
     return MOZ_GTK_SUCCESS;
@@ -2993,6 +3017,25 @@ moz_gtk_get_menu_separator_height(gint *size)
     return MOZ_GTK_SUCCESS;
 }
 
+void
+moz_gtk_get_scale_metrics(GtkOrientation orient, gint* scale_width,
+                          gint* scale_height)
+{
+  gint thumb_length, thumb_height, trough_border;
+  GtkWidget* widget = orient == GTK_ORIENTATION_HORIZONTAL ?
+                      gHScaleWidget : gVScaleWidget;
+  moz_gtk_get_scalethumb_metrics(orient, &thumb_length, &thumb_height);
+  gtk_widget_style_get(widget, "trough-border", &trough_border, NULL);
+
+  if (orient == GTK_ORIENTATION_HORIZONTAL) {
+      *scale_width = thumb_length + trough_border * 2;
+      *scale_height = thumb_height + trough_border * 2;
+  } else {
+      *scale_width = thumb_height + trough_border * 2;
+      *scale_height = thumb_length + trough_border * 2;
+  }
+}
+
 gint
 moz_gtk_get_scalethumb_metrics(GtkOrientation orient, gint* thumb_length, gint* thumb_height)
 {
@@ -3093,7 +3136,9 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
     case MOZ_GTK_SCROLLBAR_TRACK_HORIZONTAL:
     case MOZ_GTK_SCROLLBAR_TRACK_VERTICAL:
         return moz_gtk_scrollbar_trough_paint(widget, cr, rect,
-                                              state, direction);
+                                              state,
+                                              (GtkScrollbarTrackFlags) flags,
+                                              direction);
         break;
     case MOZ_GTK_SCROLLBAR_THUMB_HORIZONTAL:
     case MOZ_GTK_SCROLLBAR_THUMB_VERTICAL:

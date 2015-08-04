@@ -28,6 +28,8 @@
 #include "NullHttpTransaction.h"
 #include "nsIDNSRecord.h"
 #include "nsITransport.h"
+#include "nsInterfaceRequestorAgg.h"
+#include "nsISchedulingContext.h"
 #include "nsISocketTransportService.h"
 #include <algorithm>
 #include "mozilla/ChaosMode.h"
@@ -55,7 +57,7 @@ InsertTransactionSorted(nsTArray<nsHttpTransaction*> &pendingQ, nsHttpTransactio
     for (int32_t i=pendingQ.Length()-1; i>=0; --i) {
         nsHttpTransaction *t = pendingQ[i];
         if (trans->Priority() >= t->Priority()) {
-	  if (ChaosMode::isActive(ChaosMode::NetworkScheduling)) {
+	  if (ChaosMode::isActive(ChaosFeature::NetworkScheduling)) {
                 int32_t samePriorityCount;
                 for (samePriorityCount = 0; i - samePriorityCount >= 0; ++samePriorityCount) {
                     if (pendingQ[i - samePriorityCount]->Priority() != trans->Priority()) {
@@ -1780,20 +1782,20 @@ nsHttpConnectionMgr::TryDispatchTransaction(nsConnectionEntry *ent,
         }
     }
 
-    // If this is not a blocking transaction and the loadgroup for it is
+    // If this is not a blocking transaction and the scheduling context for it is
     // currently processing one or more blocking transactions then we
     // need to just leave it in the queue until those are complete unless it is
     // explicitly marked as unblocked.
     if (!(caps & NS_HTTP_LOAD_AS_BLOCKING)) {
         if (!(caps & NS_HTTP_LOAD_UNBLOCKED)) {
-            nsILoadGroupConnectionInfo *loadGroupCI = trans->LoadGroupConnectionInfo();
-            if (loadGroupCI) {
+            nsISchedulingContext *schedulingContext = trans->SchedulingContext();
+            if (schedulingContext) {
                 uint32_t blockers = 0;
-                if (NS_SUCCEEDED(loadGroupCI->GetBlockingTransactionCount(&blockers)) &&
+                if (NS_SUCCEEDED(schedulingContext->GetBlockingTransactionCount(&blockers)) &&
                     blockers) {
                     // need to wait for blockers to clear
-                    LOG(("   blocked by load group: [lgci=%p trans=%p blockers=%d]\n",
-                         loadGroupCI, trans, blockers));
+                    LOG(("   blocked by scheduling context: [sc=%p trans=%p blockers=%d]\n",
+                         schedulingContext, trans, blockers));
                     return NS_ERROR_NOT_AVAILABLE;
                 }
             }
@@ -4102,5 +4104,5 @@ nsHttpConnectionMgr::MoveToWildCardConnEntry(nsHttpConnectionInfo *specificCI,
     }
 }
 
-} // namespace mozilla::net
+} // namespace net
 } // namespace mozilla

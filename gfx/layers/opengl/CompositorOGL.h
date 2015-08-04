@@ -39,7 +39,7 @@ namespace mozilla {
 
 namespace gfx {
 class Matrix4x4;
-}
+} // namespace gfx
 
 namespace layers {
 
@@ -183,6 +183,7 @@ class CompositorOGL final : public Compositor
   typedef mozilla::gl::GLContext GLContext;
 
   friend class GLManagerCompositor;
+  friend class CompositingRenderTargetOGL;
 
   std::map<ShaderConfigOGL, ShaderProgramOGL*> mPrograms;
 public:
@@ -261,9 +262,6 @@ public:
 
   virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) override;
 
-  virtual void PrepareViewport(const gfx::IntSize& aSize) override;
-
-
 #ifdef MOZ_DUMP_PAINTING
   virtual const char* Name() const override { return "OGL"; }
 #endif // MOZ_DUMP_PAINTING
@@ -327,6 +325,8 @@ private:
                         const EffectChain& aEffectChain,
                         gfx::Float aOpacity,
                         const gfx::Matrix4x4& aTransform);
+
+  void PrepareViewport(CompositingRenderTargetOGL *aRenderTarget);
 
   /** Widget associated with this compositor */
   nsIWidget *mWidget;
@@ -462,7 +462,7 @@ private:
   CompositorOGLVRObjects mVR;
 };
 
-}
-}
+} // namespace layers
+} // namespace mozilla
 
 #endif /* MOZILLA_GFX_COMPOSITOROGL_H */

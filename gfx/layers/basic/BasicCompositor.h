@@ -46,7 +46,7 @@ protected:
   virtual ~BasicCompositor();
 
 public:
-  virtual bool Initialize() override { return true; };
+  virtual bool Initialize() override;
 
   virtual void Destroy() override;
 
@@ -109,8 +109,6 @@ public:
   }
 
   virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) override { }
-
-  virtual void PrepareViewport(const gfx::IntSize& aSize) override { }
 
 #ifdef MOZ_DUMP_PAINTING
   virtual const char* Name() const override { return "Basic"; }

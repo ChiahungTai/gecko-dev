@@ -157,19 +157,6 @@ public:
                             GraphicsFilter aFilter,
                             uint32_t aImageFlags);
 
-  /**
-   * Reinitializes an existing imgFrame with new parameters. You must be holding
-   * a RawAccessFrameRef to the imgFrame, and it must never have been written
-   * to, marked finished, or aborted.
-   *
-   * XXX(seth): We will remove this in bug 1117607.
-   */
-  nsresult ReinitForDecoder(const nsIntSize& aImageSize,
-                            const nsIntRect& aRect,
-                            SurfaceFormat aFormat,
-                            uint8_t aPaletteDepth = 0,
-                            bool aNonPremult = false);
-
   DrawableFrameRef DrawableRef();
   RawAccessFrameRef RawAccessRef();
 
@@ -277,8 +264,8 @@ public:
   already_AddRefed<SourceSurface> GetSurface();
   already_AddRefed<DrawTarget> GetDrawTarget();
 
-  size_t SizeOfExcludingThis(gfxMemoryLocation aLocation,
-                             MallocSizeOf aMallocSizeOf) const;
+  void AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf, size_t& aHeapSizeOut,
+                              size_t& aNonHeapSizeOut) const;
 
 private: // methods
 
@@ -355,6 +342,7 @@ private: // data
 
   bool mHasNoAlpha;
   bool mAborted;
+  bool mOptimizable;
 
 
   //////////////////////////////////////////////////////////////////////////////
@@ -384,7 +372,6 @@ private: // data
 
   bool mSinglePixel;
   bool mCompositingFailed;
-  bool mOptimizable;
 };
 
 /**

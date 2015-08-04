@@ -217,7 +217,6 @@ gfxTextRun::SetPotentialLineBreaks(uint32_t aStart, uint32_t aLength,
         if (canBreak && !charGlyphs[i].IsClusterStart()) {
             // This can happen ... there is no guarantee that our linebreaking rules
             // align with the platform's idea of what constitutes a cluster.
-            NS_WARNING("Break suggested inside cluster!");
             canBreak = CompressedGlyph::FLAG_BREAK_TYPE_NONE;
         }
         changed |= charGlyphs[i].SetCanBreakBefore(canBreak);
@@ -1488,7 +1487,7 @@ gfxTextRun::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf)
 {
     // The second arg is how much gfxTextRun::AllocateStorage would have
     // allocated.
-    size_t total = mGlyphRuns.SizeOfExcludingThis(aMallocSizeOf);
+    size_t total = mGlyphRuns.ShallowSizeOfExcludingThis(aMallocSizeOf);
 
     if (mDetailedGlyphs) {
         total += mDetailedGlyphs->SizeOfIncludingThis(aMallocSizeOf);
@@ -1890,6 +1889,9 @@ gfxFontGroup::GetDefaultFont()
                                                              needsBold);
             if (fe) {
                 mDefaultFont = fe->FindOrMakeFont(&mStyle, needsBold);
+                if (mDefaultFont) {
+                    break;
+                }
             }
         }
     }
@@ -2983,16 +2985,40 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges,
 
     aRanges[lastRangeIndex].end = aLength;
 
-#if 0
-    // dump out font matching info
-    if (mStyle.systemFont) return;
-    for (size_t i = 0, i_end = aRanges.Length(); i < i_end; i++) {
-        const gfxTextRange& r = aRanges[i];
-        printf("fontmatch %zd:%zd font: %s (%d)\n",
-               r.start, r.end,
-               (r.font.get() ?
-                    NS_ConvertUTF16toUTF8(r.font->GetName()).get() : "<null>"),
-               r.matchType);
+#ifndef RELEASE_BUILD
+    PRLogModuleInfo *log = (mStyle.systemFont ?
+                            gfxPlatform::GetLog(eGfxLog_textrunui) :
+                            gfxPlatform::GetLog(eGfxLog_textrun));
+
+    if (MOZ_UNLIKELY(MOZ_LOG_TEST(log, LogLevel::Debug))) {
+        nsAutoCString lang;
+        mStyle.language->ToUTF8String(lang);
+        nsAutoString families;
+        mFamilyList.ToString(families);
+
+        // collect the font matched for each range
+        nsAutoCString fontMatches;
+        for (size_t i = 0, i_end = aRanges.Length(); i < i_end; i++) {
+            const gfxTextRange& r = aRanges[i];
+            fontMatches.AppendPrintf(" [%u:%u] %.200s (%s)", r.start, r.end,
+                (r.font.get() ?
+                 NS_ConvertUTF16toUTF8(r.font->GetName()).get() : "<null>"),
+                (r.matchType == gfxTextRange::kFontGroup ?
+                 "list" :
+                 (r.matchType == gfxTextRange::kPrefsFallback) ?
+                  "prefs" : "sys"));
+        }
+        MOZ_LOG(log, LogLevel::Debug,\
+               ("(%s-fontmatching) fontgroup: [%s] default: %s lang: %s script: %d"
+                "%s\n",
+                (mStyle.systemFont ? "textrunui" : "textrun"),
+                NS_ConvertUTF16toUTF8(families).get(),
+                (mFamilyList.GetDefaultFontType() == eFamily_serif ?
+                 "serif" :
+                 (mFamilyList.GetDefaultFontType() == eFamily_sans_serif ?
+                  "sans-serif" : "none")),
+                lang.get(), aRunScript,
+                fontMatches.get()));
     }
 #endif
 }

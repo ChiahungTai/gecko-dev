@@ -60,6 +60,7 @@ include PluginTypes;
 include ProtocolTypes;
 include PContentPermission;
 include BrowserConfiguration;
+include GraphicsMessages;
 
 // Workaround to prevent error if PContentChild.cpp & PContentBridgeParent.cpp
 // are put into different UnifiedProtocolsXX.cpp files.
@@ -71,7 +72,7 @@ include "mozilla/dom/indexedDB/SerializationHelpers.h";
 using GeoPosition from "nsGeoPositionIPCSerialiser.h";
 
 using struct ChromePackage from "mozilla/chrome/RegistryMessageUtils.h";
-using struct ResourceMapping from "mozilla/chrome/RegistryMessageUtils.h";
+using struct SubstitutionMapping from "mozilla/chrome/RegistryMessageUtils.h";
 using struct OverrideMapping from "mozilla/chrome/RegistryMessageUtils.h";
 using base::ChildPrivileges from "base/process_util.h";
 using base::ProcessId from "base/process.h";
@@ -81,8 +82,6 @@ using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
 using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
 using mozilla::dom::asmjscache::OpenMode from "mozilla/dom/asmjscache/AsmJSCache.h";
 using mozilla::dom::asmjscache::WriteParams from "mozilla/dom/asmjscache/AsmJSCache.h";
-using mozilla::dom::AudioChannel from "mozilla/dom/AudioChannelBinding.h";
-using mozilla::dom::AudioChannelState from "AudioChannelCommon.h";
 using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
 using mozilla::dom::quota::PersistenceType from "mozilla/dom/quota/PersistenceType.h";
 using mozilla::hal::ProcessPriority from "mozilla/HalTypes.h";
@@ -96,7 +95,7 @@ union ChromeRegistryItem
 {
     ChromePackage;
     OverrideMapping;
-    ResourceMapping;
+    SubstitutionMapping;
 };
 
 namespace mozilla {
@@ -498,11 +497,6 @@ child:
     PMemoryReportRequest(uint32_t generation, bool anonymize,
                          bool minimizeMemoryUsage, MaybeFileDesc DMDFile);
 
-    /**
-     * Notify the AudioChannelService in the child processes.
-     */
-    async AudioChannelNotify();
-
     async SpeakerManagerNotify();
 
     /**
@@ -528,7 +522,7 @@ child:
 
     PTestShell();
 
-    RegisterChrome(ChromePackage[] packages, ResourceMapping[] resources,
+    RegisterChrome(ChromePackage[] packages, SubstitutionMapping[] substitutions,
                    OverrideMapping[] overrides, nsCString locale, bool reset);
     RegisterChromeItem(ChromeRegistryItem item);
 
@@ -586,9 +580,6 @@ child:
     // Notify volume is removed.
     VolumeRemoved(nsString fsName);
 
-    // Ask the Nuwa process to create a new child process.
-    NuwaFork();
-
     NotifyProcessPriorityChanged(ProcessPriority priority);
     MinimizeMemoryUsage();
 
@@ -629,6 +620,7 @@ child:
     async StartProfiler(uint32_t aEntries, double aInterval, nsCString[] aFeatures,
                         nsCString[] aThreadNameFilters);
     async StopProfiler();
+    async PauseProfiler(bool aPause);
 
     async GatherProfile();
 
@@ -656,6 +648,12 @@ child:
      * Send gamepad status update to child.
      */
     GamepadUpdate(GamepadChangeEvent aGamepadEvent);
+
+    /**
+     * Tell the child that for testing purposes, a graphics device reset has
+     * occurred.
+     */
+    async TestGraphicsDeviceReset(uint32_t aReason);
 parent:
     /**
      * Tell the content process some attributes of itself.  This is
@@ -732,7 +730,7 @@ parent:
 
     sync PCrashReporter(NativeThreadId tid, uint32_t processType);
 
-    sync GetRandomValues(uint32_t length)
+    prio(urgent) sync GetRandomValues(uint32_t length)
         returns (uint8_t[] randomValues);
 
     async GetSystemMemory(uint64_t getterId);
@@ -740,7 +738,8 @@ parent:
     sync IsSecureURI(uint32_t type, URIParams uri, uint32_t flags)
         returns (bool isSecureURI);
 
-    sync GetLookAndFeelCache(LookAndFeelInt[] lookAndFeelIntCache);
+    sync GetLookAndFeelCache()
+        returns (LookAndFeelInt[] lookAndFeelIntCache);
 
     prio(urgent) async PHal();
 
@@ -870,17 +869,10 @@ parent:
     // Tell the parent that the child has gone idle for the first time
     async FirstIdle();
 
-    // Get Muted from the main AudioChannelService.
-    sync AudioChannelGetState(AudioChannel aChannel, bool aElementHidden,
-                              bool aElementWasHidden)
-        returns (AudioChannelState value);
+    async AudioChannelServiceStatus(bool aActiveTelephonyChannel,
+                                    bool aContentOrNormalChannel,
+                                    bool aAnyActiveChannel);
 
-    sync AudioChannelRegisterType(AudioChannel aChannel, bool aWithVideo);
-    sync AudioChannelUnregisterType(AudioChannel aChannel,
-                                    bool aElementHidden,
-                                    bool aWithVideo);
-
-    async AudioChannelChangedNotification();
     async AudioChannelChangeDefVolChannel(int32_t aChannel, bool aHidden);
 
     sync DataStoreGetStores(nsString aName, nsString aOwner, Principal aPrincipal)
@@ -893,10 +885,6 @@ parent:
 
     // Notify the parent that the child has finished handling a system message.
     async SystemMessageHandled();
-
-    NuwaReady();
-
-    sync AddNewProcess(uint32_t pid, ProtocolFdMapping[] aFds);
 
     // called by the child (test code only) to propagate volume changes to the parent
     async CreateFakeVolume(nsString fsName, nsString mountPoint);
@@ -1065,6 +1053,12 @@ parent:
     GamepadListenerRemoved();
 
     async Profile(nsCString aProfile);
+
+    /**
+     * Request graphics initialization information from the parent.
+     */
+    sync GetGraphicsDeviceInitData()
+        returns (DeviceInitData aData);
 
 both:
      AsyncMessage(nsString aMessage, ClonedMessageData aData,

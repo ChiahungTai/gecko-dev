@@ -117,7 +117,8 @@ nsMutationReceiver::AttributeWillChange(nsIDocument* aDocument,
                                         mozilla::dom::Element* aElement,
                                         int32_t aNameSpaceID,
                                         nsIAtom* aAttribute,
-                                        int32_t aModType)
+                                        int32_t aModType,
+                                        const nsAttrValue* aNewValue)
 {
   if (nsAutoMutationBatch::IsBatching() ||
       !ObservesAttr(RegisterTarget(), aElement, aNameSpaceID, aAttribute)) {
@@ -688,7 +689,11 @@ nsDOMMutationObserver::TakeRecords(
   for (uint32_t i = 0; i < mPendingMutationCount; ++i) {
     nsRefPtr<nsDOMMutationRecord> next;
     current->mNext.swap(next);
-    *aRetVal.AppendElement() = current.forget();
+    if (!mMergeAttributeRecords ||
+        !MergeableAttributeRecord(aRetVal.SafeLastElement(nullptr),
+                                  current)) {
+      *aRetVal.AppendElement() = current.forget();
+    }
     current.swap(next);
   }
   ClearPendingRecords();
@@ -745,6 +750,21 @@ nsDOMMutationObserver::Constructor(const mozilla::dom::GlobalObject& aGlobal,
   return observer.forget();
 }
 
+
+bool
+nsDOMMutationObserver::MergeableAttributeRecord(nsDOMMutationRecord* aOldRecord,
+                                                nsDOMMutationRecord* aRecord)
+{
+  MOZ_ASSERT(mMergeAttributeRecords);
+  return
+    aOldRecord &&
+    aOldRecord->mType == nsGkAtoms::attributes &&
+    aOldRecord->mType == aRecord->mType &&
+    aOldRecord->mTarget == aRecord->mTarget &&
+    aOldRecord->mAttrName == aRecord->mAttrName &&
+    aOldRecord->mAttrNamespace.Equals(aRecord->mAttrNamespace);
+}
+
 void
 nsDOMMutationObserver::HandleMutation()
 {
@@ -776,7 +796,12 @@ nsDOMMutationObserver::HandleMutation()
     for (uint32_t i = 0; i < mPendingMutationCount; ++i) {
       nsRefPtr<nsDOMMutationRecord> next;
       current->mNext.swap(next);
-      *mutations.AppendElement(mozilla::fallible) = current;
+      if (!mMergeAttributeRecords ||
+          !MergeableAttributeRecord(mutations.Length() ?
+                                      mutations.LastElement().get() : nullptr,
+                                    current)) {
+        *mutations.AppendElement(mozilla::fallible) = current;
+      }
       current.swap(next);
     }
   }

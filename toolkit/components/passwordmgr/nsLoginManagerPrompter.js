@@ -16,6 +16,8 @@ const LoginInfo =
       Components.Constructor("@mozilla.org/login-manager/loginInfo;1",
                              "nsILoginInfo", "init");
 
+const BRAND_BUNDLE = "chrome://branding/locale/brand.properties";
+
 /**
  * Constants for password prompt telemetry.
  * Mirrored in mobile/android/components/LoginManagerPrompter.js */
@@ -775,21 +777,26 @@ LoginManagerPrompter.prototype = {
     let { browser } = this._getNotifyWindow();
 
     let saveMsgNames = {
-      prompt: "rememberPasswordMsgNoUsername",
-      buttonLabel: "notifyBarRememberPasswordButtonText",
-      buttonAccessKey: "notifyBarRememberPasswordButtonAccessKey",
+      prompt: login.username === "" ? "rememberLoginMsgNoUser"
+                                    : "rememberLoginMsg",
+      buttonLabel: "rememberLoginButtonText",
+      buttonAccessKey: "rememberLoginButtonAccessKey",
     };
 
     let changeMsgNames = {
-      // We reuse the existing message, even if it expects a username, until we
-      // switch to the final terminology in bug 1144856.
-      prompt: "updatePasswordMsg",
-      buttonLabel: "notifyBarUpdateButtonText",
-      buttonAccessKey: "notifyBarUpdateButtonAccessKey",
+      prompt: login.username === "" ? "updateLoginMsgNoUser"
+                                    : "updateLoginMsg",
+      buttonLabel: "updateLoginButtonText",
+      buttonAccessKey: "updateLoginButtonAccessKey",
     };
 
     let initialMsgNames = type == "password-save" ? saveMsgNames
                                                   : changeMsgNames;
+
+    let brandBundle = Services.strings.createBundle(BRAND_BUNDLE);
+    let brandShortName = brandBundle.GetStringFromName("brandShortName");
+    let promptMsg = type == "password-save" ? this._getLocalizedString(saveMsgNames.prompt, [brandShortName])
+                                            : this._getLocalizedString(changeMsgNames.prompt);
 
     let histogramName = type == "password-save" ? "PWMGR_PROMPT_REMEMBER_ACTION"
                                                 : "PWMGR_PROMPT_UPDATE_ACTION";
@@ -840,14 +847,21 @@ LoginManagerPrompter.prototype = {
     };
 
     let writeDataToUI = () => {
+      // setAttribute is used since the <textbox> binding may not be attached yet.
       chromeDoc.getElementById("password-notification-username")
                .setAttribute("placeholder", usernamePlaceholder);
       chromeDoc.getElementById("password-notification-username")
                .setAttribute("value", login.username);
-      chromeDoc.getElementById("password-notification-password")
-               .setAttribute("value", login.password);
-      chromeDoc.getElementById("password-notification-password")
-               .setAttribute("show-content", showPasswordPlaceholder);
+
+      let passwordField = chromeDoc.getElementById("password-notification-password");
+      // Ensure the type is reset so the field is masked.
+      passwordField.setAttribute("type", "password");
+      passwordField.setAttribute("value", login.password);
+      if (Services.prefs.getBoolPref("signon.rememberSignons.visibilityToggle")) {
+        passwordField.setAttribute("show-content", showPasswordPlaceholder);
+      } else {
+        passwordField.setAttribute("show-content", "");
+      }
       updateButtonLabel();
     };
 
@@ -873,13 +887,14 @@ LoginManagerPrompter.prototype = {
         selectionStart = passwordField.value.length;
         selectionEnd = passwordField.value.length;
       }
-      passwordField.type = "";
+      passwordField.setAttribute("type", "");
       passwordField.selectionStart = selectionStart;
       passwordField.selectionEnd = selectionEnd;
     };
 
     let onPasswordBlur = () => {
-      chromeDoc.getElementById("password-notification-password").type = "password";
+      // Use setAttribute in case the <textbox> binding isn't applied.
+      chromeDoc.getElementById("password-notification-password").setAttribute("type", "password");
     };
 
     let onNotificationClick = (clickEvent) => {
@@ -960,13 +975,13 @@ LoginManagerPrompter.prototype = {
     this._getPopupNote().show(
       browser,
       "password",
-      this._getLocalizedString(initialMsgNames.prompt, [displayHost]),
+      promptMsg,
       "password-notification-icon",
       mainAction,
       secondaryActions,
       {
         timeout: Date.now() + 10000,
-        origin: login.hostname,
+        displayURI: Services.io.newURI(login.hostname, null, null),
         persistWhileVisible: true,
         passwordNotificationType: type,
         eventCallback: function (topic) {
@@ -977,8 +992,10 @@ LoginManagerPrompter.prototype = {
                        .addEventListener("input", onInput);
               chromeDoc.getElementById("password-notification-password")
                        .addEventListener("input", onInput);
-              chromeDoc.getElementById("password-notification-password")
-                       .addEventListener("focus", onPasswordFocus);
+              if (Services.prefs.getBoolPref("signon.rememberSignons.visibilityToggle")) {
+                chromeDoc.getElementById("password-notification-password")
+                         .addEventListener("focus", onPasswordFocus);
+              }
               chromeDoc.getElementById("password-notification-password")
                        .addEventListener("blur", onPasswordBlur);
               break;

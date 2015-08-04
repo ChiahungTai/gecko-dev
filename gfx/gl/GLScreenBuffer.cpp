@@ -40,7 +40,6 @@ GLScreenBuffer::Create(GLContext* gl,
         return Move(ret);
     }
 
-
     layers::TextureFlags flags = layers::TextureFlags::ORIGIN_BOTTOM_LEFT;
     if (!caps.premultAlpha) {
         flags |= layers::TextureFlags::NON_PREMULTIPLIED;
@@ -791,7 +790,8 @@ ReadBuffer::SetReadBuffer(GLenum userMode) const
 
     switch (userMode) {
     case LOCAL_GL_BACK:
-        internalMode = (mFB == 0) ? LOCAL_GL_BACK
+    case LOCAL_GL_FRONT:
+        internalMode = (mFB == 0) ? userMode
                                   : LOCAL_GL_COLOR_ATTACHMENT0;
         break;
 

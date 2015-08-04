@@ -88,8 +88,6 @@ public:
 
   virtual void Mutated(Layer* aLayer) override;
 
-  virtual bool IsOptimizedFor(PaintedLayer* aLayer, PaintedLayerCreationHint aHint) override;
-
   virtual already_AddRefed<PaintedLayer> CreatePaintedLayer() override;
   virtual already_AddRefed<PaintedLayer> CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint) override;
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer() override;
@@ -205,7 +203,7 @@ public:
   virtual bool RequestOverfill(mozilla::dom::OverfillCallback* aCallback) override;
   virtual void RunOverfillCallback(const uint32_t aOverfill) override;
 
-  virtual void DidComposite(uint64_t aTransactionId);
+  void DidComposite(uint64_t aTransactionId);
 
   virtual bool SupportsMixBlendModes(EnumSet<gfx::CompositionOp>& aMixBlendModes) override
   {
@@ -424,7 +422,7 @@ CreateShadowFor(ClientLayer* aLayer,
                   &ShadowLayerForwarder::Created ## _type ## Layer)
 
 
-}
-}
+} // namespace layers
+} // namespace mozilla
 
 #endif /* GFX_CLIENTLAYERMANAGER_H */

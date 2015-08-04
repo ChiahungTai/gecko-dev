@@ -42,6 +42,8 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 const MIXED_CONTENT_LEARN_MORE = "https://developer.mozilla.org/docs/Security/MixedContent";
 
+const TRACKING_PROTECTION_LEARN_MORE = "https://developer.mozilla.org/Firefox/Privacy/Tracking_Protection";
+
 const INSECURE_PASSWORDS_LEARN_MORE = "https://developer.mozilla.org/docs/Security/InsecurePasswords";
 
 const STRICT_TRANSPORT_SECURITY_LEARN_MORE = "https://developer.mozilla.org/docs/Security/HTTP_Strict_Transport_Security";
@@ -1450,10 +1452,20 @@ WebConsoleFrame.prototype = {
       errorMessage = errorMessage.initial;
     }
 
+    let displayOrigin = aScriptError.sourceName;
+
+    // TLS errors are related to the connection and not the resource; therefore
+    // it makes sense to only display the protcol, host and port (prePath).
+    // This also means messages are grouped for a single origin.
+    if (aScriptError.category && aScriptError.category == "SHA-1 Signature") {
+      let sourceURI = Services.io.newURI(aScriptError.sourceName, null, null).QueryInterface(Ci.nsIURL);
+      displayOrigin = sourceURI.prePath;
+    }
+
     // Create a new message
     let msg = new Messages.Simple(errorMessage, {
       location: {
-        url: aScriptError.sourceName,
+        url: displayOrigin,
         line: aScriptError.lineNumber,
         column: aScriptError.columnNumber
       },
@@ -1668,6 +1680,9 @@ WebConsoleFrame.prototype = {
      break;
      case "SHA-1 Signature":
       url = WEAK_SIGNATURE_ALGORITHM_LEARN_MORE;
+     break;
+     case "Tracking Protection":
+      url = TRACKING_PROTECTION_LEARN_MORE;
      break;
      default:
       // Unknown category. Return without adding more info node.

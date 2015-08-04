@@ -13,6 +13,7 @@
 #include "nsCSSPropertySet.h"
 #include "nsCSSValue.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMMutationObserver.h"
 #include "nsStyleContext.h"
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"
@@ -230,6 +231,7 @@ CommonAnimationManager::RulesMatching(ElementRuleProcessorData* aData)
                      nsCSSPseudoElements::ePseudo_NotPseudoElement);
   if (rule) {
     aData->mRuleWalker->Forward(rule);
+    aData->mRuleWalker->CurrentNode()->SetIsAnimationRule();
   }
 }
 
@@ -249,6 +251,7 @@ CommonAnimationManager::RulesMatching(PseudoElementRuleProcessorData* aData)
   nsIStyleRule *rule = GetAnimationRule(aData->mElement, aData->mPseudoType);
   if (rule) {
     aData->mRuleWalker->Forward(rule);
+    aData->mRuleWalker->CurrentNode()->SetIsAnimationRule();
   }
 }
 
@@ -485,6 +488,15 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
     // Don't apply transitions or animations to things inside of
     // pseudo-elements.
     // FIXME (Bug 522599): Add tests for this.
+
+    // Prevent structs from being cached on the rule node since we're inside
+    // a pseudo-element, as we could determine cacheability differently
+    // when walking the rule tree for a style context that is not inside
+    // a pseudo-element.  Note that nsRuleNode::GetStyle##name_ and GetStyleData
+    // will never look at cached structs when we're animating things inside
+    // a pseduo-element, so that we don't incorrectly return a struct that
+    // is only appropriate for non-pseudo-elements.
+    aRuleData->mConditions.SetUncacheable();
     return;
   }
 
@@ -528,7 +540,7 @@ AnimValuesStyleRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-} /* end sub-namespace css */
+} // namespace css
 
 bool
 AnimationCollection::CanAnimatePropertyOnCompositor(
@@ -563,6 +575,18 @@ AnimationCollection::CanAnimatePropertyOnCompositor(
       if (shouldLog) {
         nsCString message;
         message.AppendLiteral("Gecko bug: Async animation of 'preserve-3d' transforms is not supported.  See bug 779598");
+        LogAsyncAnimationFailure(message, aElement);
+      }
+      return false;
+    }
+    // Note that testing BackfaceIsHidden() is not a sufficient test for
+    // what we need for animating backface-visibility correctly if we
+    // remove the above test for Preserves3DChildren(); that would require
+    // looking at backface-visibility on descendants as well.
+    if (frame->StyleDisplay()->BackfaceIsHidden()) {
+      if (shouldLog) {
+        nsCString message;
+        message.AppendLiteral("Gecko bug: Async animation of 'backface-visibility: hidden' transforms is not supported.  See bug 1186204.");
         LogAsyncAnimationFailure(message, aElement);
       }
       return false;
@@ -770,6 +794,13 @@ AnimationCollection::PropertyDtor(void *aObject, nsIAtom *aPropertyName,
   MOZ_ASSERT(!collection->mCalledPropertyDtor, "can't call dtor twice");
   collection->mCalledPropertyDtor = true;
 #endif
+  {
+    nsAutoAnimationMutationBatch mb(collection->mElement);
+
+    for (size_t animIdx = collection->mAnimations.Length(); animIdx-- != 0; ) {
+      collection->mAnimations[animIdx]->CancelFromStyle();
+    }
+  }
   delete collection;
 }
 
@@ -964,4 +995,4 @@ AnimationCollection::HasCurrentAnimationsForProperties(
   return false;
 }
 
-}
+} // namespace mozilla

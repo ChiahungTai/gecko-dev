@@ -24,10 +24,6 @@
   <preference id="engine.passwords"
               name="services.sync.engine.passwords"
               type="bool"/>
-  <!-- non Sync-Engine engines -->
-  <preference id="engine.readinglist"
-              name="readinglist.scheduler.enabled"
-              type="bool"/>
 </preferences>
 
 <script type="application/javascript"
@@ -204,12 +200,6 @@
   </vbox>
 
   <!-- These panels are for the Firefox Accounts identity provider -->
-  <vbox id="fxaDeterminingStatus" align="center">
-    <spacer flex="1"/>
-    <label>&determiningAcctStatus.label;</label>
-    <spacer flex="1"/>
-  </vbox>
-
   <vbox id="noFxaAccount" align="start">
     <label>&welcome.description;</label>
     <label id="noFxaSignUp" class="text-link">
@@ -235,8 +225,10 @@
               align="center">
           <hbox align="center">
             <image id="fxaProfileImage"
-              onclick="gSyncPane.openChangeProfileImage();" hidden="true"/>
+              onclick="gSyncPane.openChangeProfileImage();" hidden="true"
+              tooltiptext="&profilePicture.tooltip;"/>
             <label id="fxaEmailAddress1"/>
+            <label id="fxaDisplayName" hidden="true"/>
           </hbox>
           <spacer flex="1"/>
           <button id="verifiedManage"
@@ -266,6 +258,9 @@
         <!-- logged in locally but server rejected credentials -->
         <hbox id="fxaLoginRejected"
               flex="1">
+          <vbox>
+            <image id="fxaLoginRejectedWarning"/>
+          </vbox>
           <description>
             &signedInLoginFailure.beforename.label;
             <label id="fxaEmailAddress3"/>
@@ -296,14 +291,11 @@
           <checkbox label="&engine.passwords.label;"
                     accesskey="&engine.passwords.accesskey;"
                     preference="engine.passwords"/>
+        </vbox>
+        <vbox align="start">
           <checkbox label="&engine.history.label;"
                     accesskey="&engine.history.accesskey;"
                     preference="engine.history"/>
-          <checkbox id="readinglist-engine"
-                    label="&engine.readinglist.label;"
-                    accesskey="&engine.readinglist.accesskey;"
-                    preference="engine.readinglist"
-                    hidden="true"/>
           <checkbox label="&engine.addons.label;"
                     accesskey="&engine.addons.accesskey;"
                     preference="engine.addons"/>
@@ -314,7 +306,7 @@
         <spacer/>
       </hbox>
     </groupbox>
-    <vbox>
+    <groupbox>
       <caption>
         <label accesskey="&syncDeviceName.accesskey;"
                control="fxaSyncComputerName">
@@ -323,8 +315,7 @@
       </caption>
       <hbox id="fxaDeviceName">
         <hbox flex="1">
-          <textbox id="fxaSyncComputerName" class="plain"
-                   disabled="true" flex="1"/>
+          <textbox id="fxaSyncComputerName" disabled="true" flex="1"/>
         </hbox>
         <hbox>
           <button id="fxaChangeDeviceName"
@@ -337,7 +328,7 @@
                   hidden="true"/>
         </hbox>
       </hbox>
-    </vbox>
+    </groupbox>
     <spacer flex="1"/>
     <vbox id="tosPP-small">
       <label id="tosPP-small-ToS" class="text-link">

@@ -1319,6 +1319,12 @@ public:
     }
 #endif
 
+    void mull_r(RegisterID multiplier)
+    {
+        spew("mull       %s", GPReg32Name(multiplier));
+        m_formatter.oneByteOp(OP_GROUP3_Ev, multiplier, GROUP3_OP_MUL);
+    }
+
     void idivl_r(RegisterID divisor)
     {
         spew("idivl      %s", GPReg32Name(divisor));
@@ -1833,10 +1839,44 @@ public:
         m_formatter.oneByteOp(OP_CDQ);
     }
 
+    void xchgb_rm(RegisterID src, int32_t offset, RegisterID base)
+    {
+        spew("xchgb      %s, " MEM_ob, GPReg8Name(src), ADDR_ob(offset, base));
+        m_formatter.oneByteOp8(OP_XCHG_GbEb, offset, base, src);
+    }
+    void xchgb_rm(RegisterID src, int32_t offset, RegisterID base, RegisterID index, int scale)
+    {
+        spew("xchgb      %s, " MEM_obs, GPReg8Name(src), ADDR_obs(offset, base, index, scale));
+        m_formatter.oneByteOp8(OP_XCHG_GbEb, offset, base, index, scale, src);
+    }
+
+    void xchgw_rm(RegisterID src, int32_t offset, RegisterID base)
+    {
+        spew("xchgw      %s, " MEM_ob, GPReg16Name(src), ADDR_ob(offset, base));
+        m_formatter.prefix(PRE_OPERAND_SIZE);
+        m_formatter.oneByteOp(OP_XCHG_GvEv, offset, base, src);
+    }
+    void xchgw_rm(RegisterID src, int32_t offset, RegisterID base, RegisterID index, int scale)
+    {
+        spew("xchgw      %s, " MEM_obs, GPReg16Name(src), ADDR_obs(offset, base, index, scale));
+        m_formatter.prefix(PRE_OPERAND_SIZE);
+        m_formatter.oneByteOp(OP_XCHG_GvEv, offset, base, index, scale, src);
+    }
+
     void xchgl_rr(RegisterID src, RegisterID dst)
     {
         spew("xchgl      %s, %s", GPReg32Name(src), GPReg32Name(dst));
         m_formatter.oneByteOp(OP_XCHG_GvEv, src, dst);
+    }
+    void xchgl_rm(RegisterID src, int32_t offset, RegisterID base)
+    {
+        spew("xchgl      %s, " MEM_ob, GPReg32Name(src), ADDR_ob(offset, base));
+        m_formatter.oneByteOp(OP_XCHG_GvEv, offset, base, src);
+    }
+    void xchgl_rm(RegisterID src, int32_t offset, RegisterID base, RegisterID index, int scale)
+    {
+        spew("xchgl      %s, " MEM_obs, GPReg32Name(src), ADDR_obs(offset, base, index, scale));
+        m_formatter.oneByteOp(OP_XCHG_GvEv, offset, base, index, scale, src);
     }
 
 #ifdef JS_CODEGEN_X64
@@ -1844,6 +1884,16 @@ public:
     {
         spew("xchgq      %s, %s", GPReg64Name(src), GPReg64Name(dst));
         m_formatter.oneByteOp64(OP_XCHG_GvEv, src, dst);
+    }
+    void xchgq_rm(RegisterID src, int32_t offset, RegisterID base)
+    {
+        spew("xchgq      %s, " MEM_ob, GPReg64Name(src), ADDR_ob(offset, base));
+        m_formatter.oneByteOp64(OP_XCHG_GvEv, offset, base, src);
+    }
+    void xchgq_rm(RegisterID src, int32_t offset, RegisterID base, RegisterID index, int scale)
+    {
+        spew("xchgq      %s, " MEM_obs, GPReg64Name(src), ADDR_obs(offset, base, index, scale));
+        m_formatter.oneByteOp64(OP_XCHG_GvEv, offset, base, index, scale, src);
     }
 #endif
 
@@ -3774,6 +3824,13 @@ threeByteOpImmSimd("vblendps", VEX_PD, OP3_BLENDPS_VpsWpsIb, ESCAPE_3A, imm, off
 
     // Linking & patching:
 
+    void assertValidJmpSrc(JmpSrc src)
+    {
+        // The target offset is stored at offset - 4.
+        MOZ_ASSERT(src.offset() > int32_t(sizeof(int32_t)));
+        MOZ_ASSERT(size_t(src.offset()) <= size());
+    }
+
     bool nextJump(const JmpSrc& from, JmpSrc* next)
     {
         // Sanity check - if the assembler has OOM'd, it will start overwriting
@@ -3781,10 +3838,14 @@ threeByteOpImmSimd("vblendps", VEX_PD, OP3_BLENDPS_VpsWpsIb, ESCAPE_3A, imm, off
         if (oom())
             return false;
 
+        assertValidJmpSrc(from);
+
         const unsigned char* code = m_formatter.data();
         int32_t offset = GetInt32(code + from.offset());
         if (offset == -1)
             return false;
+
+        MOZ_ASSERT(size_t(offset) < size());
         *next = JmpSrc(offset);
         return true;
     }
@@ -3794,6 +3855,9 @@ threeByteOpImmSimd("vblendps", VEX_PD, OP3_BLENDPS_VpsWpsIb, ESCAPE_3A, imm, off
         // its internal buffer and thus our links could be garbage.
         if (oom())
             return;
+
+        assertValidJmpSrc(from);
+        MOZ_ASSERT(to.offset() == -1 || size_t(to.offset()) <= size());
 
         unsigned char* code = m_formatter.data();
         SetInt32(code + from.offset(), to.offset());
@@ -3808,6 +3872,9 @@ threeByteOpImmSimd("vblendps", VEX_PD, OP3_BLENDPS_VpsWpsIb, ESCAPE_3A, imm, off
         // its internal buffer and thus our links could be garbage.
         if (oom())
             return;
+
+        assertValidJmpSrc(from);
+        MOZ_ASSERT(size_t(to.offset()) <= size());
 
         spew(".set .Lfrom%d, .Llabel%d", from.offset(), to.offset());
         unsigned char* code = m_formatter.data();

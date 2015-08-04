@@ -50,7 +50,6 @@ PerThreadDataFriendFields::PerThreadDataFriendFields()
     for (int i=0; i<StackKindCount; i++)
         nativeStackLimit[i] = UINTPTR_MAX;
 #endif
-    PodArrayZero(thingGCRooters);
 }
 
 JS_FRIEND_API(void)
@@ -206,15 +205,15 @@ JS_WrapPropertyDescriptor(JSContext* cx, JS::MutableHandle<js::PropertyDescripto
 JS_FRIEND_API(void)
 JS_TraceShapeCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr shape)
 {
-    MOZ_ASSERT(shape.isShape());
-    TraceCycleCollectorChildren(trc, static_cast<Shape*>(shape.asCell()));
+    MOZ_ASSERT(shape.is<Shape>());
+    TraceCycleCollectorChildren(trc, &shape.as<Shape>());
 }
 
 JS_FRIEND_API(void)
 JS_TraceObjectGroupCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr group)
 {
-    MOZ_ASSERT(group.isObjectGroup());
-    TraceCycleCollectorChildren(trc, static_cast<ObjectGroup*>(group.asCell()));
+    MOZ_ASSERT(group.is<ObjectGroup>());
+    TraceCycleCollectorChildren(trc, &group.as<ObjectGroup>());
 }
 
 static bool
@@ -493,7 +492,7 @@ js::SetPreserveWrapperCallback(JSRuntime* rt, PreserveWrapperCallback callback)
 namespace js {
 // Defined in vm/GlobalObject.cpp.
 extern size_t sSetProtoCalled;
-}
+} // namespace js
 
 JS_FRIEND_API(size_t)
 JS_SetProtoCalled(JSContext*)
@@ -853,8 +852,8 @@ struct DumpHeapTracer : public JS::CallbackTracer, public WeakMapTracer
   private:
     void trace(JSObject* map, JS::GCCellPtr key, JS::GCCellPtr value) override {
         JSObject* kdelegate = nullptr;
-        if (key.isObject())
-            kdelegate = js::GetWeakmapKeyDelegate(key.toObject());
+        if (key.is<JSObject>())
+            kdelegate = js::GetWeakmapKeyDelegate(&key.as<JSObject>());
 
         fprintf(output, "WeakMapEntry map=%p key=%p keyDelegate=%p value=%p\n",
                 map, key.asCell(), kdelegate, value.asCell());
@@ -1190,6 +1189,12 @@ JS_StoreStringPostBarrierCallback(JSContext* cx,
     JSRuntime* rt = cx->runtime();
     if (IsInsideNursery(key))
         rt->gc.storeBuffer.putCallback(callback, key, data);
+}
+
+extern JS_FRIEND_API(void)
+JS_ClearAllPostBarrierCallbacks(JSRuntime* rt)
+{
+    rt->gc.clearPostBarrierCallbacks();
 }
 
 JS_FRIEND_API(bool)

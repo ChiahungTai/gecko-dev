@@ -51,6 +51,10 @@ typedef enum {
   MOZ_GTK_STEPPER_VERTICAL    = 1 << 2
 } GtkScrollbarButtonFlags;
 
+typedef enum {
+  MOZ_GTK_TRACK_OPAQUE        = 1 << 0
+} GtkScrollbarTrackFlags;
+
 /** flags for tab state **/
 typedef enum {
   /* first eight bits are used to pass a margin */
@@ -328,6 +332,16 @@ moz_gtk_checkmenuitem_get_horizontal_padding(gint* horizontal_padding);
 gint
 moz_gtk_button_get_default_overflow(gint* border_top, gint* border_left,
                                     gint* border_bottom, gint* border_right);
+
+/**
+ * Gets the minimum size of a GtkScale.
+ * orient:           [IN] the scale orientation
+ * scale_width:      [OUT] the width of the scale
+ * scale_height:     [OUT] the height of the scale
+ */
+void
+moz_gtk_get_scale_metrics(GtkOrientation orient, gint* scale_width,
+                          gint* scale_height);
 
 /**
  * Get the desired size of a GtkScale thumb

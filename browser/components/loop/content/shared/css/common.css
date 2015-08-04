@@ -100,19 +100,19 @@ p {
 }
 
 .btn-info {
-  background-color: #0096dd;
-  border: 1px solid #0095dd;
+  background-color: #00a9dc;
+  border: 1px solid #00a9dc;
   color: #fff;
 }
 
   .btn-info:hover {
-    background-color: #008acb;
-    border: 1px solid #008acb;
+    background-color: #5cccee;
+    border: 1px solid #5cccee;
   }
 
   .btn-info:active {
-    background-color: #006b9d;
-    border: 1px solid #006b9d;
+    background-color: #5cccee;
+    border: 1px solid #5cccee;
   }
 
 .btn-accept,
@@ -468,8 +468,8 @@ html[dir="rtl"] .dropdown-menu {
 
 .checkbox {
   float: left;
-  width: 1em;
-  height: 1em;
+  width: 2rem;
+  height: 2rem;
   -moz-margin-end: .5em;
   margin-top: .1em;
   border: 1px solid #999;
@@ -520,8 +520,8 @@ html[dir="rtl"] .context-content {
 }
 
 .context-wrapper {
-  border: 1px solid #0096dd;
-  border-radius: 3px;
+  border: 1px solid #5cccee;
+  border-radius: 4px;
   background: #fff;
   padding: .8em;
   /* Use the flex row mode to position the elements next to each other. */
@@ -530,13 +530,17 @@ html[dir="rtl"] .context-content {
   line-height: 1.1em;
 }
 
+.context-wrapper:hover {
+  background-color: #dbf7ff;
+}
+
 .context-wrapper > .context-preview {
   float: left;
   /* 16px is standard height/width for a favicon */
   width: 16px;
   max-height: 16px;
   margin-right: .8em;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
 }
 
 html[dir="rtl"] .context-wrapper > .context-preview {
@@ -549,11 +553,14 @@ html[dir="rtl"] .context-wrapper > .context-preview {
   flex: 0 1 auto;
   display: block;
   color: black;
+  /* 16px for the preview, plus its .8em margin */
+  max-width: calc(100% - 16px - .8em);
+  word-wrap: break-word;
 }
 
 .context-wrapper > .context-description > .context-url {
   display: block;
-  color: #59A1D7;
+  color: #00a9dc;
   font-weight: 700;
   clear: both;
 }

@@ -35,7 +35,7 @@ struct ContainerLayerParameters;
 class DisplayItemClip;
 namespace layers {
 class Layer;
-}
+} // namespace layers
 
 struct FrameMetricsAndClip
 {
@@ -107,8 +107,10 @@ public:
   /**
    * Return the width for non-disappearing scrollbars.
    */
-  virtual nscoord GetNondisappearingScrollbarWidth(nsPresContext* aPresContext,
-                                                   nsRenderingContext* aRC) = 0;
+  virtual nscoord
+  GetNondisappearingScrollbarWidth(nsPresContext* aPresContext,
+                                   nsRenderingContext* aRC,
+                                   mozilla::WritingMode aWM) = 0;
   /**
    * GetScrolledRect is designed to encapsulate deciding which
    * directions of overflow should be reachable by scrolling and which
@@ -426,7 +428,8 @@ public:
   virtual mozilla::Maybe<mozilla::FrameMetricsAndClip> ComputeFrameMetrics(
     mozilla::layers::Layer* aLayer,
     nsIFrame* aContainerReferenceFrame,
-    const ContainerLayerParameters& aParameters) const = 0;
+    const ContainerLayerParameters& aParameters,
+    bool aIsForCaret) const = 0;
 
   /**
    * If this scroll frame is ignoring viewporting clipping
@@ -445,6 +448,8 @@ public:
    * Whether or not this frame uses containerful scrolling.
    */
   virtual bool UsesContainerScrolling() const = 0;
+
+  virtual const mozilla::DisplayItemClip* ComputeScrollClip(bool aIsForCaret) const = 0;
 };
 
 #endif

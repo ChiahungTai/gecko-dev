@@ -18,9 +18,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "fxaMigrator",
 const PAGE_NO_ACCOUNT = 0;
 const PAGE_HAS_ACCOUNT = 1;
 const PAGE_NEEDS_UPDATE = 2;
-const PAGE_PLEASE_WAIT = 3;
-const FXA_PAGE_LOGGED_OUT = 4;
-const FXA_PAGE_LOGGED_IN = 5;
+const FXA_PAGE_LOGGED_OUT = 3;
+const FXA_PAGE_LOGGED_IN = 4;
 
 // Indexes into the "login status" deck.
 // We are in a successful verified state - everything should work!
@@ -68,7 +67,7 @@ let gSyncPane = {
 
     // it may take some time before we can determine what provider to use
     // and the state of that provider, so show the "please wait" page.
-    this.page = PAGE_PLEASE_WAIT;
+    this._showLoadPage(xps);
 
     let onUnload = function () {
       window.removeEventListener("unload", onUnload, false);
@@ -87,6 +86,30 @@ let gSyncPane = {
     window.addEventListener("unload", onUnload, false);
 
     xps.ensureLoaded();
+  },
+
+  _showLoadPage: function (xps) {
+    let username;
+    try {
+      username = Services.prefs.getCharPref("services.sync.username");
+    } catch (e) {}
+    if (!username) {
+      this.page = FXA_PAGE_LOGGED_OUT;
+    } else if (xps.fxAccountsEnabled) {
+      // Use cached values while we wait for the up-to-date values
+      let cachedComputerName;
+      try {
+        cachedComputerName = Services.prefs.getCharPref("services.sync.client.name");
+      }
+      catch (e) {
+        cachedComputerName = "";
+      }
+      document.getElementById("fxaEmailAddress1").textContent = username;
+      document.getElementById("fxaSyncComputerName").value = cachedComputerName;
+      this.page = FXA_PAGE_LOGGED_IN;
+    } else { // Old Sync
+      this.page = PAGE_HAS_ACCOUNT;
+    }
   },
 
   _init: function () {
@@ -131,11 +154,17 @@ let gSyncPane = {
 
   _toggleComputerNameControls: function(editMode) {
     let textbox = document.getElementById("fxaSyncComputerName");
-    textbox.className = editMode ? "" : "plain";
     textbox.disabled = !editMode;
     document.getElementById("fxaChangeDeviceName").hidden = editMode;
     document.getElementById("fxaCancelChangeDeviceName").hidden = !editMode;
     document.getElementById("fxaSaveChangeDeviceName").hidden = !editMode;
+  },
+
+  _focusComputerNameTextbox: function() {
+    let textbox = document.getElementById("fxaSyncComputerName");
+    let valLength = textbox.value.length;
+    textbox.focus();
+    textbox.setSelectionRange(valLength, valLength);
   },
 
   _updateComputerNameValue: function(save) {
@@ -180,14 +209,15 @@ let gSyncPane = {
     setEventListener("syncComputerName", "change", function (e) {
       gSyncUtils.changeName(e.target);
     });
-    setEventListener("fxaChangeDeviceName", "click", function () {
+    setEventListener("fxaChangeDeviceName", "command", function () {
       this._toggleComputerNameControls(true);
+      this._focusComputerNameTextbox();
     });
-    setEventListener("fxaCancelChangeDeviceName", "click", function () {
+    setEventListener("fxaCancelChangeDeviceName", "command", function () {
       this._toggleComputerNameControls(false);
       this._updateComputerNameValue(false);
     });
-    setEventListener("fxaSaveChangeDeviceName", "click", function () {
+    setEventListener("fxaSaveChangeDeviceName", "command", function () {
       this._toggleComputerNameControls(false);
       this._updateComputerNameValue(true);
     });
@@ -237,9 +267,6 @@ let gSyncPane = {
     setEventListener("rejectUnlinkFxaAccount", "click", function () {
       gSyncPane.unlinkFirefoxAccount(true);
     });
-    setEventListener("fxaSyncComputerName", "change", function (e) {
-      gSyncUtils.changeName(e.target);
-    });
     setEventListener("tosPP-small-ToS", "click", gSyncPane.openToS);
     setEventListener("tosPP-small-PP", "click", gSyncPane.openPrivacyPolicy);
     setEventListener("sync-migrate-upgrade", "click", function () {
@@ -255,6 +282,13 @@ let gSyncPane = {
     setEventListener("sync-migrate-resend", "click", function () {
       let win = Services.wm.getMostRecentWindow("navigator:browser");
       fxaMigrator.resendVerificationMail(win);
+    });
+    setEventListener("fxaSyncComputerName", "keypress", function (e) {
+      if (e.keyCode == KeyEvent.DOM_VK_RETURN) {
+        document.getElementById("fxaSaveChangeDeviceName").click();
+      } else if (e.keyCode == KeyEvent.DOM_VK_ESCAPE) {
+        document.getElementById("fxaCancelChangeDeviceName").click();
+      }
     });
   },
 
@@ -279,13 +313,18 @@ let gSyncPane = {
     // service.fxAccountsEnabled is false iff sync is already configured for
     // the legacy provider.
     if (service.fxAccountsEnabled) {
-      // unhide the reading-list engine if readinglist is enabled (note we do
-      // it here as it must remain disabled for legacy sync users)
-      if (Services.prefs.getBoolPref("browser.readinglist.enabled")) {
-        document.getElementById("readinglist-engine").removeAttribute("hidden");
-      }
+      let displayNameLabel = document.getElementById("fxaDisplayName");
+      let fxaEmailAddress1Label = document.getElementById("fxaEmailAddress1");
+      fxaEmailAddress1Label.hidden = false;
+      displayNameLabel.hidden = true;
+
+      let profileInfoEnabled;
+      try {
+        profileInfoEnabled = Services.prefs.getBoolPref("identity.fxaccounts.profile_image.enabled");
+      } catch (ex) {}
+
       // determine the fxa status...
-      this.page = PAGE_PLEASE_WAIT;
+      this._showLoadPage(service);
 
       fxAccounts.getSignedInUser().then(data => {
         if (!data) {
@@ -296,11 +335,11 @@ let gSyncPane = {
         // We are logged in locally, but maybe we are in a state where the
         // server rejected our credentials (eg, password changed on the server)
         let fxaLoginStatus = document.getElementById("fxaLoginStatus");
-        let enginesListDisabled;
+        let syncReady;
         // Not Verfied implies login error state, so check that first.
         if (!data.verified) {
           fxaLoginStatus.selectedIndex = FXA_LOGIN_UNVERIFIED;
-          enginesListDisabled = true;
+          syncReady = false;
         // So we think we are logged in, so login problems are next.
         // (Although if the Sync identity manager is still initializing, we
         // ignore login errors and assume all will eventually be good.)
@@ -309,21 +348,22 @@ let gSyncPane = {
         // away by themselves, so aren't reflected here.
         } else if (Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED) {
           fxaLoginStatus.selectedIndex = FXA_LOGIN_FAILED;
-          enginesListDisabled = true;
+          syncReady = false;
         // Else we must be golden (or in an error state we expect to magically
         // resolve itself)
         } else {
           fxaLoginStatus.selectedIndex = FXA_LOGIN_VERIFIED;
-          enginesListDisabled = false;
+          syncReady = true;
         }
-        document.getElementById("fxaEmailAddress1").textContent = data.email;
+        fxaEmailAddress1Label.textContent = data.email;
         document.getElementById("fxaEmailAddress2").textContent = data.email;
         document.getElementById("fxaEmailAddress3").textContent = data.email;
         document.getElementById("fxaSyncComputerName").value = Weave.Service.clientsEngine.localName;
         let engines = document.getElementById("fxaSyncEngines")
         for (let checkbox of engines.querySelectorAll("checkbox")) {
-          checkbox.disabled = enginesListDisabled;
+          checkbox.disabled = !syncReady;
         }
+        document.getElementById("fxaChangeDeviceName").disabled = !syncReady;
 
         // Clear the profile image (if any) of the previously logged in account.
         document.getElementById("fxaProfileImage").style.removeProperty("background-image");
@@ -333,25 +373,26 @@ let gSyncPane = {
         return data.verified;
       }).then(isVerified => {
         if (isVerified) {
-          let enabled;
-          try {
-            enabled = Services.prefs.getBoolPref("identity.fxaccounts.profile_image.enabled");
-          } catch (ex) {}
-          if (enabled) {
-            return fxAccounts.getSignedInUserProfile();
-          }
+          return fxAccounts.getSignedInUserProfile();
         }
       }).then(data => {
-        if (data && data.avatar) {
-          // Make sure the image is available before displaying it,
-          // as we don't want to overwrite the default profile image
-          // with a broken/unavailable image
-          let img = new Image();
-          img.onload = () => {
-            let bgImage = "url('" + data.avatar + "')";
-            document.getElementById("fxaProfileImage").style.backgroundImage = bgImage;
-          };
-          img.src = data.avatar;
+        if (data && profileInfoEnabled) {
+          if (data.displayName) {
+            fxaEmailAddress1Label.hidden = true;
+            displayNameLabel.hidden = false;
+            displayNameLabel.textContent = data.displayName;
+          }
+          if (data.avatar) {
+            // Make sure the image is available before displaying it,
+            // as we don't want to overwrite the default profile image
+            // with a broken/unavailable image
+            let img = new Image();
+            img.onload = () => {
+              let bgImage = "url('" + data.avatar + "')";
+              document.getElementById("fxaProfileImage").style.backgroundImage = bgImage;
+            };
+            img.src = data.avatar;
+          }
         }
       }, err => {
         FxAccountsCommon.log.error(err);
@@ -569,7 +610,6 @@ let gSyncPane = {
     }
     win.switchToTabHavingURI(url, true, options);
   },
-
 
   openPrivacyPolicy: function(aEvent) {
     aEvent.stopPropagation();

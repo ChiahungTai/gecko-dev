@@ -79,9 +79,7 @@ nsresult AndroidMediaReader::ReadMetadata(MediaInfo* aInfo,
     mInitialFrame = frameSize;
     VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
     if (container) {
-      container->SetCurrentFrame(gfxIntSize(displaySize.width, displaySize.height),
-                                 nullptr,
-                                 mozilla::TimeStamp::Now());
+      container->ClearCurrentFrame(gfxIntSize(displaySize.width, displaySize.height));
     }
   }
 
@@ -338,7 +336,7 @@ AndroidMediaReader::Seek(int64_t aTarget, int64_t aEndTime)
     mVideoSeekTimeUs = aTarget;
 
     nsRefPtr<AndroidMediaReader> self = this;
-    mSeekRequest.Begin(DecodeToFirstVideoData()->Then(TaskQueue(), __func__, [self] (VideoData* v) {
+    mSeekRequest.Begin(DecodeToFirstVideoData()->Then(OwnerThread(), __func__, [self] (VideoData* v) {
       self->mSeekRequest.Complete();
       self->mAudioSeekTimeUs = v->mTime;
       self->mSeekPromise.Resolve(self->mAudioSeekTimeUs, __func__);

@@ -1598,11 +1598,11 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
       mMaxHeight != aOther.mMaxHeight) {
     // Height changes can affect descendant intrinsic sizes due to replaced
     // elements with percentage heights in descendants which also have
-    // percentage heights.  And due to our not-so-great computation of mVResize
-    // in nsHTMLReflowState, they do need to force reflow of the whole subtree.
-    // XXXbz due to XUL caching heights as well, height changes also need to
-    // clear ancestor intrinsics!
-    return NS_CombineHint(hint, nsChangeHint_AllReflowHints);
+    // percentage heights. This is handled via nsChangeHint_UpdateComputedBSize
+    // which clears intrinsic sizes for frames that have such replaced elements.
+    return NS_CombineHint(hint, nsChangeHint_NeedReflow |
+        nsChangeHint_UpdateComputedBSize |
+        nsChangeHint_ReflowChangesSizeOrPosition);
   }
 
   if (mWidth != aOther.mWidth ||
@@ -1686,7 +1686,7 @@ nsStyleTableBorder::nsStyleTableBorder()
   mBorderCollapse = NS_STYLE_BORDER_SEPARATE;
 
   mEmptyCells = NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
-  mCaptionSide = NS_STYLE_CAPTION_SIDE_TOP;
+  mCaptionSide = NS_STYLE_CAPTION_SIDE_BSTART;
   mBorderSpacingCol = 0;
   mBorderSpacingRow = 0;
 }
@@ -2803,7 +2803,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
     // We do not need to apply nsChangeHint_UpdateTransformLayer since
     // nsChangeHint_RepaintFrame will forcibly invalidate the frame area and
     // ensure layers are rebuilt (or removed).
-    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_AddOrRemoveTransform,
+    NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_UpdateContainingBlock,
                           NS_CombineHint(nsChangeHint_UpdateOverflow,
                                          nsChangeHint_RepaintFrame)));
   } else {

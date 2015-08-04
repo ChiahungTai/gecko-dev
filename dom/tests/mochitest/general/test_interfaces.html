@@ -75,6 +75,7 @@ var ecmaGlobals =
     "Proxy",
     "RangeError",
     "ReferenceError",
+    "Reflect",
     "RegExp",
     "Set",
     {name: "SharedArrayBuffer", nightly: true},
@@ -138,6 +139,8 @@ var interfaceNamesInGlobalScope =
     {name: "AnimationEffectReadOnly", release: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "AnimationEvent",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "AnimationPlaybackEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "AnimationTimeline", release: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -206,6 +209,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "BluetoothGattDescriptor", b2g: true, permission: ["bluetooth"]},
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "BluetoothGattServer", b2g: true, permission: ["bluetooth"]},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "BluetoothGattService", b2g: true, permission: ["bluetooth"]},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "BluetoothLeDeviceEvent", b2g: true, permission: ["bluetooth"]},
@@ -220,6 +225,8 @@ var interfaceNamesInGlobalScope =
      permission: ["bluetooth"]},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "BoxObject", xbl: true},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "BrowserElementAudioChannel", b2g: true, permission: ["browser"] },
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "BroadcastChannel",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -299,6 +306,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSS2Properties",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "CSSAnimation", release: false},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSConditionRule",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSCounterStyleRule",
@@ -334,6 +343,8 @@ var interfaceNamesInGlobalScope =
     "CSSStyleSheet",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSSupportsRule",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "CSSTransition", release: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSValue",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -669,6 +680,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Image",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "ImageBitmap",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "ImageCapture", disabled: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "ImageCaptureErrorEvent", disabled: true},
@@ -885,7 +898,11 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "PeriodicWave",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "Permissions", nightly: true},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "PermissionSettings", b2g: true, permission: ["permissions"]},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "PermissionStatus", nightly: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "PhoneNumberService", permission: ["phonenumberservice"]},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -917,6 +934,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "PushManager", b2g: false, android: false, release: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "PushSubscription", b2g: false, android: false, release: false},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "RadioNodeList",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Range",
@@ -930,6 +949,8 @@ var interfaceNamesInGlobalScope =
     "Response",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "RGBColor",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "RTCCertificate",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "RTCDataChannelEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -1261,6 +1282,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "TextTrack",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "TextTrackCue",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "TextTrackCueList",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "TextTrackList",
@@ -1442,8 +1465,8 @@ function createInterfaceMap(isXBLScope) {
       if (typeof(entry) === "string") {
         interfaceMap[entry] = true;
       } else {
-	ok(!("pref" in entry), "Bogus pref annotation for " + entry.name);
-	if ((entry.nightly === !isNightly) ||
+        ok(!("pref" in entry), "Bogus pref annotation for " + entry.name);
+        if ((entry.nightly === !isNightly) ||
             (entry.xbl === !isXBLScope) ||
             (entry.desktop === !isDesktop) ||
             (entry.b2g === !isB2G) ||
@@ -1455,9 +1478,9 @@ function createInterfaceMap(isXBLScope) {
             (entry.permission && !hasPermission(entry.permission)) ||
             entry.disabled) {
           interfaceMap[entry.name] = false;
-	} else {
+        } else {
           interfaceMap[entry.name] = true;
-	}
+        }
       }
     }
   }

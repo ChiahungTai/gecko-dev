@@ -26,8 +26,8 @@ namespace mozilla {
 class ErrorResult;
 namespace dom {
   class PerformanceEntry;
-}
-}
+} // namespace dom
+} // namespace mozilla
 
 // Script "performance.timing" object
 class nsPerformanceTiming final : public nsWrapperCache
@@ -349,6 +349,8 @@ protected:
   {
     return mResourceEntries.Length() >= mResourceTimingBufferSize;
   }
+
+  void LogEntry(PerformanceEntry* aEntry, const nsACString& aOwner) const;
 
 private:
   nsTArray<nsRefPtr<PerformanceEntry>> mUserEntries;

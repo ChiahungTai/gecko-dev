@@ -28,7 +28,7 @@
              oncommand="MailIntegration.sendLinkForBrowser(gBrowser.selectedBrowser);"/>
 
     <command id="cmd_pageSetup" oncommand="PrintUtils.showPageSetup();"/>
-    <command id="cmd_print" oncommand="PrintUtils.print(window.gBrowser.selectedBrowser.contentWindowAsCPOW, window.gBrowser.selectedBrowser);"/>
+    <command id="cmd_print" oncommand="PrintUtils.printWindow(window.gBrowser.selectedBrowser.outerWindowID, window.gBrowser.selectedBrowser);"/>
     <command id="cmd_printPreview" oncommand="PrintUtils.printPreview(PrintPreviewListener);"/>
     <command id="cmd_close" oncommand="BrowserCloseTabOrWindow()" reserved="true"/>
     <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow()" reserved="true"/>
@@ -82,7 +82,6 @@
     <command id="Browser:PrevTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(-1, true);" reserved="true"/>
     <command id="Browser:ShowAllTabs" oncommand="allTabs.open();"/>
     <command id="Browser:ToggleTabView" oncommand="TabView.toggle();"/>
-    <command id="Browser:FocusNextFrame" oncommand="focusNextFrame(event);"/>
     <command id="cmd_fullZoomReduce"  oncommand="FullZoom.reduce()"/>
     <command id="cmd_fullZoomEnlarge" oncommand="FullZoom.enlarge()"/>
     <command id="cmd_fullZoomReset"   oncommand="FullZoom.reset()"/>
@@ -146,11 +145,6 @@
                  type="checkbox" group="sidebar"
                  sidebarurl="chrome://browser/content/history/history-panel.xul"
                  oncommand="SidebarUI.toggle('viewHistorySidebar');"/>
-
-    <broadcaster id="readingListSidebar" hidden="true" autoCheck="false" disabled="true"
-                 sidebartitle="&readingList.label;" type="checkbox" group="sidebar"
-                 sidebarurl="chrome://browser/content/readinglist/sidebar.xhtml"
-                 oncommand="SidebarUI.toggle('readingListSidebar');"/>
 
     <broadcaster id="viewWebPanelsSidebar" autoCheck="false"
                  type="checkbox" group="sidebar" sidebarurl="chrome://browser/content/web-panels.xul"
@@ -357,8 +351,6 @@
 #endif
     <key id="goHome" keycode="VK_HOME" command="Browser:Home" modifiers="alt"/>
     <key keycode="VK_F5" command="Browser:Reload"/>
-    <key keycode="VK_F6" command="Browser:FocusNextFrame"/>
-    <key keycode="VK_F6" command="Browser:FocusNextFrame" modifiers="shift"/>
 #ifndef XP_MACOSX
     <key id="showAllHistoryKb" key="&showAllHistoryCmd.commandkey;" command="Browser:ShowAllHistory" modifiers="accel,shift"/>
     <key keycode="VK_F5" command="Browser:ReloadSkipCache" modifiers="accel"/>
@@ -423,11 +415,6 @@
          modifiers="accel"
 #endif
          command="viewHistorySidebar"/>
-
-    <key id="key_readingListSidebar"
-         key="&readingList.sidebar.commandKey;"
-         modifiers="accel,alt"
-         command="readingListSidebar"/>
 
     <key id="key_fullZoomReduce"  key="&fullZoomReduceCmd.commandkey;"   command="cmd_fullZoomReduce"  modifiers="accel"/>
     <key                          key="&fullZoomReduceCmd.commandkey2;"  command="cmd_fullZoomReduce"  modifiers="accel"/>

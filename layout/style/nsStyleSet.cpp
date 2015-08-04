@@ -226,10 +226,10 @@ nsStyleSet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
   for (uint32_t i = 0; i < mScopedDocSheetRuleProcessors.Length(); i++) {
     n += mScopedDocSheetRuleProcessors[i]->SizeOfIncludingThis(aMallocSizeOf);
   }
-  n += mScopedDocSheetRuleProcessors.SizeOfExcludingThis(aMallocSizeOf);
+  n += mScopedDocSheetRuleProcessors.ShallowSizeOfExcludingThis(aMallocSizeOf);
 
-  n += mRoots.SizeOfExcludingThis(aMallocSizeOf);
-  n += mOldRuleTrees.SizeOfExcludingThis(aMallocSizeOf);
+  n += mRoots.ShallowSizeOfExcludingThis(aMallocSizeOf);
+  n += mOldRuleTrees.ShallowSizeOfExcludingThis(aMallocSizeOf);
 
   return n;
 }
@@ -845,6 +845,7 @@ ReplaceAnimationRule(nsRuleNode *aOldRuleNode,
 
   if (aNewAnimRule) {
     n = n->Transition(aNewAnimRule, nsStyleSet::eAnimationSheet, false);
+    n->SetIsAnimationRule();
   }
 
   for (uint32_t i = moreSpecificNodes.Length(); i-- != 0; ) {
@@ -1439,6 +1440,7 @@ struct RuleNodeInfo {
   nsIStyleRule* mRule;
   uint8_t mLevel;
   bool mIsImportant;
+  bool mIsAnimationRule;
 };
 
 struct CascadeLevel {
@@ -1508,6 +1510,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
     curRule->mRule = ruleNode->GetRule();
     curRule->mLevel = ruleNode->GetLevel();
     curRule->mIsImportant = ruleNode->IsImportantRule();
+    curRule->mIsAnimationRule = ruleNode->IsAnimationRule();
   }
 
   nsRuleWalker ruleWalker(mRuleTree, mAuthorStyleDisabled);
@@ -1538,6 +1541,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
               GetAnimationRule(aElement, aPseudoType);
             if (rule) {
               ruleWalker.ForwardOnPossiblyCSSRule(rule);
+              ruleWalker.CurrentNode()->SetIsAnimationRule();
             }
           }
           break;
@@ -1550,6 +1554,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
               GetAnimationRule(aElement, aPseudoType);
             if (rule) {
               ruleWalker.ForwardOnPossiblyCSSRule(rule);
+              ruleWalker.CurrentNode()->SetIsAnimationRule();
             }
           }
           break;
@@ -1615,6 +1620,9 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
 
       if (!doReplace) {
         ruleWalker.ForwardOnPossiblyCSSRule(ruleInfo.mRule);
+        if (ruleInfo.mIsAnimationRule) {
+          ruleWalker.CurrentNode()->SetIsAnimationRule();
+        }
       }
     }
   }
@@ -2363,9 +2371,10 @@ nsStyleSet::HasStateDependentStyle(Element* aElement,
 struct MOZ_STACK_CLASS AttributeData : public AttributeRuleProcessorData {
   AttributeData(nsPresContext* aPresContext,
                 Element* aElement, nsIAtom* aAttribute, int32_t aModType,
-                bool aAttrHasChanged, TreeMatchContext& aTreeMatchContext)
+                bool aAttrHasChanged, const nsAttrValue* aOtherValue,
+                TreeMatchContext& aTreeMatchContext)
     : AttributeRuleProcessorData(aPresContext, aElement, aAttribute, aModType,
-                                 aAttrHasChanged, aTreeMatchContext),
+                                 aAttrHasChanged, aOtherValue, aTreeMatchContext),
       mHint(nsRestyleHint(0))
   {}
   nsRestyleHint   mHint;
@@ -2385,13 +2394,14 @@ nsRestyleHint
 nsStyleSet::HasAttributeDependentStyle(Element*       aElement,
                                        nsIAtom*       aAttribute,
                                        int32_t        aModType,
-                                       bool           aAttrHasChanged)
+                                       bool           aAttrHasChanged,
+                                       const nsAttrValue* aOtherValue)
 {
   TreeMatchContext treeContext(false, nsRuleWalker::eLinksVisitedOrUnvisited,
                                aElement->OwnerDoc());
   InitStyleScopes(treeContext, aElement);
   AttributeData data(PresContext(), aElement, aAttribute,
-                     aModType, aAttrHasChanged, treeContext);
+                     aModType, aAttrHasChanged, aOtherValue, treeContext);
   WalkRuleProcessors(SheetHasAttributeStyle, &data, false);
   return data.mHint;
 }
@@ -2466,4 +2476,16 @@ nsStyleSet::InitialStyleRule()
     mInitialStyleRule = new nsInitialStyleRule;
   }
   return mInitialStyleRule;
+}
+
+bool
+nsStyleSet::HasRuleProcessorUsedByMultipleStyleSets(sheetType aSheetType)
+{
+  MOZ_ASSERT(size_t(aSheetType) < ArrayLength(mRuleProcessors));
+  if (!IsCSSSheetType(aSheetType) || !mRuleProcessors[aSheetType]) {
+    return false;
+  }
+  nsCSSRuleProcessor* rp =
+    static_cast<nsCSSRuleProcessor*>(mRuleProcessors[aSheetType].get());
+  return rp->IsUsedByMultipleStyleSets();
 }

@@ -13,7 +13,6 @@
 #include "nsIObserver.h"
 #include "mozilla/CORSMode.h"
 #include "DOMMediaStream.h"
-#include "AudioChannelCommon.h"
 #include "DecoderTraits.h"
 #include "nsIAudioChannelAgent.h"
 #include "mozilla/Attributes.h"
@@ -23,7 +22,7 @@
 #ifdef MOZ_EME
 #include "mozilla/dom/MediaKeys.h"
 #endif
-#include "StateWatching.h"
+#include "mozilla/StateWatching.h"
 #include "nsGkAtoms.h"
 
 // X.h on Linux #defines CurrentTime as 0L, so we have to #undef it here.
@@ -54,8 +53,8 @@ class TextTrack;
 class TimeRanges;
 class WakeLock;
 class MediaTrack;
-}
-}
+} // namespace dom
+} // namespace mozilla
 
 class nsITimer;
 class nsRange;
@@ -151,7 +150,12 @@ public:
    * Call this to reevaluate whether we should start/stop due to our owner
    * document being active, inactive, visible or hidden.
    */
-  virtual void NotifyOwnerDocumentActivityChanged();
+  void NotifyOwnerDocumentActivityChanged();
+
+  // This method does the work necessary for the
+  // NotifyOwnerDocumentActivityChanged() notification.  It returns true if the
+  // media element was paused as a result.
+  virtual bool NotifyOwnerDocumentActivityChangedInternal();
 
   // Called by the video decoder object, on the main thread,
   // when it has read the metadata containing video dimensions,
@@ -543,8 +547,12 @@ public:
   }
 
   already_AddRefed<MediaSource> GetMozMediaSourceObject() const;
-  already_AddRefed<DOMMediaStream> GetMozSrcObject() const;
+  already_AddRefed<DOMMediaStream> GetSrcObject() const;
+  void SetSrcObject(DOMMediaStream& aValue);
+  void SetSrcObject(DOMMediaStream* aValue);
 
+  // TODO: remove prefixed versions soon (1183495).
+  already_AddRefed<DOMMediaStream> GetMozSrcObject() const;
   void SetMozSrcObject(DOMMediaStream& aValue);
   void SetMozSrcObject(DOMMediaStream* aValue);
 
@@ -641,6 +649,13 @@ public:
   // dormancy checks to prevent dormant processing for an element
   // that will soon be gone.
   bool IsBeingDestroyed();
+
+  IMPL_EVENT_HANDLER(mozinterruptbegin)
+  IMPL_EVENT_HANDLER(mozinterruptend)
+
+  // This is for testing only
+  float ComputedVolume() const;
+  bool ComputedMuted() const;
 
 protected:
   virtual ~HTMLMediaElement();
@@ -1008,8 +1023,8 @@ protected:
   // Check the permissions for audiochannel.
   bool CheckAudioChannelPermissions(const nsAString& aType);
 
-  // This method does the check for muting/fading/unmuting the audio channel.
-  nsresult UpdateChannelMuteState(mozilla::dom::AudioChannelState aCanPlay);
+  // This method does the check for muting/nmuting the audio channel.
+  nsresult UpdateChannelMuteState(float aVolume, bool aMuted);
 
   // Seeks to aTime seconds. aSeekType can be Exact to seek to exactly the
   // seek target, or PrevSyncPoint if a quicker but less precise seek is
@@ -1031,6 +1046,9 @@ protected:
 
   // Recomputes ready state and fires events as necessary based on current state.
   void UpdateReadyStateInternal();
+
+  // Notifies the audio channel agent when the element starts or stops playing.
+  void NotifyAudioChannelAgent(bool aPlaying);
 
   class nsAsyncEventRunner;
   using nsGenericHTMLElement::DispatchEvent;
@@ -1059,6 +1077,9 @@ protected:
 
   // Holds a reference to a MediaInputPort connecting mSrcStream to mPlaybackStream.
   nsRefPtr<MediaInputPort> mPlaybackStreamInputPort;
+
+  // Holds a reference to the stream connecting this stream to the capture sink.
+  nsRefPtr<MediaInputPort> mCaptureStreamPort;
 
   // Holds a reference to a stream with mSrcStream as input but intended for
   // playback. Used so we don't block playback of other video elements
@@ -1269,6 +1290,9 @@ protected:
   // True if the sound is being captured.
   bool mAudioCaptured;
 
+  // True if the sound is being captured by the window.
+  bool mAudioCapturedByWindow;
+
   // If TRUE then the media element was actively playing before the currently
   // in progress seeking. If FALSE then the media element is either not seeking
   // or was not actively playing before the current seek. Used to decide whether
@@ -1363,8 +1387,8 @@ protected:
   // Audio Channel.
   AudioChannel mAudioChannel;
 
-  // The audio channel has been faded.
-  bool mAudioChannelFaded;
+  // The audio channel volume
+  float mAudioChannelVolume;
 
   // Is this media element playing?
   bool mPlayingThroughTheAudioChannel;
@@ -1373,6 +1397,11 @@ protected:
   // enough if we ever expand the ability of supporting multi-tracks video
   // playback.
   bool mDisableVideo;
+
+  // True if we blocked either a play() call or autoplay because the
+  // media's owner doc was not visible. Only enforced when the pref
+  // media.block-play-until-visible=true.
+  bool mPlayBlockedBecauseHidden;
 
   // An agent used to join audio channel service.
   nsCOMPtr<nsIAudioChannelAgent> mAudioChannelAgent;
@@ -1437,6 +1466,10 @@ private:
 
   // Time spent between video load and video playback.
   TimeDurationAccumulator mJoinLatency;
+
+  // Indicates if user has interacted with the element.
+  // Used to block autoplay when disabled.
+  bool mHasUserInteraction;
 };
 
 } // namespace dom

@@ -190,6 +190,10 @@ class StoreBuffer
             return storage_ ? storage_->sizeOfIncludingThis(mallocSizeOf) : 0;
         }
 
+        bool isEmpty() {
+            return !storage_ || storage_->isEmpty();
+        }
+
       private:
         GenericBuffer& operator=(const GenericBuffer& other) = delete;
     };
@@ -446,7 +450,7 @@ class StoreBuffer
 
     }
 
-    void assertHasValueEdge(Value* vp) {
+    void assertHasValueEdge(JS::Value* vp) {
         MOZ_ASSERT(bufferVal.has(this, ValueEdge(vp)) ||
                    !ValueEdge(vp).maybeInRememberedSet(nursery_));
     }
@@ -464,6 +468,10 @@ class StoreBuffer
 
     /* For use by our owned buffers and for testing. */
     void setAboutToOverflow();
+
+    bool hasPostBarrierCallbacks() {
+        return !bufferGeneric.isEmpty();
+    }
 
     void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::GCSizes* sizes);
 };

@@ -195,15 +195,23 @@ treecol {
   -moz-margin-end: 8px !important;
 }
 
+/* Privacy pane */
+
+#doNotTrackInfo,
+#trackingProtectionPBMLearnMore,
+#trackingProtectionLearnMore {
+  -moz-margin-start: 1.5em !important;
+  margin-top: 0;
+}
+
 /* Collapse the non-active vboxes in decks to use only the height the
    active vbox needs */
 #historyPane:not([selectedIndex="1"]) > #historyDontRememberPane,
 #historyPane:not([selectedIndex="2"]) > #historyCustomPane,
 #weavePrefsDeck:not([selectedIndex="1"]) > #hasAccount,
 #weavePrefsDeck:not([selectedIndex="2"]) > #needsUpdate,
-#weavePrefsDeck:not([selectedIndex="3"]) > #fxaDeterminingStatus,
-#weavePrefsDeck:not([selectedIndex="4"]) > #noFxaAccount,
-#weavePrefsDeck:not([selectedIndex="5"]) > #hasFxaAccount,
+#weavePrefsDeck:not([selectedIndex="3"]) > #noFxaAccount,
+#weavePrefsDeck:not([selectedIndex="4"]) > #hasFxaAccount,
 #fxaLoginStatus:not([selectedIndex="1"]) > #fxaLoginUnverified,
 #fxaLoginStatus:not([selectedIndex="2"]) > #fxaLoginRejected {
   visibility: collapse;
@@ -228,7 +236,11 @@ description > html|a {
 }
 
 #fxaProfileImage:hover {
-  border-color: blue;
+  box-shadow: 0px 0px 0px 1px #0095DD;
+}
+
+#fxaProfileImage:active {
+  box-shadow: 0px 0px 0px 1px #ff9500;
 }
 
 #noFxaAccount {
@@ -267,16 +279,8 @@ description > html|a {
   -moz-margin-start: 33px;
 }
 
-#trackingProtectionImage {
-  width: 16px;
-  height: 16px;
-  list-style-image: url(chrome://browser/skin/bad-content-blocked-16.png);
-}
-
-@media (min-resolution: 2dppx) {
-  #trackingProtectionImage {
-    list-style-image: url(chrome://browser/skin/bad-content-blocked-16@2x.png);
-  }
+.text-link {
+  margin-bottom: 0;
 }
 
 #showUpdateHistory {
@@ -329,9 +333,10 @@ description > html|a {
   background-color: transparent !important;
   border: none;
   box-shadow: none;
-  height: 18px;
   padding: 0;
-  min-width: 18px;
+  height: auto;
+  min-height: 16px;
+  min-width: 0;
 }
 
 #dialogBox > .groupbox-body {
@@ -392,11 +397,20 @@ description > html|a {
  * Sync
  */
 
-#fxaDeviceName {
-  margin: 14px 0px;
+#fxaSyncEngines > vbox:first-child {
+  margin-right: 80px;
 }
 
-#fxaSyncComputerName.plain {
-  background-color: transparent;
-  opacity: 1;
+#fxaSyncComputerName {
+  margin-left: 0px;
+}
+
+#tosPP-small-ToS {
+  margin-bottom: 1em;
+}
+
+#fxaLoginRejectedWarning {
+  list-style-image: url(chrome://browser/skin/warning.svg);
+  filter: drop-shadow(0 1px 0 hsla(206, 50%, 10%, .15));
+  margin: 4px 8px 0px 0px;
 }

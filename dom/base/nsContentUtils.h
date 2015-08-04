@@ -842,6 +842,9 @@ public:
                                   uint32_t aLineNumber = 0,
                                   uint32_t aColumnNumber = 0);
 
+  static nsresult
+  MaybeReportInterceptionErrorToConsole(nsIDocument* aDocument, nsresult aError);
+
   static void LogMessageToConsole(const char* aMsg, ...);
   
   /**
@@ -2070,6 +2073,11 @@ public:
    */
   static void XPCOMShutdown();
 
+  /**
+   * Checks if internal PDF viewer is enabled.
+   */
+  static bool IsPDFJSEnabled();
+
   enum ContentViewerType
   {
       TYPE_UNSUPPORTED,
@@ -2430,6 +2438,8 @@ public:
   static nsresult SetFetchReferrerURIWithPolicy(nsIPrincipal* aPrincipal,
                                                 nsIDocument* aDoc,
                                                 nsIHttpChannel* aChannel);
+
+  static bool PushEnabled(JSContext* aCx, JSObject* aObj);
 
 private:
   static bool InitializeEventTable();

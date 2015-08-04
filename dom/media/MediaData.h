@@ -12,7 +12,7 @@
 #include "AudioSampleFormat.h"
 #include "nsIMemoryReporter.h"
 #include "SharedBuffer.h"
-#include "nsRefPtr.h"
+#include "mozilla/nsRefPtr.h"
 #include "nsTArray.h"
 
 namespace mozilla {
@@ -20,7 +20,7 @@ namespace mozilla {
 namespace layers {
 class Image;
 class ImageContainer;
-}
+} // namespace layers
 
 class MediaByteBuffer;
 class SharedTrackInfo;
@@ -40,12 +40,14 @@ public:
   MediaData(Type aType,
             int64_t aOffset,
             int64_t aTimestamp,
-            int64_t aDuration)
+            int64_t aDuration,
+            uint32_t aFrames)
     : mType(aType)
     , mOffset(aOffset)
     , mTime(aTimestamp)
     , mTimecode(aTimestamp)
     , mDuration(aDuration)
+    , mFrames(aFrames)
     , mKeyframe(false)
     , mDiscontinuity(false)
   {}
@@ -66,6 +68,9 @@ public:
   // Duration of sample, in microseconds.
   int64_t mDuration;
 
+  // Amount of frames for contained data.
+  const uint32_t mFrames;
+
   bool mKeyframe;
 
   // True if this is the first sample after a gap or discontinuity in
@@ -79,13 +84,29 @@ public:
     mTime = mTime - aStartTime;
     return mTime >= 0;
   }
+
+  template <typename ReturnType>
+  const ReturnType* As() const
+  {
+    MOZ_ASSERT(this->mType == ReturnType::sType);
+    return static_cast<const ReturnType*>(this);
+  }
+
+  template <typename ReturnType>
+  ReturnType* As()
+  {
+    MOZ_ASSERT(this->mType == ReturnType::sType);
+    return static_cast<ReturnType*>(this);
+  }
+
 protected:
-  explicit MediaData(Type aType)
+  MediaData(Type aType, uint32_t aFrames)
     : mType(aType)
     , mOffset(0)
     , mTime(0)
     , mTimecode(0)
     , mDuration(0)
+    , mFrames(aFrames)
     , mKeyframe(false)
     , mDiscontinuity(false)
   {}
@@ -105,8 +126,7 @@ public:
             AudioDataValue* aData,
             uint32_t aChannels,
             uint32_t aRate)
-    : MediaData(sType, aOffset, aTime, aDuration)
-    , mFrames(aFrames)
+    : MediaData(sType, aOffset, aTime, aDuration, aFrames)
     , mChannels(aChannels)
     , mRate(aRate)
     , mAudioData(aData) {}
@@ -128,7 +148,6 @@ public:
   // If mAudioBuffer is null, creates it from mAudioData.
   void EnsureAudioBuffer();
 
-  const uint32_t mFrames;
   const uint32_t mChannels;
   const uint32_t mRate;
   // At least one of mAudioBuffer/mAudioData must be non-null.
@@ -144,7 +163,7 @@ protected:
 namespace layers {
 class TextureClient;
 class PlanarYCbCrImage;
-}
+} // namespace layers
 
 class VideoInfo;
 
@@ -269,18 +288,6 @@ public:
                                   const IntRect& aPicture,
                                   bool aCopyData);
 
-  // Constructs a duplicate VideoData object. This intrinsically tells the
-  // player that it does not need to update the displayed frame when this
-  // frame is played; this frame is identical to the previous.
-  static already_AddRefed<VideoData> CreateDuplicate(int64_t aOffset,
-                                                     int64_t aTime,
-                                                     int64_t aDuration,
-                                                     int64_t aTimecode)
-  {
-    nsRefPtr<VideoData> rv = new VideoData(aOffset, aTime, aDuration, aTimecode);
-    return rv.forget();
-  }
-
   size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
 
   // Dimensions at which to display the video frame. The picture region
@@ -291,21 +298,17 @@ public:
   // This frame's image.
   nsRefPtr<Image> mImage;
 
-  // When true, denotes that this frame is identical to the frame that
-  // came before; it's a duplicate. mBuffer will be empty.
-  const bool mDuplicate;
+  int32_t mFrameID;
 
-  VideoData(int64_t aOffset,
-            int64_t aTime,
-            int64_t aDuration,
-            int64_t aTimecode);
+  bool mSentToCompositor;
 
   VideoData(int64_t aOffset,
             int64_t aTime,
             int64_t aDuration,
             bool aKeyframe,
             int64_t aTimecode,
-            IntSize aDisplay);
+            IntSize aDisplay,
+            int32_t aFrameID);
 
 protected:
   ~VideoData();
@@ -425,6 +428,8 @@ private:
   // MediaByteBuffer is a ref counted infallible TArray.
 class MediaByteBuffer : public nsTArray<uint8_t> {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaByteBuffer);
+  MediaByteBuffer() = default;
+  explicit MediaByteBuffer(size_t aCapacity) : nsTArray<uint8_t>(aCapacity) {}
 
 private:
   ~MediaByteBuffer() {}

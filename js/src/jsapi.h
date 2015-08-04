@@ -525,7 +525,7 @@ class HandleValueArray
       : length_(values.length()), elements_(values.begin()) {}
 
     template <size_t N>
-    HandleValueArray(const AutoValueArray<N>& values) : length_(N), elements_(values.begin()) {}
+    MOZ_IMPLICIT HandleValueArray(const AutoValueArray<N>& values) : length_(N), elements_(values.begin()) {}
 
     /* CallArgs must already be rooted somewhere up the stack. */
     MOZ_IMPLICIT HandleValueArray(const JS::CallArgs& args) : length_(args.length()), elements_(args.array()) {}
@@ -734,14 +734,14 @@ typedef void*
 
 /************************************************************************/
 
-static MOZ_ALWAYS_INLINE jsval
+static MOZ_ALWAYS_INLINE JS::Value
 JS_NumberValue(double d)
 {
     int32_t i;
     d = JS::CanonicalizeNaN(d);
     if (mozilla::NumberIsInt32(d, &i))
         return JS::Int32Value(i);
-    return DOUBLE_TO_JSVAL(d);
+    return JS::DoubleValue(d);
 }
 
 /************************************************************************/
@@ -936,17 +936,17 @@ JS_CallOnce(JSCallOnceType* once, JSInitCallback func);
 extern JS_PUBLIC_API(int64_t)
 JS_Now(void);
 
-/* Don't want to export data, so provide accessors for non-inline jsvals. */
-extern JS_PUBLIC_API(jsval)
+/* Don't want to export data, so provide accessors for non-inline Values. */
+extern JS_PUBLIC_API(JS::Value)
 JS_GetNaNValue(JSContext* cx);
 
-extern JS_PUBLIC_API(jsval)
+extern JS_PUBLIC_API(JS::Value)
 JS_GetNegativeInfinityValue(JSContext* cx);
 
-extern JS_PUBLIC_API(jsval)
+extern JS_PUBLIC_API(JS::Value)
 JS_GetPositiveInfinityValue(JSContext* cx);
 
-extern JS_PUBLIC_API(jsval)
+extern JS_PUBLIC_API(JS::Value)
 JS_GetEmptyStringValue(JSContext* cx);
 
 extern JS_PUBLIC_API(JSString*)
@@ -1594,13 +1594,14 @@ namespace JS {
 extern JS_PUBLIC_API(JSObject*)
 CurrentGlobalOrNull(JSContext* cx);
 
-}
+} // namespace JS
 
 /*
- * Initialize the 'Reflect' object on a global object.
+ * Add 'Reflect.parse', a SpiderMonkey extension, to the Reflect object on the
+ * given global.
  */
-extern JS_PUBLIC_API(JSObject*)
-JS_InitReflect(JSContext* cx, JS::HandleObject global);
+extern JS_PUBLIC_API(bool)
+JS_InitReflectParse(JSContext* cx, JS::HandleObject global);
 
 /*
  * Add various profiling-related functions as properties of the given object.
@@ -2506,7 +2507,7 @@ JS_New(JSContext* cx, JS::HandleObject ctor, const JS::HandleValueArray& args);
 
 /*** Property descriptors ************************************************************************/
 
-struct JSPropertyDescriptor {
+struct JSPropertyDescriptor : public JS::Traceable {
     JSObject* obj;
     unsigned attrs;
     JSGetterOp getter;
@@ -2517,9 +2518,8 @@ struct JSPropertyDescriptor {
       : obj(nullptr), attrs(0), getter(nullptr), setter(nullptr), value(JS::UndefinedValue())
     {}
 
+    static void trace(JSPropertyDescriptor* self, JSTracer* trc) { self->trace(trc); }
     void trace(JSTracer* trc);
-
-    static js::ThingRootKind rootKind() { return js::THING_ROOT_PROPERTY_DESCRIPTOR; }
 };
 
 namespace JS {
@@ -2527,7 +2527,7 @@ namespace JS {
 template <typename Outer>
 class PropertyDescriptorOperations
 {
-    const JSPropertyDescriptor * desc() const { return static_cast<const Outer*>(this)->extract(); }
+    const JSPropertyDescriptor* desc() const { return static_cast<const Outer*>(this)->extract(); }
 
     bool has(unsigned bit) const {
         MOZ_ASSERT(bit != 0);
@@ -2770,16 +2770,11 @@ class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<
 namespace js {
 
 template <>
-struct GCMethods<JSPropertyDescriptor> {
-    static JSPropertyDescriptor initial() { return JSPropertyDescriptor(); }
-};
-
-template <>
 class RootedBase<JSPropertyDescriptor>
-  : public JS::MutablePropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >
+  : public JS::MutablePropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor>>
 {
-    friend class JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >;
-    friend class JS::MutablePropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor> >;
+    friend class JS::PropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor>>;
+    friend class JS::MutablePropertyDescriptorOperations<JS::Rooted<JSPropertyDescriptor>>;
     const JSPropertyDescriptor* extract() const {
         return static_cast<const JS::Rooted<JSPropertyDescriptor>*>(this)->address();
     }
@@ -2790,9 +2785,9 @@ class RootedBase<JSPropertyDescriptor>
 
 template <>
 class HandleBase<JSPropertyDescriptor>
-  : public JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor> >
+  : public JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor>>
 {
-    friend class JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor> >;
+    friend class JS::PropertyDescriptorOperations<JS::Handle<JSPropertyDescriptor>>;
     const JSPropertyDescriptor* extract() const {
         return static_cast<const JS::Handle<JSPropertyDescriptor>*>(this)->address();
     }
@@ -2800,10 +2795,10 @@ class HandleBase<JSPropertyDescriptor>
 
 template <>
 class MutableHandleBase<JSPropertyDescriptor>
-  : public JS::MutablePropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor> >
+  : public JS::MutablePropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor>>
 {
-    friend class JS::PropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor> >;
-    friend class JS::MutablePropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor> >;
+    friend class JS::PropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor>>;
+    friend class JS::MutablePropertyDescriptorOperations<JS::MutableHandle<JSPropertyDescriptor>>;
     const JSPropertyDescriptor* extract() const {
         return static_cast<const JS::MutableHandle<JSPropertyDescriptor>*>(this)->address();
     }
@@ -3191,11 +3186,11 @@ JS_ReleaseMappedArrayBufferContents(void* contents, size_t length);
 extern JS_PUBLIC_API(JSIdArray*)
 JS_Enumerate(JSContext* cx, JS::HandleObject obj);
 
-extern JS_PUBLIC_API(jsval)
+extern JS_PUBLIC_API(JS::Value)
 JS_GetReservedSlot(JSObject* obj, uint32_t index);
 
 extern JS_PUBLIC_API(void)
-JS_SetReservedSlot(JSObject* obj, uint32_t index, jsval v);
+JS_SetReservedSlot(JSObject* obj, uint32_t index, JS::Value v);
 
 /************************************************************************/
 
@@ -3388,10 +3383,20 @@ namespace JS {
  * it doesn't care who owns them, or what's keeping them alive. It does its own
  * addrefs/copies/tracing/etc.
  *
- * So, we have a class hierarchy that reflects these three use cases:
+ * Furthermore, in some cases compile options are propagated from one entity to
+ * another (e.g. from a scriipt to a function defined in that script).  This
+ * involves copying over some, but not all, of the options.
  *
- * - ReadOnlyCompileOptions is the common base class. It can be used by code
- *   that simply needs to access options set elsewhere, like the compiler.
+ * So, we have a class hierarchy that reflects these four use cases:
+ *
+ * - TransitiveCompileOptions is the common base class, representing options
+ *   that should get propagated from a script to functions defined in that
+ *   script.  This is never instantiated directly.
+ *
+ * - ReadOnlyCompileOptions is the only subclass of TransitiveCompileOptions,
+ *   representing a full set of compile options.  It can be used by code that
+ *   simply needs to access options set elsewhere, like the compiler.  This,
+ *   again, is never instantiated directly.
  *
  * - The usual CompileOptions class must be stack-allocated, and holds
  *   non-owning references to the filename, element, and so on. It's derived
@@ -3405,15 +3410,11 @@ namespace JS {
 /*
  * The common base class for the CompileOptions hierarchy.
  *
- * Use this in code that only needs to access compilation options created
- * elsewhere, like the compiler. Don't instantiate this class (the constructor
- * is protected anyway); instead, create instances only of the derived classes:
- * CompileOptions and OwningCompileOptions.
+ * Use this in code that needs to propagate compile options from one compilation
+ * unit to another.
  */
-class JS_FRIEND_API(ReadOnlyCompileOptions)
+class JS_FRIEND_API(TransitiveCompileOptions)
 {
-    friend class CompileOptions;
-
   protected:
     // The Web Platform allows scripts to be loaded from arbitrary cross-origin
     // sources. This allows an attack by which a malicious website loads a
@@ -3435,7 +3436,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     // is unusable until that's set to something more specific; the derived
     // classes' constructors take care of that, in ways appropriate to their
     // purpose.
-    ReadOnlyCompileOptions()
+    TransitiveCompileOptions()
       : mutedErrors_(false),
         filename_(nullptr),
         introducerFilename_(nullptr),
@@ -3443,11 +3444,6 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
         version(JSVERSION_UNKNOWN),
         versionSet(false),
         utf8(false),
-        lineno(1),
-        column(0),
-        isRunOnce(false),
-        forEval(false),
-        noScriptRval(false),
         selfHostingMode(false),
         canLazilyParse(true),
         strictOption(false),
@@ -3465,7 +3461,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
 
     // Set all POD options (those not requiring reference counts, copies,
     // rooting, or other hand-holding) to their values in |rhs|.
-    void copyPODOptions(const ReadOnlyCompileOptions& rhs);
+    void copyPODTransitiveOptions(const TransitiveCompileOptions& rhs);
 
   public:
     // Read-only accessors for non-POD options. The proper way to set these
@@ -3482,12 +3478,6 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     JSVersion version;
     bool versionSet;
     bool utf8;
-    unsigned lineno;
-    unsigned column;
-    // isRunOnce only applies to non-function scripts.
-    bool isRunOnce;
-    bool forEval;
-    bool noScriptRval;
     bool selfHostingMode;
     bool canLazilyParse;
     bool strictOption;
@@ -3506,7 +3496,55 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
     bool hasIntroductionInfo;
 
   private:
-    static JSObject * const nullObjectPtr;
+    void operator=(const TransitiveCompileOptions&) = delete;
+};
+
+/*
+ * The class representing a full set of compile options.
+ *
+ * Use this in code that only needs to access compilation options created
+ * elsewhere, like the compiler. Don't instantiate this class (the constructor
+ * is protected anyway); instead, create instances only of the derived classes:
+ * CompileOptions and OwningCompileOptions.
+ */
+class JS_FRIEND_API(ReadOnlyCompileOptions) : public TransitiveCompileOptions
+{
+    friend class CompileOptions;
+
+  protected:
+    ReadOnlyCompileOptions()
+      : TransitiveCompileOptions(),
+        lineno(1),
+        column(0),
+        isRunOnce(false),
+        forEval(false),
+        noScriptRval(false)
+    { }
+
+    // Set all POD options (those not requiring reference counts, copies,
+    // rooting, or other hand-holding) to their values in |rhs|.
+    void copyPODOptions(const ReadOnlyCompileOptions& rhs);
+
+  public:
+    // Read-only accessors for non-POD options. The proper way to set these
+    // depends on the derived type.
+    bool mutedErrors() const { return mutedErrors_; }
+    const char* filename() const { return filename_; }
+    const char* introducerFilename() const { return introducerFilename_; }
+    const char16_t* sourceMapURL() const { return sourceMapURL_; }
+    virtual JSObject* element() const = 0;
+    virtual JSString* elementAttributeName() const = 0;
+    virtual JSScript* introductionScript() const = 0;
+
+    // POD options.
+    unsigned lineno;
+    unsigned column;
+    // isRunOnce only applies to non-function scripts.
+    bool isRunOnce;
+    bool forEval;
+    bool noScriptRval;
+
+  private:
     void operator=(const ReadOnlyCompileOptions&) = delete;
 };
 
@@ -3621,8 +3659,22 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
     {
         copyPODOptions(rhs);
 
-        mutedErrors_ = rhs.mutedErrors_;
         filename_ = rhs.filename();
+        introducerFilename_ = rhs.introducerFilename();
+        sourceMapURL_ = rhs.sourceMapURL();
+        elementRoot = rhs.element();
+        elementAttributeNameRoot = rhs.elementAttributeName();
+        introductionScriptRoot = rhs.introductionScript();
+    }
+
+    CompileOptions(js::ContextFriendFields* cx, const TransitiveCompileOptions& rhs)
+      : ReadOnlyCompileOptions(), elementRoot(cx), elementAttributeNameRoot(cx),
+        introductionScriptRoot(cx)
+    {
+        copyPODTransitiveOptions(rhs);
+
+        filename_ = rhs.filename();
+        introducerFilename_ = rhs.introducerFilename();
         sourceMapURL_ = rhs.sourceMapURL();
         elementRoot = rhs.element();
         elementAttributeNameRoot = rhs.elementAttributeName();
@@ -4032,18 +4084,29 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(AutoSetAsyncStackForNewCalls)
     JSContext* cx;
     RootedObject oldAsyncStack;
     RootedString oldAsyncCause;
+    bool oldAsyncCallIsExplicit;
 
   public:
+    enum class AsyncCallKind {
+        // The ordinary kind of call, where we may apply an async
+        // parent if there is no ordinary parent.
+        IMPLICIT,
+        // An explicit async parent, e.g., callFunctionWithAsyncStack,
+        // where we always want to override any ordinary parent.
+        EXPLICIT
+    };
+
     // The stack parameter cannot be null by design, because it would be
     // ambiguous whether that would clear any scheduled async stack and make the
     // normal stack reappear in the new call, or just keep the async stack
     // already scheduled for the new call, if any.
     AutoSetAsyncStackForNewCalls(JSContext* cx, HandleObject stack,
-                                 HandleString asyncCause);
+                                 HandleString asyncCause,
+                                 AsyncCallKind kind = AsyncCallKind::IMPLICIT);
     ~AutoSetAsyncStackForNewCalls();
 };
 
-}
+} // namespace JS
 
 /************************************************************************/
 
@@ -4915,6 +4978,9 @@ JS_DropExceptionState(JSContext* cx, JSExceptionState* state);
 extern JS_PUBLIC_API(JSErrorReport*)
 JS_ErrorFromException(JSContext* cx, JS::HandleObject obj);
 
+extern JS_PUBLIC_API(JSObject*)
+ExceptionStackOrNull(JSContext* cx, JS::HandleObject obj);
+
 /*
  * Throws a StopIteration exception on cx.
  */
@@ -4922,7 +4988,7 @@ extern JS_PUBLIC_API(bool)
 JS_ThrowStopIteration(JSContext* cx);
 
 extern JS_PUBLIC_API(bool)
-JS_IsStopIteration(jsval v);
+JS_IsStopIteration(JS::Value v);
 
 extern JS_PUBLIC_API(intptr_t)
 JS_GetCurrentThread();
@@ -5411,7 +5477,7 @@ BuildStackString(JSContext* cx, HandleObject stack, MutableHandleString stringp)
 
 namespace js {
 
-struct AutoStopwatch;
+class AutoStopwatch;
 
 // Container for performance data
 // All values are monotonic.
@@ -5542,21 +5608,30 @@ private:
 };
 
 //
-// Indirection towards a PerformanceGroup.
-// This structure handles reference counting for instances of PerformanceGroup.
+// Each PerformanceGroupHolder handles:
+// - a reference-counted indirection towards a PerformanceGroup shared
+//   by several compartments
+// - a owned PerformanceGroup representing the performance of a single
+//   compartment.
 //
 struct PerformanceGroupHolder {
-    // Get the group.
+    // Get the shared group.
     // On first call, this causes a single Hashtable lookup.
     // Successive calls do not require further lookups.
-    js::PerformanceGroup* getGroup(JSContext*);
+    js::PerformanceGroup* getSharedGroup(JSContext*);
 
-    // `true` if the this holder is currently associated to a
+    // Get the own group.
+    js::PerformanceGroup* getOwnGroup(JSContext*);
+
+    // `true` if the this holder is currently associated to a shared
     // PerformanceGroup, `false` otherwise. Use this method to avoid
     // instantiating a PerformanceGroup if you only need to get
     // available performance data.
-    inline bool isLinked() const {
-        return group_ != nullptr;
+    inline bool hasSharedGroup() const {
+        return sharedGroup_ != nullptr;
+    }
+    inline bool hasOwnGroup() const {
+        return ownGroup_ != nullptr;
     }
 
     // Remove the link to the PerformanceGroup. This method is designed
@@ -5566,10 +5641,12 @@ struct PerformanceGroupHolder {
 
     explicit PerformanceGroupHolder(JSRuntime* runtime)
       : runtime_(runtime)
-      , group_(nullptr)
+      , sharedGroup_(nullptr)
+      , ownGroup_(nullptr)
     {   }
     ~PerformanceGroupHolder();
-private:
+
+  private:
     // Return the key representing this PerformanceGroup in
     // Runtime::Stopwatch.
     // Do not deallocate the key.
@@ -5577,10 +5654,11 @@ private:
 
     JSRuntime *runtime_;
 
-    // The PerformanceGroup held by this object.
-    // Initially set to `nullptr` until the first cal to `getGroup`.
+    // The PerformanceGroups held by this object.
+    // Initially set to `nullptr` until the first call to `getGroup`.
     // May be reset to `nullptr` by a call to `unlink`.
-    js::PerformanceGroup* group_;
+    js::PerformanceGroup* sharedGroup_;
+    js::PerformanceGroup* ownGroup_;
 };
 
 /**
@@ -5606,6 +5684,10 @@ extern JS_PUBLIC_API(bool)
 SetStopwatchIsMonitoringJank(JSRuntime*, bool);
 extern JS_PUBLIC_API(bool)
 GetStopwatchIsMonitoringJank(JSRuntime*);
+extern JS_PUBLIC_API(bool)
+SetStopwatchIsMonitoringPerCompartment(JSRuntime*, bool);
+extern JS_PUBLIC_API(bool)
+GetStopwatchIsMonitoringPerCompartment(JSRuntime*);
 
 extern JS_PUBLIC_API(bool)
 IsStopwatchActive(JSRuntime*);
@@ -5617,7 +5699,9 @@ extern JS_PUBLIC_API(PerformanceData*)
 GetPerformanceData(JSRuntime*);
 
 typedef bool
-(PerformanceStatsWalker)(JSContext* cx, const PerformanceData& stats, uint64_t uid, void* closure);
+(PerformanceStatsWalker)(JSContext* cx,
+                         const PerformanceData& stats, uint64_t uid,
+                         const uint64_t* parentId, void* closure);
 
 /**
  * Extract the performance statistics.

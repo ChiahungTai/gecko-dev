@@ -64,6 +64,7 @@ class MacIOSurfaceTextureHostOGL : public TextureHost
 public:
   MacIOSurfaceTextureHostOGL(TextureFlags aFlags,
                              const SurfaceDescriptorMacIOSurface& aDescriptor);
+  virtual ~MacIOSurfaceTextureHostOGL();
 
   // MacIOSurfaceTextureSourceOGL doesn't own any GL texture
   virtual void DeallocateDeviceData() override {}
@@ -99,7 +100,7 @@ protected:
   RefPtr<MacIOSurface> mSurface;
 };
 
-}
-}
+} // namespace layers
+} // namespace mozilla
 
 #endif // MOZILLA_GFX_MACIOSURFACETEXTUREHOSTOGL_H

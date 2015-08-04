@@ -26,8 +26,6 @@
 <!ENTITY syncMy.label               "Sync My">
 <!ENTITY engine.bookmarks.label     "Bookmarks">
 <!ENTITY engine.bookmarks.accesskey "m">
-<!ENTITY engine.readinglist.label   "Reading List">
-<!ENTITY engine.readinglist.accesskey "L">
 <!ENTITY engine.tabs.label          "Tabs">
 <!ENTITY engine.tabs.accesskey      "T">
 <!ENTITY engine.history.label       "History">
@@ -74,6 +72,7 @@ both, to better adapt this sentence to their language.
 
 <!ENTITY notSignedIn.label           "You are not signed in.">
 <!ENTITY signIn.label                "Sign in">
+<!ENTITY profilePicture.tooltip      "Change profile picture">
 <!ENTITY manage.label                "Manage">
 <!ENTITY disconnect.label            "Disconnect…">
 <!ENTITY verify.label                "Verify Email">

@@ -1475,7 +1475,8 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
     mNextSibling(nullptr),
     mDependentBits((uint32_t(aLevel) << NS_RULE_NODE_LEVEL_SHIFT) |
                    (aIsImportant ? NS_RULE_NODE_IS_IMPORTANT : 0)),
-    mNoneBits(0),
+    mNoneBits(aParent ? aParent->mNoneBits & NS_RULE_NODE_HAS_ANIMATION_DATA :
+                        0),
     mRefCnt(0)
 {
   MOZ_ASSERT(aContext);
@@ -7989,7 +7990,7 @@ nsRuleNode::ComputeTableBorderData(void* aStartStruct,
               table->mCaptionSide, conditions,
               SETDSC_ENUMERATED | SETDSC_UNSET_INHERIT,
               parentTable->mCaptionSide,
-              NS_STYLE_CAPTION_SIDE_TOP, 0, 0, 0, 0);
+              NS_STYLE_CAPTION_SIDE_BSTART, 0, 0, 0, 0);
 
   // empty-cells: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForEmptyCells(),
@@ -8899,7 +8900,7 @@ nsRuleNode::SetStyleClipPathToCSSValue(nsStyleClipPath* aStyleClipPath,
   const nsCSSValueList* cur = aValue->GetListValue();
 
   uint8_t sizingBox = NS_STYLE_CLIP_SHAPE_SIZING_NOBOX;
-  nsStyleBasicShape* basicShape = nullptr;
+  nsRefPtr<nsStyleBasicShape> basicShape;
   for (unsigned i = 0; i < 2; ++i) {
     if (!cur) {
       break;
@@ -9321,9 +9322,14 @@ nsRuleNode::GetStyleData(nsStyleStructID aSID,
                "in some way.");
 
   const void *data;
-  data = mStyleData.GetStyleData(aSID, aContext);
-  if (MOZ_LIKELY(data != nullptr))
-    return data; // We have a fully specified struct. Just return it.
+
+  // Never use cached data for animated style inside a pseudo-element;
+  // see comment on cacheability in AnimValuesStyleRule::MapRuleInfoInto.
+  if (!(HasAnimationData() && ParentHasPseudoElementData(aContext))) {
+    data = mStyleData.GetStyleData(aSID, aContext);
+    if (MOZ_LIKELY(data != nullptr))
+      return data; // We have a fully specified struct. Just return it.
+  }
 
   if (MOZ_UNLIKELY(!aComputeData))
     return nullptr;
@@ -9375,7 +9381,7 @@ nsRuleNode::SweepChildren(nsTArray<nsRuleNode*>& aSweepQueue)
   if (ChildrenAreHashed()) {
     PLDHashTable* children = ChildrenHash();
     uint32_t oldChildCount = children->EntryCount();
-    for (auto iter = children->RemovingIter(); !iter.Done(); iter.Next()) {
+    for (auto iter = children->Iter(); !iter.Done(); iter.Next()) {
       auto entry = static_cast<ChildrenHashEntry*>(iter.Get());
       nsRuleNode* node = entry->mRuleNode;
       if (node->DestroyIfNotMarked()) {
@@ -9778,4 +9784,11 @@ nsRuleNode::ComputeColor(const nsCSSValue& aValue, nsPresContext* aPresContext,
                      aResult, conditions);
   MOZ_ASSERT(ok || !(aPresContext && aStyleContext));
   return ok;
+}
+
+/* static */ bool
+nsRuleNode::ParentHasPseudoElementData(nsStyleContext* aContext)
+{
+  nsStyleContext* parent = aContext->GetParent();
+  return parent && parent->HasPseudoElementData();
 }

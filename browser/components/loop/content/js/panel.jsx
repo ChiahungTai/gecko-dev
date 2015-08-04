@@ -546,7 +546,8 @@ loop.panel = (function(_, mozL10n) {
       event.stopPropagation();
       event.preventDefault();
       this.props.dispatcher.dispatch(new sharedActions.CopyRoomUrl({
-        roomUrl: this.props.room.roomUrl
+        roomUrl: this.props.room.roomUrl,
+        from: "panel"
       }));
       this.setState({urlCopied: true});
     },
@@ -773,6 +774,7 @@ loop.panel = (function(_, mozL10n) {
 
       var contextClasses = React.addons.classSet({
         context: true,
+        "context-checkbox-checked": this.state.checked,
         hide: !hostname ||
           !this.props.mozLoop.getLoopPref("contextInConversations.enabled")
       });

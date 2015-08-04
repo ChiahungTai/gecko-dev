@@ -39,11 +39,9 @@ namespace dom {
 namespace {
 // Generator used by Promise::GetID.
 Atomic<uintptr_t> gIDGenerator(0);
-}
+} // namespace
 
 using namespace workers;
-
-NS_IMPL_ISUPPORTS0(PromiseNativeHandler)
 
 // This class processes the promise's callbacks with promise's result.
 class PromiseCallbackTask final : public nsRunnable
@@ -169,7 +167,7 @@ GetPromise(JSContext* aCx, JS::Handle<JSObject*> aFunc)
   UNWRAP_OBJECT(Promise, &promiseVal.toObject(), promise);
   return promise;
 }
-};
+} // namespace
 
 // Runnable to resolve thenables.
 // Equivalent to the specification's ResolvePromiseViaThenableTask.
@@ -420,10 +418,11 @@ Promise::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 }
 
 already_AddRefed<Promise>
-Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv)
+Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv,
+                JS::Handle<JSObject*> aDesiredProto)
 {
   nsRefPtr<Promise> p = new Promise(aGlobal);
-  p->CreateWrapper(aRv);
+  p->CreateWrapper(aDesiredProto, aRv);
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -431,7 +430,7 @@ Promise::Create(nsIGlobalObject* aGlobal, ErrorResult& aRv)
 }
 
 void
-Promise::CreateWrapper(ErrorResult& aRv)
+Promise::CreateWrapper(JS::Handle<JSObject*> aDesiredProto, ErrorResult& aRv)
 {
   AutoJSAPI jsapi;
   if (!jsapi.Init(mGlobal)) {
@@ -441,7 +440,7 @@ Promise::CreateWrapper(ErrorResult& aRv)
   JSContext* cx = jsapi.cx();
 
   JS::Rooted<JS::Value> wrapper(cx);
-  if (!GetOrCreateDOMReflector(cx, this, &wrapper)) {
+  if (!GetOrCreateDOMReflector(cx, this, &wrapper, aDesiredProto)) {
     JS_ClearPendingException(cx);
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
@@ -641,8 +640,8 @@ Promise::CreateThenableFunction(JSContext* aCx, Promise* aPromise, uint32_t aTas
 }
 
 /* static */ already_AddRefed<Promise>
-Promise::Constructor(const GlobalObject& aGlobal,
-                     PromiseInit& aInit, ErrorResult& aRv)
+Promise::Constructor(const GlobalObject& aGlobal, PromiseInit& aInit,
+                     ErrorResult& aRv, JS::Handle<JSObject*> aDesiredProto)
 {
   nsCOMPtr<nsIGlobalObject> global;
   global = do_QueryInterface(aGlobal.GetAsSupports());
@@ -651,7 +650,7 @@ Promise::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Create(global, aRv);
+  nsRefPtr<Promise> promise = Create(global, aRv, aDesiredProto);
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -949,7 +948,8 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(AllResolveHandler)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(AllResolveHandler)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(AllResolveHandler)
-NS_INTERFACE_MAP_END_INHERITING(PromiseNativeHandler)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION(AllResolveHandler, mCountdownHolder)
 
@@ -1215,10 +1215,17 @@ Promise::MaybeReportRejected()
   // Now post an event to do the real reporting async
   // Since Promises preserve their wrapper, it is essential to nsRefPtr<> the
   // AsyncErrorReporter, otherwise if the call to DispatchToMainThread fails, it
-  // will leak. See Bug 958684.
-  nsRefPtr<AsyncErrorReporter> r =
-    new AsyncErrorReporter(CycleCollectedJSRuntime::Get()->Runtime(), xpcReport);
-  NS_DispatchToMainThread(r);
+  // will leak. See Bug 958684.  So... don't use DispatchToMainThread()
+  nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+  if (NS_WARN_IF(!mainThread)) {
+    // Would prefer NS_ASSERTION, but that causes failure in xpcshell tests
+    NS_WARNING("!!! Trying to report rejected Promise after MainThread shutdown");
+  }
+  if (mainThread) {
+    nsRefPtr<AsyncErrorReporter> r =
+      new AsyncErrorReporter(CycleCollectedJSRuntime::Get()->Runtime(), xpcReport);
+    mainThread->Dispatch(r.forget(), NS_DISPATCH_NORMAL);
+  }
 }
 #endif // defined(DOM_PROMISE_DEPRECATED_REPORTING)
 
@@ -1306,7 +1313,7 @@ Promise::ResolveInternal(JSContext* aCx,
       }
 
       nsRefPtr<PromiseInit> thenCallback =
-        new PromiseInit(thenObj, mozilla::dom::GetIncumbentGlobal());
+        new PromiseInit(nullptr, thenObj, mozilla::dom::GetIncumbentGlobal());
       nsRefPtr<ThenableResolverTask> task =
         new ThenableResolverTask(this, valueObj, thenCallback);
       DispatchToMicroTask(task);
@@ -1506,9 +1513,7 @@ public:
       return false;
     }
 
-    // TODO Bug 975246 - nsRefPtr should support operator |nsRefPtr->*funcType|.
-    (workerPromise.get()->*mFunc)(aCx,
-                                  value);
+    (workerPromise->*mFunc)(aCx, value);
 
     // Release the Promise because it has been resolved/rejected for sure.
     mPromiseWorkerProxy->CleanUp(aCx);
@@ -1552,6 +1557,8 @@ PromiseWorkerProxy::Create(workers::WorkerPrivate* aWorkerPrivate,
 
   return proxy.forget();
 }
+
+NS_IMPL_ISUPPORTS0(PromiseWorkerProxy)
 
 PromiseWorkerProxy::PromiseWorkerProxy(workers::WorkerPrivate* aWorkerPrivate,
                                        Promise* aWorkerPromise,
@@ -1611,9 +1618,9 @@ PromiseWorkerProxy::RunCallback(JSContext* aCx,
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  MutexAutoLock lock(mCleanUpLock);
+  MutexAutoLock lock(GetCleanUpLock());
   // If the worker thread's been cancelled we don't need to resolve the Promise.
-  if (mCleanedUp) {
+  if (IsClean()) {
     return;
   }
 
@@ -1635,7 +1642,7 @@ PromiseWorkerProxy::RunCallback(JSContext* aCx,
   if (!runnable->Dispatch(aCx)) {
     nsRefPtr<WorkerControlRunnable> runnable =
       new PromiseWorkerProxyControlRunnable(mWorkerPrivate, this);
-    mWorkerPrivate->DispatchControlRunnable(runnable);
+    mWorkerPrivate->DispatchControlRunnable(runnable.forget());
   }
 }
 

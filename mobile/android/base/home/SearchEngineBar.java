@@ -10,8 +10,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.graphics.drawable.DrawableCompat;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
@@ -25,6 +23,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import org.mozilla.gecko.R;
+import org.mozilla.gecko.util.DrawableUtil;
 import org.mozilla.gecko.widget.TwoWayView;
 
 import java.util.ArrayList;
@@ -102,15 +101,24 @@ public class SearchEngineBar extends TwoWayView
         final int searchEngineCount = adapter.getCount() - 1;
 
         if (searchEngineCount > 0) {
-            final float availableWidthPerContainer = (getMeasuredWidth() - labelContainerWidth) / searchEngineCount;
+            final int availableWidth = getMeasuredWidth() - labelContainerWidth;
+            final double searchEnginesToDisplay;
 
-            final int desiredIconContainerSize = (int) Math.max(
-                    availableWidthPerContainer,
-                    minIconContainerWidth
-            );
+            if (searchEngineCount * minIconContainerWidth <= availableWidth) {
+                // All search engines fit int: So let's just display all.
+                searchEnginesToDisplay = searchEngineCount;
+            } else {
+                // If only (n) search engines fit into the available space then display (n - 0.5): The last search
+                // engine will be cut-off to show ability to scroll this view
 
-            if (desiredIconContainerSize != iconContainerWidth) {
-                iconContainerWidth = desiredIconContainerSize;
+                searchEnginesToDisplay = Math.floor(availableWidth / minIconContainerWidth) - 0.5;
+            }
+
+            // Use all available width and spread search engine icons
+            final int availableWidthPerContainer = (int) (availableWidth / searchEnginesToDisplay);
+
+            if (availableWidthPerContainer != iconContainerWidth) {
+                iconContainerWidth = availableWidthPerContainer;
                 adapter.notifyDataSetChanged();
             }
         }
@@ -175,8 +183,8 @@ public class SearchEngineBar extends TwoWayView
                 view = LayoutInflater.from(getContext()).inflate(R.layout.search_engine_bar_label, parent, false);
             }
 
-            Drawable icon = DrawableCompat.wrap(ContextCompat.getDrawable(parent.getContext(), R.drawable.search_icon_active));
-            DrawableCompat.setTint(icon, getResources().getColor(R.color.disabled_grey));
+            final Drawable icon =
+                    DrawableUtil.tintDrawable(parent.getContext(), R.drawable.search_icon_active, R.color.disabled_grey);
 
             final ImageView iconView = (ImageView) view.findViewById(R.id.search_engine_label);
             iconView.setImageDrawable(icon);

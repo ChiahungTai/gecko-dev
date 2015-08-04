@@ -229,7 +229,7 @@ private:
     GonkDisplay::DisplayType mType;
     bool mConnected;
 };
-} // anonymous namespace
+} // namespace
 
 void
 HwcComposer2D::Hotplug(int aDisplay, int aConnected)
@@ -685,13 +685,15 @@ HwcComposer2D::TryHwComposition(nsScreenGonk* aScreen)
                 case HWC_BLIT:
                     blitComposite = true;
                     break;
-                case HWC_OVERLAY:
+                case HWC_OVERLAY: {
                     // HWC will compose HWC_OVERLAY layers in partial
                     // Overlay Composition, set layer composition flag
                     // on mapped LayerComposite to skip GPU composition
                     mHwcLayerMap[k]->SetLayerComposited(true);
+
+                    uint8_t opacity = std::min(0xFF, (int)(mHwcLayerMap[k]->GetLayer()->GetEffectiveOpacity() * 256.0));
                     if ((mList->hwLayers[k].hints & HWC_HINT_CLEAR_FB) &&
-                        (mList->hwLayers[k].blending == HWC_BLENDING_NONE)) {
+                        (opacity == 0xFF)) {
                         // Clear visible rect on FB with transparent pixels.
                         hwc_rect_t r = mList->hwLayers[k].displayFrame;
                         mHwcLayerMap[k]->SetClearRect(nsIntRect(r.left, r.top,
@@ -699,6 +701,7 @@ HwcComposer2D::TryHwComposition(nsScreenGonk* aScreen)
                                                                 r.bottom - r.top));
                     }
                     break;
+                }
                 default:
                     break;
             }
@@ -709,7 +712,7 @@ HwcComposer2D::TryHwComposition(nsScreenGonk* aScreen)
             return false;
         } else if (blitComposite) {
             // BLIT Composition, flip DispSurface target
-            GetGonkDisplay()->UpdateDispSurface(aScreen->GetDpy(), aScreen->GetSur());
+            GetGonkDisplay()->UpdateDispSurface(aScreen->GetEGLDisplay(), aScreen->GetEGLSurface());
             DisplaySurface* dispSurface = aScreen->GetDisplaySurface();
             if (!dispSurface) {
                 LOGE("H/W Composition failed. NULL DispSurface.");
@@ -731,7 +734,7 @@ HwcComposer2D::Render(nsIWidget* aWidget)
 
     // HWC module does not exist or mList is not created yet.
     if (!mHal->HasHwc() || !mList) {
-        return GetGonkDisplay()->SwapBuffers(screen->GetDpy(), screen->GetSur());
+        return GetGonkDisplay()->SwapBuffers(screen->GetEGLDisplay(), screen->GetEGLSurface());
     } else if (!mList && !ReallocLayerList()) {
         LOGE("Cannot realloc layer list");
         return false;
@@ -829,7 +832,7 @@ HwcComposer2D::Commit(nsScreenGonk* aScreen)
 bool
 HwcComposer2D::TryHwComposition(nsScreenGonk* aScreen)
 {
-    mHal->SetEGLInfo(aScreen->GetDpy(), aScreen->GetSur());
+    mHal->SetEGLInfo(aScreen->GetEGLDisplay(), aScreen->GetEGLSurface());
     return !mHal->Set(mList, aScreen->GetDisplayType());
 }
 
@@ -837,7 +840,7 @@ bool
 HwcComposer2D::Render(nsIWidget* aWidget)
 {
     nsScreenGonk* screen = static_cast<nsWindow*>(aWidget)->GetScreen();
-    GetGonkDisplay()->SwapBuffers(screen->GetDpy(), screen->GetSur());
+    GetGonkDisplay()->SwapBuffers(screen->GetEGLDisplay(), screen->GetEGLSurface());
 
     if (!mHal->HasHwc()) {
         return true;

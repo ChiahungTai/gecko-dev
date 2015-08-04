@@ -47,6 +47,7 @@ import org.mozilla.gecko.overlays.ui.ShareDialog;
 import org.mozilla.gecko.prompts.PromptService;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.GeckoRequest;
+import org.mozilla.gecko.util.HardwareCodecCapabilityUtils;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSContainer;
@@ -92,6 +93,7 @@ import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -281,7 +283,7 @@ public class GeckoAppShell
 
     public static native void notifyBatteryChange(double aLevel, boolean aCharging, double aRemainingTime);
 
-    public static native void scheduleComposite();
+    public static native void invalidateAndScheduleComposite();
 
     // Resuming the compositor is a synchronous request, so be
     // careful of possible deadlock. Resuming the compositor will also cause
@@ -961,6 +963,16 @@ public class GeckoAppShell
         return getHandlersForIntent(intent);
     }
 
+    @WrapElementForJNI(stubName = "GetHWEncoderCapability")
+    static boolean getHWEncoderCapability() {
+      return HardwareCodecCapabilityUtils.getHWEncoderCapability();
+    }
+
+    @WrapElementForJNI(stubName = "GetHWDecoderCapability")
+    static boolean getHWDecoderCapability() {
+      return HardwareCodecCapabilityUtils.getHWDecoderCapability();
+    }
+
     static List<ResolveInfo> queryIntentActivities(Intent intent) {
         final PackageManager pm = getContext().getPackageManager();
 
@@ -1197,12 +1209,6 @@ public class GeckoAppShell
         final Intent intent = getOpenURIIntentInner(context, targetURI, mimeType, action, title);
 
         if (intent != null) {
-            // Setting category on file:// URIs breaks about:downloads (Bug 1176018)
-            if (!targetURI.startsWith("file:")) {
-                // Only handle applications which can accept arbitrary data from a browser.
-                intent.addCategory(Intent.CATEGORY_BROWSABLE);
-            }
-
             // Some applications use this field to return to the same browser after processing the
             // Intent. While there is some danger (e.g. denial of service), other major browsers already
             // use it and so it's the norm.
@@ -1233,14 +1239,17 @@ public class GeckoAppShell
         }
 
         final String scheme = uri.getScheme();
-        if ("intent".equals(scheme)) {
+        if ("intent".equals(scheme) || "android-app".equals(scheme)) {
             final Intent intent;
             try {
-                intent = Intent.parseUri(targetURI, Intent.URI_INTENT_SCHEME);
+                intent = Intent.parseUri(targetURI, 0);
             } catch (final URISyntaxException e) {
                 Log.e(LOGTAG, "Unable to parse URI - " + e);
                 return null;
             }
+
+            // Only open applications which can accept arbitrary data from a browser.
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
 
             // Prevent site from explicitly opening our internal activities, which can leak data.
             intent.setComponent(null);
@@ -1254,9 +1263,15 @@ public class GeckoAppShell
         // Start with the original URI. If we end up modifying it, we'll
         // overwrite it.
         final String extension = MimeTypeMap.getFileExtensionFromUrl(targetURI);
-        final String mimeType2 = getMimeTypeFromExtension(extension);
         final Intent intent = getIntentForActionString(action);
-        intent.setDataAndType(uri, mimeType2);
+        intent.setData(uri);
+
+        if ("file".equals(scheme)) {
+            // Only set explicit mimeTypes on file://.
+            final String mimeType2 = getMimeTypeFromExtension(extension);
+            intent.setType(mimeType2);
+            return intent;
+        }
 
         if ("vnd.youtube".equals(scheme) &&
             !hasHandlersForIntent(intent) &&

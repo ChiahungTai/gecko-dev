@@ -60,15 +60,15 @@ class StyleAnimationValue;
 
 namespace gl {
 class GLContext;
-}
+} // namespace gl
 
 namespace gfx {
 class DrawTarget;
-}
+} // namespace gfx
 
 namespace dom {
 class OverfillCallback;
-}
+} // namespace dom
 
 namespace layers {
 
@@ -97,7 +97,7 @@ class PersistentBufferProvider;
 
 namespace layerscope {
 class LayersPacket;
-}
+} // namespace layerscope
 
 #define MOZ_LAYER_DECL_NAME(n, e)                              \
   virtual const char* Name() const override { return n; }  \
@@ -154,8 +154,7 @@ static void LayerManagerUserDataDestroy(void *data)
  * 1) Construction: layers are created, inserted, removed and have
  * properties set on them in this phase.
  * BeginTransaction and BeginTransactionWithTarget start a transaction in
- * the Construction phase. When the client has finished constructing the layer
- * tree, it should call EndConstruction() to enter the drawing phase.
+ * the Construction phase.
  * 2) Drawing: PaintedLayers are rendered into in this phase, in tree
  * order. When the client has finished drawing into the PaintedLayers, it should
  * call EndTransaction to complete the transaction.
@@ -259,6 +258,12 @@ public:
    * The callee must draw all of aRegionToDraw.
    * This region is relative to 0,0 in the PaintedLayer.
    *
+   * aDirtyRegion, if non-null, contains the total region that is due to be
+   * painted during the transaction, even though only aRegionToDraw should
+   * be drawn during this call. The sum of every aRegionToDraw over the
+   * course of the transaction must equal aDirtyRegion. aDirtyRegion can be
+   * null if the total dirty region is unknown.
+   *
    * aRegionToInvalidate contains a region whose contents have been
    * changed by the layer manager and which must therefore be invalidated.
    * For example, this could be non-empty if a retained layer internally
@@ -279,6 +284,7 @@ public:
   typedef void (* DrawPaintedLayerCallback)(PaintedLayer* aLayer,
                                            gfxContext* aContext,
                                            const nsIntRegion& aRegionToDraw,
+                                           const nsIntRegion* aDirtyRegion,
                                            DrawRegionClip aClip,
                                            const nsIntRegion& aRegionToInvalidate,
                                            void* aCallbackData);
@@ -379,13 +385,6 @@ public:
   enum PaintedLayerCreationHint {
     NONE, SCROLLABLE
   };
-
-  /**
-   * Returns true if aLayer is optimized for the given PaintedLayerCreationHint.
-   */
-  virtual bool IsOptimizedFor(PaintedLayer* aLayer,
-                              PaintedLayerCreationHint aCreationHint)
-  { return true; }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -1584,6 +1583,16 @@ public:
   // instead of a StringStream. It is also internally used to implement Dump();
   virtual void DumpPacket(layerscope::LayersPacket* aPacket, const void* aParent);
 
+  /**
+   * Store display list log.
+   */
+  void SetDisplayListLog(const char *log);
+
+  /**
+   * Return display list log.
+   */
+  void GetDisplayListLog(nsCString& log);
+
   static bool IsLogEnabled() { return LayerManager::IsLogEnabled(); }
 
   /**
@@ -1666,6 +1675,20 @@ public:
 #ifdef MOZ_DUMP_PAINTING
      mExtraDumpInfo.Clear();
 #endif
+  }
+
+  /**
+   * Replace the current effective transform with the given one,
+   * returning the old one.  This is currently added as a hack for VR
+   * rendering, and might go away if we find a better way to do this.
+   * If you think you have a need for this method, talk with
+   * vlad/mstange/mwoodrow first.
+   */
+  virtual gfx::Matrix4x4 ReplaceEffectiveTransform(const gfx::Matrix4x4& aNewEffectiveTransform) {
+    gfx::Matrix4x4 old = mEffectiveTransform;
+    mEffectiveTransform = aNewEffectiveTransform;
+    ComputeEffectiveTransformForMaskLayers(mEffectiveTransform);
+    return old;
   }
 
 protected:
@@ -1772,6 +1795,8 @@ protected:
 #ifdef MOZ_DUMP_PAINTING
   nsTArray<nsCString> mExtraDumpInfo;
 #endif
+  // Store display list log.
+  nsCString mDisplayListLog;
 };
 
 /**
@@ -1841,6 +1866,13 @@ public:
 
   bool UsedForReadback() { return mUsedForReadback; }
   void SetUsedForReadback(bool aUsed) { mUsedForReadback = aUsed; }
+
+  /**
+   * Returns true if aLayer is optimized for the given PaintedLayerCreationHint.
+   */
+  virtual bool IsOptimizedFor(LayerManager::PaintedLayerCreationHint aCreationHint)
+  { return true; }
+
   /**
    * Returns the residual translation. Apply this translation when drawing
    * into the PaintedLayer so that when mEffectiveTransform is applied afterwards
@@ -2047,6 +2079,21 @@ public:
   void SetVRHMDInfo(gfx::VRHMDInfo* aHMD) { mHMDInfo = aHMD; }
   gfx::VRHMDInfo* GetVRHMDInfo() { return mHMDInfo; }
 
+  /**
+   * Replace the current effective transform with the given one,
+   * returning the old one.  This is currently added as a hack for VR
+   * rendering, and might go away if we find a better way to do this.
+   * If you think you have a need for this method, talk with
+   * vlad/mstange/mwoodrow first.
+   */
+  gfx::Matrix4x4 ReplaceEffectiveTransform(const gfx::Matrix4x4& aNewEffectiveTransform) override {
+    gfx::Matrix4x4 old = mEffectiveTransform;
+    mEffectiveTransform = aNewEffectiveTransform;
+    ComputeEffectiveTransformsForChildren(mEffectiveTransform);
+    ComputeEffectiveTransformForMaskLayers(mEffectiveTransform);
+    return old;
+  }
+
 protected:
   friend class ReadbackProcessor;
 
@@ -2251,6 +2298,8 @@ public:
     mPreTransCallback = callback;
     mPreTransCallbackData = closureData;
   }
+
+  const nsIntRect& GetBounds() const { return mBounds; }
 
 protected:
   void FirePreTransactionCallback()

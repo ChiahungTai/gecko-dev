@@ -54,13 +54,16 @@ public:
     SpeechRecognitionResultList* resultList =
       new SpeechRecognitionResultList(mRecognition);
     SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);
-    SpeechRecognitionAlternative* alternative =
-      new SpeechRecognitionAlternative(mRecognition);
+    ErrorResult rv;
+    if (0 < mRecognition->GetMaxAlternatives(rv)) { // GetMaxAlternatives can't fail
+      SpeechRecognitionAlternative* alternative =
+        new SpeechRecognitionAlternative(mRecognition);
 
-    alternative->mTranscript = mResult;
-    alternative->mConfidence = 100;
+      alternative->mTranscript = mResult;
+      alternative->mConfidence = 100;
 
-    result->mItems.AppendElement(alternative);
+      result->mItems.AppendElement(alternative);
+    }
     resultList->mItems.AppendElement(result);
 
     event->mRecognitionResultList = resultList;
@@ -103,9 +106,7 @@ public:
     rv = ps_end_utt(mPs);
     if (rv >= 0) {
       hyp = ps_get_hyp(mPs, &score);
-      if (hyp == nullptr) {
-        hypoValue.Assign("ERROR");
-      } else {
+      if (hyp) {
         hypoValue.Assign(hyp);
       }
     }
@@ -139,7 +140,7 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
   tmpFile->AppendRelativePath(NS_LITERAL_STRING(".."));
 #endif
   tmpFile->AppendRelativePath(NS_LITERAL_STRING("models"));
-  tmpFile->AppendRelativePath(NS_LITERAL_STRING("en-us-semi"));
+  tmpFile->AppendRelativePath(NS_LITERAL_STRING("en-US"));
   tmpFile->GetPath(aStringAMPath);
 
   NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(tmpFile));
@@ -149,7 +150,7 @@ PocketSphinxSpeechRecognitionService::PocketSphinxSpeechRecognitionService()
 #endif
   tmpFile->AppendRelativePath(NS_LITERAL_STRING("models"));     //
   tmpFile->AppendRelativePath(NS_LITERAL_STRING("dict"));       //
-  tmpFile->AppendRelativePath(NS_LITERAL_STRING("cmu07a.dic")); //
+  tmpFile->AppendRelativePath(NS_LITERAL_STRING("en-US.dic")); //
   tmpFile->GetPath(aStringDictPath);
 
   // FOR B2G PATHS HARDCODED (APPEND /DATA ON THE BEGINING, FOR DESKTOP, ONLY
@@ -330,13 +331,16 @@ PocketSphinxSpeechRecognitionService::BuildMockResultList()
   SpeechRecognitionResultList* resultList =
     new SpeechRecognitionResultList(mRecognition);
   SpeechRecognitionResult* result = new SpeechRecognitionResult(mRecognition);
-  SpeechRecognitionAlternative* alternative =
-    new SpeechRecognitionAlternative(mRecognition);
+  ErrorResult rv;
+  if (0 < mRecognition->GetMaxAlternatives(rv)) { // GetMaxAlternatives can't fail
+    SpeechRecognitionAlternative* alternative =
+      new SpeechRecognitionAlternative(mRecognition);
 
-  alternative->mTranscript = NS_LITERAL_STRING("Mock final result");
-  alternative->mConfidence = 0.0f;
+    alternative->mTranscript = NS_LITERAL_STRING("Mock final result");
+    alternative->mConfidence = 0.0f;
 
-  result->mItems.AppendElement(alternative);
+    result->mItems.AppendElement(alternative);
+  }
   resultList->mItems.AppendElement(result);
 
   return resultList;

@@ -17,7 +17,7 @@ let { Promise: promise } = Cu.import("resource://gre/modules/devtools/deprecated
 let { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { require } = devtools;
-let { DevToolsUtils } = Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {});
+let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 let { BrowserToolboxProcess } = Cu.import("resource:///modules/devtools/ToolboxProcess.jsm", {});
 let { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
 let { DebuggerClient, ObjectClient } =
@@ -888,39 +888,6 @@ function reopenVarPopup(...aArgs) {
   return hideVarPopup.apply(this, aArgs).then(() => openVarPopup.apply(this, aArgs));
 }
 
-// Tracing helpers
-
-function startTracing(aPanel) {
-  const deferred = promise.defer();
-  aPanel.panelWin.DebuggerController.Tracer.startTracing(aResponse => {
-    if (aResponse.error) {
-      deferred.reject(aResponse);
-    } else {
-      deferred.resolve(aResponse);
-    }
-  });
-  return deferred.promise;
-}
-
-function stopTracing(aPanel) {
-  const deferred = promise.defer();
-  aPanel.panelWin.DebuggerController.Tracer.stopTracing(aResponse => {
-    if (aResponse.error) {
-      deferred.reject(aResponse);
-    } else {
-      deferred.resolve(aResponse);
-    }
-  });
-  return deferred.promise;
-}
-
-function filterTraces(aPanel, f) {
-  const traces = aPanel.panelWin.document
-    .getElementById("tracer-traces")
-    .querySelector("scrollbox")
-    .children;
-  return Array.filter(traces, f);
-}
 function attachAddonActorForUrl(aClient, aUrl) {
   let deferred = promise.defer();
 

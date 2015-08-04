@@ -41,8 +41,8 @@ class WakeLock;
 class ArrayBufferViewOrBlobOrStringOrFormData;
 struct MobileIdOptions;
 class ServiceWorkerContainer;
-}
-}
+} // namespace dom
+} // namespace mozilla
 
 //*****************************************************************************
 // Navigator: Script "navigator" object
@@ -50,6 +50,8 @@ class ServiceWorkerContainer;
 
 namespace mozilla {
 namespace dom {
+
+class Permissions;
 
 namespace battery {
 class BatteryManager;
@@ -75,7 +77,7 @@ class MozGetUserMediaDevicesSuccessCallback;
 
 namespace network {
 class Connection;
-} // namespace Connection;
+} // namespace network
 
 #ifdef MOZ_B2G_BT
 namespace bluetooth {
@@ -153,6 +155,7 @@ public:
                               const nsAString& aTitle, ErrorResult& aRv);
   nsMimeTypeArray* GetMimeTypes(ErrorResult& aRv);
   nsPluginArray* GetPlugins(ErrorResult& aRv);
+  Permissions* GetPermissions(ErrorResult& aRv);
   // The XPCOM GetDoNotTrack is ok
   Geolocation* GetGeolocation(ErrorResult& aRv);
   battery::BatteryManager* GetBattery(ErrorResult& aRv);
@@ -353,6 +356,7 @@ private:
 
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
+  nsRefPtr<Permissions> mPermissions;
   nsRefPtr<Geolocation> mGeolocation;
   nsRefPtr<DesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;

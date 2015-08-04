@@ -43,24 +43,6 @@ LIRGeneratorARM64::useByteOpRegisterOrNonDoubleConstant(MDefinition* mir)
 }
 
 void
-LIRGeneratorARM64::lowerConstantDouble(double d, MInstruction* mir)
-{
-    MOZ_CRASH("lowerConstantDouble");
-}
-
-void
-LIRGeneratorARM64::lowerConstantFloat32(float d, MInstruction* mir)
-{
-    MOZ_CRASH("lowerConstantFloat32");
-}
-
-void
-LIRGeneratorARM64::visitConstant(MConstant* ins)
-{
-    MOZ_CRASH("visitConstant");
-}
-
-void
 LIRGeneratorARM64::visitBox(MBox* box)
 {
     MOZ_CRASH("visitBox");
@@ -249,6 +231,12 @@ LIRGeneratorARM64::visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap* ins)
 }
 
 void
+LIRGeneratorARM64::visitAsmJSAtomicExchangeHeap(MAsmJSAtomicExchangeHeap* ins)
+{
+    MOZ_CRASH("visitAsmJSAtomicExchangeHeap");
+}
+
+void
 LIRGeneratorARM64::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap* ins)
 {
     MOZ_CRASH("visitAsmJSAtomicBinopHeap");
@@ -304,6 +292,12 @@ LIRGeneratorARM64::visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBin
 
 void
 LIRGeneratorARM64::visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement* ins)
+{
+    MOZ_CRASH("NYI");
+}
+
+void
+LIRGeneratorARM64::visitAtomicExchangeTypedArrayElement(MAtomicExchangeTypedArrayElement* ins)
 {
     MOZ_CRASH("NYI");
 }

@@ -153,6 +153,9 @@
 
   <string name="pref_category_devtools">&pref_category_devtools;</string>
   <string name="pref_developer_remotedebugging">&pref_developer_remotedebugging;</string>
+  <string name="pref_developer_remotedebugging_usb">&pref_developer_remotedebugging_usb;</string>
+  <string name="pref_developer_remotedebugging_wifi">&pref_developer_remotedebugging_wifi;</string>
+  <string name="pref_developer_remotedebugging_wifi_disabled_summary">&pref_developer_remotedebugging_wifi_disabled_summary;</string>
 
   <string name="pref_category_home">&pref_category_home;</string>
   <string name="pref_category_home_summary">&pref_category_home_summary;</string>
@@ -190,7 +193,7 @@
   <string name="pref_cookies_disabled">&pref_cookies_disabled;</string>
 
   <string name="pref_tracking_protection_title">&pref_tracking_protection_title;</string>
-  <string name="pref_tracking_protection_summary">&pref_tracking_protection_summary;</string>
+  <string name="pref_tracking_protection_summary">&pref_tracking_protection_summary2;</string>
   <string name="pref_donottrack_title">&pref_donottrack_title;</string>
   <string name="pref_donottrack_summary">&pref_donottrack_summary;</string>
 
@@ -247,6 +250,11 @@
   <string name="pref_update_autodownload_disabled">&pref_update_autodownload_never;</string>
   <string name="pref_update_autodownload_enabled">&pref_update_autodownload_always;</string>
 
+  <string name="tracking_protection_prompt_title">&tracking_protection_prompt_title;</string>
+  <string name="tracking_protection_prompt_text">&tracking_protection_prompt_text;</string>
+  <string name="tracking_protection_prompt_tip_text">&tracking_protection_prompt_tip_text;</string>
+  <string name="tracking_protection_prompt_action_button">&tracking_protection_prompt_action_button;</string>
+
   <string name="pref_tab_queue_title">&pref_tab_queue_title2;</string>
   <string name="pref_tab_queue_summary">&pref_tab_queue_summary3;</string>
   <string name="tab_queue_prompt_title">&tab_queue_prompt_title;</string>
@@ -302,6 +310,8 @@
   <string name="stop">&stop;</string>
   <string name="site_security">&site_security;</string>
   <string name="close_tab">&close_tab;</string>
+  <string name="tab_audio_playing">&tab_audio_playing;</string>
+  <string name="tab_audio_muted">&tab_audio_muted;</string>
   <string name="new_tab_opened">&new_tab_opened;</string>
   <string name="new_private_tab_opened">&new_private_tab_opened;</string>
   <string name="switch_button_message">&switch_button_message;</string>
@@ -310,7 +320,6 @@
   <string name="addons">&addons;</string>
   <string name="logins">&logins;</string>
   <string name="downloads">&downloads;</string>
-  <string name="apps">&apps;</string>
   <string name="char_encoding">&char_encoding;</string>
   <string name="new_tab">&new_tab;</string>
   <string name="new_private_tab">&new_private_tab;</string>
@@ -453,18 +462,18 @@
   <string name="bookmarkdefaults_url_marketplace">https://marketplace.firefox.com/</string>
 
   <!-- Site identity popup -->
-  <string name="identity_connected_to">&identity_connected_to;</string>
-  <string name="identity_run_by">&identity_run_by;</string>
-  <string name="identity_no_info">&identity_no_info;</string>
-  <string name="identity_not_encrypted">&identity_not_encrypted;</string>
-  <string name="identity_encrypted">&identity_encrypted;</string>
-  <string name="loaded_mixed_content_message">&loaded_mixed_content_message;</string>
-  <string name="blocked_mixed_content_message_top">&blocked_mixed_content_message_top;</string>
-  <string name="blocked_mixed_content_message_bottom">&blocked_mixed_content_message_bottom;</string>
-  <string name="loaded_tracking_content_message_top">&loaded_tracking_content_message_top;</string>
-  <string name="loaded_tracking_content_message_bottom">&loaded_tracking_content_message_bottom;</string>
-  <string name="blocked_tracking_content_message_top">&blocked_tracking_content_message_top2;</string>
-  <string name="blocked_tracking_content_message_bottom">&blocked_tracking_content_message_bottom2;</string>
+  <string name="identity_connection_secure">&identity_connection_secure;</string>
+  <string name="identity_connection_insecure">&identity_connection_insecure;</string>
+
+  <string name="mixed_content_blocked_all">&mixed_content_blocked_all;</string>
+  <string name="mixed_content_protection_disabled">&mixed_content_protection_disabled;</string>
+
+  <string name="doorhanger_tracking_title">&doorhanger_tracking_title;</string>
+  <string name="doorhanger_tracking_state_enabled">&doorhanger_tracking_state_enabled;</string>
+  <string name="doorhanger_tracking_state_disabled">&doorhanger_tracking_state_disabled;</string>
+  <string name="doorhanger_tracking_message_enabled">&doorhanger_tracking_message_enabled1;</string>
+  <string name="doorhanger_tracking_message_disabled">&doorhanger_tracking_message_disabled1;</string>
+
   <string name="learn_more">&learn_more;</string>
   <string name="enable_protection">&enable_protection;</string>
   <string name="disable_protection">&disable_protection;</string>
@@ -530,10 +539,32 @@
 
   <!-- Voice search from the Awesome Bar -->
   <string name="voicesearch_prompt">&voicesearch_prompt;</string>
-  <string name="voicesearch_failed_title">&voicesearch_failed_title;</string>
-  <string name="voicesearch_failed_message">&voicesearch_failed_message;</string>
-  <string name="voicesearch_failed_message_recoverable">&voicesearch_failed_message_recoverable;</string>
-  <string name="voicesearch_failed_retry">&voicesearch_failed_retry;</string>
+
+  <!-- Restrictions -->
+  <string name="restriction_disallow_tools_menu_title">&restriction_disallow_tools_menu_title;</string>
+  <string name="restriction_disallow_tools_menu_description">&restriction_disallow_tools_menu_description;</string>
+  <string name="restriction_disallow_report_site_issue_title">&restriction_disallow_report_site_issue_title;</string>
+  <string name="restriction_disallow_report_site_issue_description">&restriction_disallow_report_site_issue_description;</string>
+  <string name="restriction_disallow_import_settings_title">&restriction_disallow_import_settings_title;</string>
+  <string name="restriction_disallow_import_settings_description">&restriction_disallow_import_settings_description;</string>
+  <string name="restriction_disallow_addons_title">&restriction_disallow_addons_title;</string>
+  <string name="restriction_disallow_addons_description">&restriction_disallow_addons_description;</string>
+  <string name="restriction_disallow_apps_title">&restriction_disallow_apps_title;</string>
+  <string name="restriction_disallow_apps_description">&restriction_disallow_apps_description;</string>
+  <string name="restriction_disallow_devtools_title">&restriction_disallow_devtools_title;</string>
+  <string name="restriction_disallow_devtools_description">&restriction_disallow_devtools_description;</string>
+  <string name="restriction_disallow_customize_home_title">&restriction_disallow_customize_home_title;</string>
+  <string name="restriction_disallow_customize_home_description">&restriction_disallow_customize_home_description;</string>
+  <string name="restriction_disallow_private_browsing_title">&restriction_disallow_private_browsing_title;</string>
+  <string name="restriction_disallow_private_browsing_description">&restriction_disallow_private_browsing_description;</string>
+  <string name="restriction_disallow_location_services_title">&restriction_disallow_location_services_title;</string>
+  <string name="restriction_disallow_location_services_description">&restriction_disallow_location_services_description;</string>
+  <string name="restriction_disallow_display_settings_title">&restriction_disallow_display_settings_title;</string>
+  <string name="restriction_disallow_display_settings_description">&restriction_disallow_display_settings_description;</string>
+  <string name="restriction_disallow_clear_history_title">&restriction_disallow_clear_history_title;</string>
+  <string name="restriction_disallow_clear_history_description">&restriction_disallow_clear_history_description;</string>
+  <string name="restriction_disallow_master_password_title">&restriction_disallow_master_password_title;</string>
+  <string name="restriction_disallow_master_password_description">&restriction_disallow_master_password_description;</string>
 
   <!-- Miscellaneous -->
   <string name="ellipsis">&ellipsis;</string>
@@ -545,4 +576,6 @@
   <string name="remote_tabs_last_synced">&remote_tabs_last_synced;</string>
 
   <string name="intent_uri_cannot_open">&intent_uri_cannot_open;</string>
+
+  <string name="devtools_auth_scan_header">&devtools_auth_scan_header;</string>
 </resources>

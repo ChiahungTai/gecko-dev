@@ -19,7 +19,6 @@
 #include "GraphicsFilter.h"
 #include "nsCSSPseudoElements.h"
 #include "FrameMetrics.h"
-#include "gfx3DMatrix.h"
 #include "nsIWidget.h"
 #include "nsCSSProperty.h"
 #include "nsStyleCoord.h"
@@ -80,8 +79,8 @@ struct RectCornerRadii;
 } // namespace gfx
 namespace layers {
 class Layer;
-}
-}
+} // namespace layers
+} // namespace mozilla
 
 namespace mozilla {
 
@@ -809,6 +808,14 @@ public:
   static gfxSize GetTransformToAncestorScale(nsIFrame* aFrame);
 
   /**
+   * Gets the scale factors of the transform for aFrame relative to the root
+   * frame if this transform is 2D, or the identity scale factors otherwise.
+   * If some frame on the path from aFrame to the display root frame may have an
+   * animated scale, returns the identity scale factors.
+   */
+  static gfxSize GetTransformToAncestorScaleExcludingAnimated(nsIFrame* aFrame);
+
+  /**
    * Find the nearest common ancestor frame for aFrame1 and aFrame2. The
    * ancestor frame could be cross-doc.
    */
@@ -918,7 +925,7 @@ public:
    * @return The smallest rect that contains the image of aBounds.
    */
   static nsRect MatrixTransformRect(const nsRect &aBounds,
-                                    const gfx3DMatrix &aMatrix, float aFactor);
+                                    const Matrix4x4 &aMatrix, float aFactor);
 
   /**
    * Helper function that, given a rectangle and a matrix, returns the smallest
@@ -931,7 +938,7 @@ public:
    * @return The smallest rect that contains the image of aBounds.
    */
   static nsRect MatrixTransformRectOut(const nsRect &aBounds,
-                                    const gfx3DMatrix &aMatrix, float aFactor);
+                                       const Matrix4x4 &aMatrix, float aFactor);
   /**
    * Helper function that, given a point and a matrix, returns the image
    * of that point under the matrix transform.
@@ -942,7 +949,7 @@ public:
    * @return The image of the point under the transform.
    */
   static nsPoint MatrixTransformPoint(const nsPoint &aPoint,
-                                      const gfx3DMatrix &aMatrix, float aFactor);
+                                      const Matrix4x4 &aMatrix, float aFactor);
 
   /**
    * Given a graphics rectangle in graphics space, return a rectangle in
@@ -2599,6 +2606,17 @@ public:
   }
 
   /**
+   * Calculate a basic FrameMetrics with enough fields set to perform some
+   * layout calculations. The fields set are dev-to-css ratio, pres shell
+   * resolution, cumulative resolution, zoom, composition size, root
+   * composition size, scroll offset and scrollable rect.
+   *
+   * By contrast, ComputeFrameMetrics() computes all the fields, but requires
+   * extra inputs and can only be called during frame layer building.
+   */
+  static FrameMetrics CalculateBasicFrameMetrics(nsIScrollableFrame* aScrollFrame);
+
+  /**
    * Calculate a default set of displayport margins for the given scrollframe
    * and set them on the scrollframe's content element. The margins are set with
    * the default priority, which may clobber previously set margins. The repaint
@@ -2825,8 +2843,8 @@ void StrokeLineWithSnapping(const nsPoint& aP1, const nsPoint& aP2,
 
     void MaybeSetupTransactionIdAllocator(layers::LayerManager* aManager, nsView* aView);
 
-  }
-}
+  } // namespace layout
+} // namespace mozilla
 
 class nsSetAttrRunnable : public nsRunnable
 {

@@ -194,14 +194,14 @@ GenerateProfilingPrologue(MacroAssembler& masm, unsigned framePushed, AsmJSExit:
         masm.bind(begin);
 
         PushRetAddr(masm);
-        MOZ_ASSERT(PushedRetAddr == masm.currentOffset() - offsetAtBegin);
+        MOZ_ASSERT_IF(!masm.oom(), PushedRetAddr == masm.currentOffset() - offsetAtBegin);
 
         masm.loadAsmJSActivation(scratch);
         masm.push(Address(scratch, AsmJSActivation::offsetOfFP()));
-        MOZ_ASSERT(PushedFP == masm.currentOffset() - offsetAtBegin);
+        MOZ_ASSERT_IF(!masm.oom(), PushedFP == masm.currentOffset() - offsetAtBegin);
 
         masm.storePtr(masm.getStackPointer(), Address(scratch, AsmJSActivation::offsetOfFP()));
-        MOZ_ASSERT(StoredFP == masm.currentOffset() - offsetAtBegin);
+        MOZ_ASSERT_IF(!masm.oom(), StoredFP == masm.currentOffset() - offsetAtBegin);
     }
 
     if (reason != AsmJSExit::None)
@@ -690,6 +690,7 @@ BuiltinToName(AsmJSExit::BuiltinKind builtin)
       case AsmJSExit::Builtin_IDivMod:   return "software idivmod (in asm.js)";
       case AsmJSExit::Builtin_UDivMod:   return "software uidivmod (in asm.js)";
       case AsmJSExit::Builtin_AtomicCmpXchg:  return "Atomics.compareExchange (in asm.js)";
+      case AsmJSExit::Builtin_AtomicXchg:     return "Atomics.exchange (in asm.js)";
       case AsmJSExit::Builtin_AtomicFetchAdd: return "Atomics.add (in asm.js)";
       case AsmJSExit::Builtin_AtomicFetchSub: return "Atomics.sub (in asm.js)";
       case AsmJSExit::Builtin_AtomicFetchAnd: return "Atomics.and (in asm.js)";

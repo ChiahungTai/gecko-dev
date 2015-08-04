@@ -50,6 +50,7 @@
 #include "jsscriptinlines.h"
 
 #include "jit/JitFrames-inl.h"
+#include "jit/shared/Lowering-shared-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/ScopeObject-inl.h"
 
@@ -620,10 +621,22 @@ JitRuntime::Mark(JSTracer* trc)
     }
 }
 
+/* static */ void
+JitRuntime::MarkJitcodeGlobalTableUnconditionally(JSTracer* trc)
+{
+    if (trc->runtime()->spsProfiler.enabled() &&
+        trc->runtime()->hasJitRuntime() &&
+        trc->runtime()->jitRuntime()->hasJitcodeGlobalTable())
+    {
+        trc->runtime()->jitRuntime()->getJitcodeGlobalTable()->markUnconditionally(trc);
+    }
+}
+
 /* static */ bool
 JitRuntime::MarkJitcodeGlobalTableIteratively(JSTracer* trc)
 {
-    if (trc->runtime()->hasJitRuntime() &&
+    if (trc->runtime()->spsProfiler.enabled() &&
+        trc->runtime()->hasJitRuntime() &&
         trc->runtime()->jitRuntime()->hasJitcodeGlobalTable())
     {
         return trc->runtime()->jitRuntime()->getJitcodeGlobalTable()->markIteratively(trc);
@@ -3026,7 +3039,7 @@ AutoFlushICache::setRange(uintptr_t start, size_t len)
 //
 // For efficiency it is expected that all large ranges will be flushed within an
 // AutoFlushICache, so check.  If this assertion is hit then it does not necessarily
-// indicate a progam fault but it might indicate a lost opportunity to merge cache
+// indicate a program fault but it might indicate a lost opportunity to merge cache
 // flushing.  It can be corrected by wrapping the call in an AutoFlushICache to context.
 //
 // Note this can be called without TLS PerThreadData defined so this case needs

@@ -164,6 +164,11 @@ struct CSSPixel {
                     NSAppUnitsToFloatPixels(aPoint.y, float(AppUnitsPerCSSPixel())));
   }
 
+  static CSSSize FromAppUnits(const nsSize& aSize) {
+    return CSSSize(NSAppUnitsToFloatPixels(aSize.width, float(AppUnitsPerCSSPixel())),
+                   NSAppUnitsToFloatPixels(aSize.height, float(AppUnitsPerCSSPixel())));
+  }
+
   static CSSRect FromAppUnits(const nsRect& aRect) {
     return CSSRect(NSAppUnitsToFloatPixels(aRect.x, float(AppUnitsPerCSSPixel())),
                    NSAppUnitsToFloatPixels(aRect.y, float(AppUnitsPerCSSPixel())),
@@ -373,6 +378,10 @@ struct RenderTargetPixel {
  * generally be represented in ScreenPixel units.
  */
 struct ScreenPixel {
+  static nsIntSize ToUntyped(const ScreenIntSize& aSize) {
+    return nsIntSize(aSize.width, aSize.height);
+  }
+
   static ScreenIntPoint FromUntyped(const nsIntPoint& aPoint) {
     return ScreenIntPoint(aPoint.x, aPoint.y);
   }
@@ -591,6 +600,6 @@ gfx::ScaleFactor<src, dst> MinScaleRatio(const gfx::SizeTyped<dst>& aDestSize, c
                                              aDestSize.height / aSrcSize.height));
 }
 
-}
+} // namespace mozilla
 
 #endif

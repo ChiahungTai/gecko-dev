@@ -1680,7 +1680,7 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
             'Bridge',
             params=[ Decl(parentHandleType, parentvar.name),
                      Decl(childHandleType, childvar.name) ],
-            ret=Type.BOOL))
+            ret=Type.NSRESULT))
         bridgefunc.addstmt(StmtReturn(ExprCall(
             ExprVar('mozilla::ipc::Bridge'),
             args=[ _backstagePass(),
@@ -2057,6 +2057,12 @@ def _generateCxxStruct(sd):
         # Struct()
         defctor = ConstructorDefn(ConstructorDecl(sd.name))
         defctor.addstmt(StmtExpr(callinit))
+        defctor.memberinits = []
+        for f in sd.fields:
+          # Only generate default values for primitives.
+          if not (f.ipdltype.isCxx() and f.ipdltype.isAtom()):
+            continue
+          defctor.memberinits.append(ExprMemberInit(f.memberVar()))
         struct.addstmts([ defctor, Whitespace.NL ])
 
     # Struct(const field1& _f1, ...)

@@ -10,11 +10,6 @@
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-function isSlowPlatform() {
-  return SpecialPowers.Services.appinfo.name == "B2G" ||
-         navigator.userAgent.indexOf("Mobile") != -1 && androidVersion == 10;
-}
-
 // longer timeout for slow platforms
 if (isSlowPlatform()) {
   SimpleTest.requestLongerTimeout(3);
@@ -43,8 +38,8 @@ function startTest(test, token) {
   v.src = test.name;
   var stream = v.mozCaptureStreamUntilEnded();
   is(stream.currentTime, 0, test.name + " stream initial currentTime");
-  vout.mozSrcObject = stream;
-  is(vout.mozSrcObject, stream, test.name + " set output element .srcObject correctly");
+  vout.srcObject = stream;
+  is(vout.srcObject, stream, test.name + " set output element .srcObject correctly");
 
   var checkEnded = function(test, vout, stream) { return function() {
     is(stream.currentTime, vout.currentTime, test.name + " stream final currentTime");

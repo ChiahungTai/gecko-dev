@@ -133,43 +133,6 @@ describe("loop.OTSdkDriver", function () {
     });
   });
 
-  describe("#retryPublishWithoutVideo", function() {
-    beforeEach(function() {
-      sdk.initPublisher.returns(publisher);
-
-      driver.setupStreamElements(new sharedActions.SetupStreamElements({
-        publisherConfig: publisherConfig
-      }));
-    });
-
-    it("should make MediaStreamTrack.getSources return without a video source", function(done) {
-      driver.retryPublishWithoutVideo();
-
-      window.MediaStreamTrack.getSources(function(sources) {
-        expect(sources.some(function(src) {
-          return src.kind === "video";
-        })).eql(false);
-
-        done();
-      });
-    });
-
-    it("should call initPublisher", function() {
-      driver.retryPublishWithoutVideo();
-
-      var expectedConfig = _.extend({
-        channels: {
-          text: {}
-        }
-      }, publisherConfig);
-
-      sinon.assert.calledTwice(sdk.initPublisher);
-      sinon.assert.calledWith(sdk.initPublisher,
-        sinon.match.instanceOf(HTMLDivElement),
-        expectedConfig);
-    });
-  });
-
   describe("#setMute", function() {
     beforeEach(function() {
       sdk.initPublisher.returns(publisher);
@@ -380,6 +343,10 @@ describe("loop.OTSdkDriver", function () {
     });
 
     describe("On connection complete", function() {
+      beforeEach(function() {
+        sandbox.stub(window.console, "error");
+      });
+
       it("should publish the stream if the publisher is ready", function() {
         driver._publisherReady = true;
         session.connect.callsArg(2);
@@ -406,6 +373,21 @@ describe("loop.OTSdkDriver", function () {
             sendStreams: 0,
             recvStreams: 0
           }));
+      });
+
+      it("should log an error message and error object", function() {
+        session.connect.callsArgWith(2, {
+          title: "Fake",
+          code: OT.ExceptionCodes.CONNECT_FAILED
+        });
+
+        driver.connectSession(sessionData);
+
+        sinon.assert.calledOnce(console.error);
+        sinon.assert.calledWithExactly(console.error, sinon.match.string, {
+          title: "Fake",
+          code: OT.ExceptionCodes.CONNECT_FAILED
+        });
       });
 
       it("should dispatch connectionFailure if connecting failed", function() {

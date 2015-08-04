@@ -413,6 +413,9 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
       if (display->IsInnerTableStyle()) {
         // We don't currently support sticky positioning of inner table
         // elements (bug 975644). Bail.
+        //
+        // When this is fixed, remove the null-check for the computed
+        // offsets in nsTableRowFrame::ReflowChildren.
         return true;
       }
 
@@ -547,6 +550,17 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
   return false;
 }
 
+static bool
+HasBoxAncestor(nsIFrame* aFrame)
+{
+  for (nsIFrame* f = aFrame; f; f = f->GetParent()) {
+    if (f->IsBoxFrame()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void
 RestyleManager::StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint)
 {
@@ -554,8 +568,18 @@ RestyleManager::StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint)
   if (aHint & nsChangeHint_ClearDescendantIntrinsics) {
     NS_ASSERTION(aHint & nsChangeHint_ClearAncestorIntrinsics,
                  "Please read the comments in nsChangeHint.h");
+    NS_ASSERTION(aHint & nsChangeHint_NeedDirtyReflow,
+                 "ClearDescendantIntrinsics requires NeedDirtyReflow");
+    dirtyType = nsIPresShell::eStyleChange;
+  } else if ((aHint & nsChangeHint_UpdateComputedBSize) &&
+             aFrame->HasAnyStateBits(NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE)) {
     dirtyType = nsIPresShell::eStyleChange;
   } else if (aHint & nsChangeHint_ClearAncestorIntrinsics) {
+    dirtyType = nsIPresShell::eTreeChange;
+  } else if ((aHint & nsChangeHint_UpdateComputedBSize) &&
+             HasBoxAncestor(aFrame)) {
+    // The frame's computed BSize is changing, and we have a box ancestor
+    // whose cached intrinsic height may need to be updated.
     dirtyType = nsIPresShell::eTreeChange;
   } else {
     dirtyType = nsIPresShell::eResize;
@@ -564,7 +588,8 @@ RestyleManager::StyleChangeReflow(nsIFrame* aFrame, nsChangeHint aHint)
   nsFrameState dirtyBits;
   if (aFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
     dirtyBits = nsFrameState(0);
-  } else if (aHint & nsChangeHint_NeedDirtyReflow) {
+  } else if ((aHint & nsChangeHint_NeedDirtyReflow) ||
+             dirtyType == nsIPresShell::eStyleChange) {
     dirtyBits = NS_FRAME_IS_DIRTY;
   } else {
     dirtyBits = NS_FRAME_HAS_DIRTY_CHILDREN;
@@ -734,7 +759,7 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       }
     }
 
-    if ((hint & nsChangeHint_AddOrRemoveTransform) && frame &&
+    if ((hint & nsChangeHint_UpdateContainingBlock) && frame &&
         !(hint & nsChangeHint_ReconstructFrame)) {
       if (NeedToReframeForAddingOrRemovingTransform(frame) ||
           frame->GetType() == nsGkAtoms::fieldSetFrame ||
@@ -748,13 +773,12 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
           // Normally frame construction would set state bits as needed,
           // but we're not going to reconstruct the frame so we need to set them.
           // It's because we need to set this state on each affected frame
-          // that we can't coalesce nsChangeHint_AddOrRemoveTransform hints up
+          // that we can't coalesce nsChangeHint_UpdateContainingBlock hints up
           // to ancestors (i.e. it can't be an inherited change hint).
           if (cont->IsAbsPosContaininingBlock()) {
-            // If a transform has been added, we'll be taking this path,
-            // but we may be taking this path even if a transform has been
-            // removed. It's OK to add the bit even if it's not needed.
-            cont->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
+            if (cont->StyleDisplay()->HasTransform(cont)) {
+              cont->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
+            }
             if (!cont->IsAbsoluteContainer() &&
                 (cont->GetStateBits() & NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN)) {
               cont->MarkAsAbsoluteContainingBlock();
@@ -1136,13 +1160,15 @@ void
 RestyleManager::AttributeWillChange(Element* aElement,
                                     int32_t aNameSpaceID,
                                     nsIAtom* aAttribute,
-                                    int32_t aModType)
+                                    int32_t aModType,
+                                    const nsAttrValue* aNewValue)
 {
   nsRestyleHint rshint =
     mPresContext->StyleSet()->HasAttributeDependentStyle(aElement,
                                                          aAttribute,
                                                          aModType,
-                                                         false);
+                                                         false,
+                                                         aNewValue);
   PostRestyleEvent(aElement, rshint, NS_STYLE_HINT_NONE);
 }
 
@@ -1152,7 +1178,8 @@ void
 RestyleManager::AttributeChanged(Element* aElement,
                                  int32_t aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 int32_t aModType)
+                                 int32_t aModType,
+                                 const nsAttrValue* aOldValue)
 {
   // Hold onto the PresShell to prevent ourselves from being destroyed.
   // XXXbz how, exactly, would this attribute change cause us to be
@@ -1229,7 +1256,8 @@ RestyleManager::AttributeChanged(Element* aElement,
     mPresContext->StyleSet()->HasAttributeDependentStyle(aElement,
                                                          aAttribute,
                                                          aModType,
-                                                         true);
+                                                         true,
+                                                         aOldValue);
 
   PostRestyleEvent(aElement, rshint, hint);
 }
@@ -1445,7 +1473,8 @@ RestyleManager::RestyleForRemove(Element* aContainer,
     // This should be an assert, but this is called incorrectly in
     // nsHTMLEditor::DeleteRefToAnonymousNode and the assertions were clogging
     // up the logs.  Make it an assert again when that's fixed.
-    NS_WARNING("anonymous nodes should not be in child lists (bug 439258)");
+    MOZ_ASSERT(aOldChild->GetProperty(nsGkAtoms::restylableAnonymousNode),
+               "anonymous nodes should not be in child lists (bug 439258)");
   }
   uint32_t selectorFlags =
     aContainer ? (aContainer->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
@@ -1748,18 +1777,13 @@ RestyleManager::UpdateOnlyAnimationStyles()
   bool doCSS = mLastUpdateForThrottledAnimations != now;
   mLastUpdateForThrottledAnimations = now;
 
-  bool doSMIL = false;
   nsIDocument* document = mPresContext->Document();
-  nsSMILAnimationController* animationController = nullptr;
-  if (document->HasAnimationController()) {
-    animationController = document->GetAnimationController();
-    // FIXME:  Ideally, we only want to do this if animation timelines
-    // have advanced.  However, different SMIL animations could be
-    // getting their time from different outermost SVG elements, so
-    // finding all of them might be a pain.  So this could be optimized
-    // to set doSMIL to true in fewer cases.
-    doSMIL = true;
-  }
+  nsSMILAnimationController* animationController =
+    document->HasAnimationController() ?
+    document->GetAnimationController() :
+    nullptr;
+  bool doSMIL = animationController &&
+                animationController->MightHavePendingStyleUpdates();
 
   if (!doCSS && !doSMIL) {
     return;
@@ -2607,7 +2631,7 @@ ElementRestyler::AddLayerChangesForAnimation()
       // If we have a transform layer but don't have any transform style, we
       // probably just removed the transform but haven't destroyed the layer
       // yet. In this case we will add the appropriate change hint
-      // (nsChangeHint_AddOrRemoveTransform) when we compare style contexts
+      // (nsChangeHint_UpdateContainingBlock) when we compare style contexts
       // so we can skip adding any change hint here. (If we *were* to add
       // nsChangeHint_UpdateTransformLayer, ApplyRenderingChangeToTree would
       // complain that we're updating a transform layer without a transform).
@@ -4242,7 +4266,7 @@ RestyleManager::ChangeHintToString(nsChangeHint aHint)
     "ChildrenOnlyTransform", "RecomputePosition", "AddOrRemoveTransform",
     "BorderStyleNoneChange", "UpdateTextPath", "SchedulePaint",
     "NeutralChange", "InvalidateRenderingObservers",
-    "ReflowChangesSizeOrPosition"
+    "ReflowChangesSizeOrPosition", "UpdateComputedBSize"
   };
   uint32_t hint = aHint & ((1 << ArrayLength(names)) - 1);
   uint32_t rest = aHint & ~((1 << ArrayLength(names)) - 1);
