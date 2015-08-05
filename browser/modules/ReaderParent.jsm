@@ -181,6 +181,7 @@ let ReaderParent = {
   },
 
   toggleReaderMode: function(event) {
+	// TODO: Trigger gesture recognition
     let win = event.target.ownerDocument.defaultView;
     let browser = win.gBrowser.selectedBrowser;
     let url = browser.currentURI.spec;
