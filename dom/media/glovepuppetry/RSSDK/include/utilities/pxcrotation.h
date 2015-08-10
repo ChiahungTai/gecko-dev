@@ -26,7 +26,7 @@ Copyright(c) 2011-2015 Intel Corporation. All Rights Reserved.
 	PXCPoint4DF32 quaternion; // You should set the quaternion
 
 	// Create PXCsession instance
-	PXCSession* session = PXCSession_Create();
+	PXCSession* session = PXCSession::CreateInstance();
 
 	// Create PXCRotation instance
 	PXCRotation* rotation;

@@ -25,10 +25,21 @@ class PXCProjection;
 */
 class PXCCapture:public PXCBase {
 public:
-    PXC_CUID_OVERWRITE(0x83F72A50);
-    PXC_DEFINE_CONST(STREAM_LIMIT,8);
+	PXC_CUID_OVERWRITE(0x83F72A50);
+	PXC_DEFINE_CONST(STREAM_LIMIT,8);
 	PXC_DEFINE_CONST(PROPERTY_VALUE_INVALID,SHRT_MAX);
-    class Device;
+	class Device;
+
+	/**
+	This is the PXCCapture callback interface.
+	*/
+	class Handler {
+	public:
+		/**
+		@brief  The Capture calls this function when a capture device is added or removed
+		*/
+		virtual void PXCAPI OnDeviceListChanged() {}
+	};
 
     /** 
         @enum StreamType
@@ -88,9 +99,25 @@ public:
         DEVICE_MODEL_GENERIC    = 0x00000000,    /* a generic device or unknown device */
         DEVICE_MODEL_F200       = 0x0020000E,    /* the Intel(R) RealSense(TM) 3D Camera, model F200 */
         DEVICE_MODEL_IVCAM      = 0x0020000E,    /* deprecated: the Intel(R) RealSense(TM) 3D Camera, model F200 */
-		DEVICE_MODEL_R200		= 0x0020000F,    /* the Intel(R) RealSense(TM) DS4 Camera, model R200 */
-		DEVICE_MODEL_DS4		= 0x0020000F,    /* deprecated: the Intel(R) RealSense(TM) DS4 Camera, model R200 */
-    };
+		DEVICE_MODEL_R200		= 0x0020000F,    /* the Intel(R) RealSense(TM) 3D Camera, model R200 */
+		DEVICE_MODEL_DS4		= 0x0020000F,    /* deprecated: the Intel(R) RealSense(TM) 3D Camera, model R200 */
+		DEVICE_MODEL_F250       = 0x00200010,    /* The Intel(R) RealSense(TM) 3D Camera, model F250 */
+	};
+
+	/** 
+		@brief Get the model string representation
+		@param[in] model	 The camera model
+		@return The corresponding string representation.
+	**/
+    __inline static const pxcCHAR *DeviceModelToString(DeviceModel model) {
+        switch (model) {
+        case DEVICE_MODEL_GENERIC: return L"Generic";
+        case DEVICE_MODEL_F200: return L"F200";
+        case DEVICE_MODEL_R200:	return L"R200";
+        case DEVICE_MODEL_F250:	return L"F250";
+        }
+        return L"Unknown";
+    }
 
     /** 
         @enum DeviceOrientation
@@ -118,7 +145,8 @@ public:
         StreamType          streams;        /* bit-OR'ed value of device stream types. */
         pxcI32              didx;           /* device index */
         pxcI32              duid;           /* device unique identifier within the SDK session */
-        pxcI32              reserved[13];
+        PXCImage::Rotation  rotation;       /* how the camera device is physically mounted */
+        pxcI32              reserved[12];
 
         /** 
             @brief Get the available stream numbers.
@@ -153,6 +181,21 @@ public:
         @return The device instance.
     */
     virtual Device* PXCAPI CreateDevice(pxcI32 didx)=0;
+
+
+	/**
+	@brief    The function subscribes a handler for Capture callbacks. supports subscription of multiple callbacks.
+	@param[in] Handler     handler instance for Capture callbacks.
+	@return the status of the handler subscription.
+	*/
+	virtual pxcStatus PXCAPI SubscribeToCaptureCallbacks(Handler * handler)=0;
+
+	/**
+	@brief    The function unsubscribes a handler from the Capture callbacks. the rest of the handlers will still be triggered.
+	@param[in] handler     handler instance of Capture callbacks to unsubscirbe.
+	@return the status of the handler unsubscription.
+	*/
+	virtual pxcStatus PXCAPI UnsubscribeToCaptureCallbacks(Handler * handler)=0;
 
     /** 
         @struct Sample
@@ -293,7 +336,6 @@ public:
             /* Device Specific Properties - DS */
             PROPERTY_DS_CROP					 = 0x20000,      /* pxcBool       RW    Indicates whether to crop left and right images to match size of z image*/
             PROPERTY_DS_EMITTER					 = 0x20001,		 /*	pxcBool	      RW    Enable or disable DS emitter*/
-            PROPERTY_DS_TEMPERATURE              = 0x20002,		 /* pxcF32        R     The temperture of the camera head in celsius */
             PROPERTY_DS_DISPARITY_OUTPUT		 = 0x20003,		 /* pxcBool       RW    Switches the range output mode between distance (Z) and disparity (inverse distance)*/
             PROPERTY_DS_DISPARITY_MULTIPLIER     = 0x20004,		 /* pxcI32        RW    Sets the disparity scale factor used when in disparity output mode. Default value is 32.*/
             PROPERTY_DS_DISPARITY_SHIFT          = 0x20005,		 /* pxcI32        RW    Reduces both the minimum and maximum depth that can be computed. 
@@ -328,8 +370,15 @@ public:
         enum StreamOption
         {
             STREAM_OPTION_ANY                       = 0,
-            STREAM_OPTION_DEPTH_PRECALCULATE_UVMAP  = 0x0001,	/* A flag to ask the device to precalculate UVMap */
-			STREAM_OPTION_STRONG_STREAM_SYNC        = 0x0002,	/* A flag to ask the device to perform strong (HW-based) synchronization on the streams with this flag. */
+
+            /* Optional options */
+            STREAM_OPTION_OPTIONAL_MASK             = 0x0000FFFF,   /* The option can be added to any profile, but not necessarily supported for any profile */
+            STREAM_OPTION_DEPTH_PRECALCULATE_UVMAP  = 0x00000001,   /* A flag to ask the device to precalculate UVMap */
+            STREAM_OPTION_STRONG_STREAM_SYNC        = 0x00000002,   /* A flag to ask the device to perform strong (HW-based) synchronization on the streams with this flag. */
+
+            /* Mandatory options */
+            STREAM_OPTION_MANDATORY_MASK            = 0xFFFF0000,   /* If the option is supported - the device sets this flag in the profile */
+            STREAM_OPTION_UNRECTIFIED               = 0x00010000    /* A mandatory flag to ask the device to stream unrectified images on the stream with this flag */
         };
 
         /** 
@@ -536,10 +585,10 @@ public:
             @brief Get the color stream exposure value.
             @return The color stream exposure, in log base 2 seconds.
         */
-        __inline pxcI32    QueryColorExposure(void) {
+		__inline pxcI32    QueryColorExposure(void) {
             pxcF32 value=PROPERTY_VALUE_INVALID;
             QueryProperty(PROPERTY_COLOR_EXPOSURE,&value);
-            return (pxcI32)value;
+			return (pxcI32)value;
         }
 		
 		/** 
@@ -558,8 +607,8 @@ public:
             @return PXC_STATUS_NO_ERROR             successful execution.
             @return PXC_STATUS_ITEM_UNAVAILABLE     the device property is not supported.
         */
-        __inline pxcStatus SetColorExposure(pxcI32 value) {
-            return SetProperty(PROPERTY_COLOR_EXPOSURE,(pxcF32)value);
+		__inline pxcStatus SetColorExposure(pxcI32 value) {
+			return SetProperty(PROPERTY_COLOR_EXPOSURE,(pxcF32)value);
         }
 
         /** 
@@ -1294,16 +1343,6 @@ public:
         __inline pxcStatus SetDSEnableEmitter(pxcBool value) {
             return SetProperty(PROPERTY_DS_EMITTER, (pxcF32)value);
         }
-        
-        /**
-        @brief Get The temperture of the camera head.
-        @return temperature in celsius.
-        */
-        __inline pxcF32    QueryDSTemperature(void) {
-            pxcF32 value = PROPERTY_VALUE_INVALID;
-            QueryProperty(PROPERTY_DS_TEMPERATURE, &value);
-            return value;
-        }
 
         /**
         @brief Get the DS Disparity (inverse distance) Output status
@@ -1423,12 +1462,12 @@ public:
 
 		/**
 		@brief Get DS left & right streams exposure value.
-		@return DS left & right streams exposure, in log base 2 seconds.
+		@return DS left & right streams exposure, in milliseconds.
 		*/
 		__inline pxcF32    QueryDSLeftRightExposure(void) {
 			pxcF32 value = PROPERTY_VALUE_INVALID;
 			QueryProperty(PROPERTY_DS_LEFTRIGHT_EXPOSURE, &value);
-			return (pxcF32)value;
+			return value;
 		}
 
 		/**
@@ -1443,12 +1482,12 @@ public:
 
 		/**
 		@brief Set DS left & right streams exposure value.
-		@param[in] value    DS left & right streams exposure value, in log base 2 seconds.
+		@param[in] value    DS left & right streams exposure value, in milliseconds.
 		@return PXC_STATUS_NO_ERROR             successful execution.
 		@return PXC_STATUS_ITEM_UNAVAILABLE     the device property is not supported.
 		*/
 		__inline pxcStatus SetDSLeftRightExposure(pxcF32 value) {
-			return SetProperty(PROPERTY_DS_LEFTRIGHT_EXPOSURE, (pxcF32)value);
+			return SetProperty(PROPERTY_DS_LEFTRIGHT_EXPOSURE, value);
 		}
 
 		/**
@@ -1530,6 +1569,13 @@ A helper function for bitwise OR of two stream options.
 */
 __inline static PXCCapture::Device::StreamOption operator | (PXCCapture::Device::StreamOption a, PXCCapture::Device::StreamOption b) {
     return (PXCCapture::Device::StreamOption)((int)a|(int)b);
+}
+
+/** 
+A helper function for bitwise AND of two stream options.
+*/
+__inline static PXCCapture::Device::StreamOption operator & (PXCCapture::Device::StreamOption a, PXCCapture::Device::StreamOption b) {
+    return (PXCCapture::Device::StreamOption)((int)a&(int)b);
 }
 
 #pragma warning(pop)

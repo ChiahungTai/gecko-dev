@@ -13,7 +13,7 @@ Copyright(c) 2012-2014 Intel Corporation. All Rights Reserved.
   */
 #pragma once
 #include "pxcimage.h"
-#include "pxccapture.h"
+#include "pxccalibration.h"
 
 /**
     This interface defines mappings between various coordinate systems
@@ -115,7 +115,7 @@ public:
         @param[in] color        The color image instance.
         @return The output image in the depth image resolution.
     */ 
-    virtual PXCImage* PXCAPI CreateColorImageMappedToDepth(PXCImage *depth, PXCImage *color)=0;                 
+    virtual PXCImage* PXCAPI CreateColorImageMappedToDepth(PXCImage *depth, PXCImage *color)=0;
 
     /** 
         @brief Map every depth pixel to the color image resolution, and output a depth image, aligned in space
@@ -124,38 +124,5 @@ public:
         @param[in] color        The color image instance.
         @return The output image in the color image resolution.
     */ 
-    virtual PXCImage* PXCAPI CreateDepthImageMappedToColor(PXCImage *depth, PXCImage *color)=0; 
-
-};
-
-
-class PXCCalibration: public PXCBase {
-
-public:
-    PXC_CUID_OVERWRITE(0x494A8538);
-
-    struct StreamTransform
-    {
-        pxcF32 translation[3];   /* The translation in mm of the camera coordinate system origin to the world coordinate system origin. The world coordinate system coincides with the depth camera coordinate system. */
-        pxcF32 rotation[3][3];   /* The rotation of the camera coordinate system with respect to the world coordinate system. The world coordinate system coincides with the depth camera coordinate system. */
-    };
-
-    struct StreamCalibration 
-    {
-        PXCPointF32 focalLength;    /* The sensor focal length in pixels along the x and y axes. The parameters vary with the stream resolution setting. */
-        PXCPointF32 principalPoint; /*  The sensor principal point in pixels along the x and y axes. The parameters vary with the stream resolution setting. */
-        pxcF32 radialDistortion[3];     /*  The radial distortion coefficients, as described by camera model equations. */
-        pxcF32 tangentialDistortion[2]; /* The tangential distortion coefficients, as described by camera model equations. */
-        PXCCapture::DeviceModel model; /* Defines the distortion model of the device - different device models may use different distortion models */
-    };
-
-    /** 
-        @brief Query camera calibration and transformation data for a sensor.
-        @param[in]  streamType      The stream type which is produced by the sensor.
-        @param[out] calibration     The intrinsics calibration parameters of the sensor.
-        @param[out] transformation  The extrinsics transformation parameters from the sensor to the camera coordinate system origin.
-        @return PXC_STATUS_NO_ERROR Successful execution.
-    */ 
-    virtual pxcStatus PXCAPI QueryStreamProjectionParameters(PXCCapture::StreamType streamType, StreamCalibration* calibration, StreamTransform* transformation) = 0;
-
+    virtual PXCImage* PXCAPI CreateDepthImageMappedToColor(PXCImage *depth, PXCImage *color)=0;
 };

@@ -37,10 +37,10 @@ public:
 	virtual pxcF32 * PXCAPI QueryCenterOfSurfaceVoxels() = 0;
 
 	/**
-	   @brief: Sets NumberOfSurfaceVoxels to 0. However it doesn't release memory. 
-	   It should be used when you reset ScenePerception using 
-	   PXCScenePerception::Reset() client should Reset PXCSurfaceVoxelsData 
-	   when Scene Perception is Reset to stay in Sync with the ScenePerception
+	    @brief: Sets NumberOfSurfaceVoxels to 0. However it doesn't release memory. 
+	    It should be used when you reset ScenePerception using 
+	    PXCScenePerception::Reset() client should Reset PXCSurfaceVoxelsData 
+	    when Scene Perception is Reset to stay in Sync with the ScenePerception
 	*/
 	virtual pxcStatus PXCAPI Reset() = 0;
 
@@ -108,7 +108,7 @@ class PXCBlockMeshingData : public PXCBase
 	virtual pxcI32 PXCAPI QueryMaxNumberOfFaces() = 0;
 	
 	/**
-	    Describes each BlockMeshes present inside list returned by 
+	    Describes each BlockMeshe present inside list returned by 
 		QueryBlockMeshes()
 	*/
 	struct PXCBlockMesh
@@ -117,7 +117,7 @@ class PXCBlockMeshingData : public PXCBase
 		pxcI32 vertexStartIndex;		// Starting index of the vertex inside Vertex Buffer obtained using QueryVertices()
 		pxcI32 numVertices;				// Total number of Vertices inside this PXCBlockMesh
 
-		pxcI32 faceStartIndex;			// Starting index of the face list in a MeshFaces Buffer obained using QueryFaces()
+		pxcI32 faceStartIndex;			// Starting index of the face list in a MeshFaces Buffer obtained using QueryFaces()
 		pxcI32 numFaces;	 			// Number of faces forming the mesh inside this PXCBlockMesh 
 
 		PXCPoint3DF32 min3dPoint;		// Minimum point for the axis aligned bounding box containing the mesh piece
@@ -135,7 +135,7 @@ class PXCBlockMeshingData : public PXCBase
 	
 	/**
 	    @brief: Returns an array of float points with length 4*QueryNumberOfVertices().
-	    Each vertex is consist of 4 float points: (x, y z) coordinates in meter
+	    Each vertex consists of 4 float points: (x, y, z) coordinates in meter
 		unit + a confidence value. The confidence value is in the range [0, 1] 
 		indicating how confident scene perception is about the presence of 
 		the vertex. 
@@ -239,7 +239,7 @@ class PXCScenePerception : public PXCBase
 		
 		/**
 			@brief: To Query Voxel resolution used by the scene 
-			perception module. Please refer SetVoxelResolution for more details.
+			perception module. Please refer to SetVoxelResolution for more details.
 		
 			@returns: Returns current value of VoxelResolution used by the 
 			Scene Perception module
@@ -275,20 +275,21 @@ class PXCScenePerception : public PXCBase
 		    This Function is only available before first frame is passed to the
 			module. Once the first frame is passed the Initial Camera Pose is 
 			locked and this function will be unavailable. If this function is 
-			not used then the module uses the module uses default pose as the 
+			not used then the module uses default pose as the 
 			Initial Pose for tracking for the device with no platform IMU and 
 			for device with platform IMU the tracking pose will be computed 
 			using gravity vector to align 3D volume with gravity when the 
-			first frame frame is passed to the module.
+			first frame is passed to the module.
 		
 		    @param[in] pose: Array of 12 pxcF32 that stores initial camera pose
-		    user wish to set in row-major order. Camera pose is specified in a 
+		    user wishes to set in row-major order. Camera pose is specified in a 
 			3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
 		    where R = [ r11 r12 r13 ]
 		              [ r21 r22 r23 ] 
 		              [ r31 r32 r33 ]
 		          T = [ tx  ty  tz  ]
 		    Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+			Translation vector is in meters.
 		    
 		    @returns: If successful it returns PXC_STATUS_NO_ERROR,
 			otherwise returns error code If Invalid Pose is passed or the 
@@ -309,10 +310,10 @@ class PXCScenePerception : public PXCBase
 
 		/**
 		    @brief: Allows users to access camera's latest pose. The 
-			correctnesses of the Pose depends on value obtained from 
+			correctness of the pose depends on value obtained from 
 			QueryTrackingAccuracy.
 
-			@param[out] pose: Array of 12 pxcF32 that to store camera pose in 
+			@param[out] pose: Array of 12 pxcF32 to store camera pose in 
 			row-major order. Camera pose is specified in a 3 by 4 matrix 
 			[R | T] = [Rotation Matrix | Translation Vector]
 			where R = [ r11 r12 r13 ]
@@ -320,6 +321,7 @@ class PXCScenePerception : public PXCBase
 					  [ r31 r32 r33 ]
 				  T = [ tx  ty  tz  ]
 			Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+			Translation vector is in meters.
 
 			@returns: PXC_STATUS_NO_ERROR, If the function succeeds.
 			Otherwise error code will be returned.
@@ -344,14 +346,15 @@ class PXCScenePerception : public PXCBase
 			explicitly call Release on PXCImage after copying the data.
 		    or before making subsequent call to QueryVolumePreview.
 		   
-		   @param[in] pose: Array of 12 pxcF32 that stores initial camera pose
-		   user wish to set in row-major order. Camera pose is specified in a 
-		   3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
-		   where R = [ r11 r12 r13 ]
-					 [ r21 r22 r23 ] 
-					 [ r31 r32 r33 ]
-			     T = [ tx  ty  tz  ]
-		   Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+		    @param[in] pose: Array of 12 pxcF32 that stores initial camera pose
+		    user wishes to set in row-major order. Camera pose is specified in a 
+		    3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
+		    where R = [ r11 r12 r13 ]
+			 		  [ r21 r22 r23 ] 
+			 		  [ r31 r32 r33 ]
+			      T = [ tx  ty  tz  ]
+		    Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+		    Translation vector is in meters.
 		   
 		    @returns: Instance of PXCImage whose content can be used for volume
 			rendering. Returns NULL if there is an internal state error	or when
@@ -361,12 +364,12 @@ class PXCScenePerception : public PXCBase
 
 		/**
 		    @brief: Reset removes all reconstructed model (volume) information 
-			and the Module will reinitializes the model when next Stream is 
+			and the Module will reinitialize the model when next Stream is 
 			passed to the module. It also resets the camera pose to the one 
 			provided. If the pose is not provided then the module will use 
 			default pose if	there is no platform IMU on the device and in case 
 			of device with platform IMU the pose will be computed using gravity
-			vector to align 3D volume with gravity when the next frame frame is 
+			vector to align 3D volume with gravity when the next frame is 
 			passed to the module. 
 			
 			However it doesn't Reset instance of PXCBlockMeshingData created using 
@@ -375,16 +378,17 @@ class PXCScenePerception : public PXCBase
 		    reconstruction model inside Scene Perception
 		    
 			@param[in] pose: Array of 12 pxcF32 that stores initial camera pose
-			user wish to set in row-major order. Camera pose is specified in a 
+			user wishes to set in row-major order. Camera pose is specified in a 
 			3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
 			where R = [ r11 r12 r13 ]
 			[ r21 r22 r23 ] 
 			[ r31 r32 r33 ]
 			T = [ tx  ty  tz  ]
 			Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+			Translation vector is in meters.
 
 		    @returns: On success returns PXC_STATUS_NO_ERROR. Otherwise returns
-			error code like When an invalid pose is argument passed.
+			error code like When an invalid pose argument is passed.
 		*/
 		virtual pxcStatus PXCAPI Reset(const pxcF32 pPose[12]) = 0;
 		/**
@@ -417,7 +421,7 @@ class PXCScenePerception : public PXCBase
 		
 		/**
 		    @brief: Allows Users to allocate PXCBlockMeshingData which can be 
-			passed to DoMeshingUpdate. It's users responsibility to explicitly 
+			passed to DoMeshingUpdate. It's user's responsibility to explicitly 
 			release the memory by calling Release()
 		    
 			@param[in] maxBlockMesh: Maximum number of Mesh Blocks client can 
@@ -435,7 +439,7 @@ class PXCScenePerception : public PXCBase
 			passed then it uses the default value. Use 
 			PXCBlockMeshingData::QueryMaxNumberOfVertices to check the value
 
-		    @param[in] bUseColor: Flag Indicated whether user wants 
+		    @param[in] bUseColor: Flag Indicating whether user wants 
 			ScenePerception to return Color per vertex in the mesh update. If 
 			set the Color buffer will be created in PXCBlockMeshingData 
 			Otherwise Color Buffer will not be created and any calls made to 
@@ -456,7 +460,7 @@ class PXCScenePerception : public PXCBase
 		
 		/**
 			@brief: Performs meshing and hole filling if requested. This 
-			function is can be slow if there is lot of data to be meshed. For
+			function can be slow if there is a lot of data to be meshed. For
 			Efficiency reason we recommend running this function on a separate
 			thread. This call is designed to be thread safe if called in 
 			parallel with ProcessImageAsync. 
@@ -467,12 +471,15 @@ class PXCScenePerception : public PXCBase
 			PXCBlockMeshingData
 		
 			@param[in] fillHoles: Argument to indicate whether to fill holes in
-			mesh blocks
+			mesh blocks. If set, it will fill missing details in each mesh blocks 
+			that are visible from Scene Perception's camera current pose and 
+			completely surrounded by closed surface(holes) by smooth linear 
+			interpolation of adjacent mesh data.
 
 			@param[in] meshingUpdateInfo: Argument to indicate which mesh 
 			data you wish to use
 			   -countOfBlockMeshesRequired: If set, on successful call 
-			    this function It will set number of block meshes available for 
+			    this function will set number of block meshes available for 
 			    meshing which can be retrieved using QueryNumberOfBlockMeshes()
 
 			   -blockMeshesRequired: Can only be set to true If 
@@ -503,6 +510,9 @@ class PXCScenePerception : public PXCBase
 				-colorsRequired: If set and PXCBlockMeshingData was created with color, On 
 				 success function will fill in colors array which can be accessed using 
 				 QueryVerticesColor()
+			
+			+NOTE: Set Meshing Threshold to (0, 0) prior to calling DoMeshingUpdate
+			with hole filling enabled to fill mesh regions that are not changed 
 
 			@returns: On success PXC_STATUS_NO_ERROR otherwise error code will 
 			be returned
@@ -540,9 +550,9 @@ class PXCScenePerception : public PXCBase
 		/** 
 			@brief: Allows user to check whether the input Stream is suitable 
 			for starting Scene Perception or not. We recommend using this 
-			function when ScenePerceptin module is in Paused. User can pause 
+			function when ScenePerceptin module is paused. User can pause 
 			Scene Perception module using SenseManager::PauseScenePerception().
-		    This is Function should only be used as initializer to help user to determine 
+		    This is function should only be used as initializer to help user to determine 
 		    When to start or reset scene Perception. 
 			
 			@param[in] PXCCapture::Sample: Input stream sample required by 
@@ -559,10 +569,10 @@ class PXCScenePerception : public PXCBase
 		    @brief: Fills holes in the supplied depth image.
 
 			@param[in] pDepthImage: Instance of depth image to be filled. 
-			Pixels with depth value equal to zero will be filled. The image
-			resolution should be 320X240
+			Pixels with depth value equal to zero will be linearly interpolated 
+			with adjacent depth pixels. The image resolution should be 320X240
 
-			@returns: On SuccessPXC_STATUS_NO_ERROR,
+			@returns: On Success PXC_STATUS_NO_ERROR,
 			Otherwise error code will be returned on failure
 		*/
 		virtual pxcStatus PXCAPI FillDepthImage(PXCImage *pDepthImage) = 0;
@@ -597,7 +607,7 @@ class PXCScenePerception : public PXCBase
 
 		/**
 		    @brief: Allows user to Save the current scene perception's state to
-			a file. A later supply the file to LoadState() to restore Scene 
+			a file and later supply the file to LoadState() to restore Scene 
 			Perception to the saved state.
 		
 			@param[in] fileName: The path of the file to use for saving the 
@@ -609,8 +619,8 @@ class PXCScenePerception : public PXCBase
 		virtual pxcStatus PXCAPI SaveCurrentState(const pxcCHAR* fileName) = 0;
 
 		/**
-		    @brief: Allows user to loads the current scene perception's state 
-			from the file that created using SaveCurrentState. 
+		    @brief: Allows user to load the current scene perception's state 
+			from the file that has been created using SaveCurrentState. 
 			This function is only available before calling 
 			PXCSenseManager::Init(). The PXCSenseManager::Init() would fail 
 			If you use different camera than what was used when SaveCurrentState
@@ -627,13 +637,13 @@ class PXCScenePerception : public PXCBase
 
 		/**
 			@brief: Allows Users to allocate CreatePXCSurfaceVoxelsData which can be 
-			passed to ExportSurfaceVoxels. It's users responsibility to explicitly 
+			passed to ExportSurfaceVoxels. It's user's responsibility to explicitly 
 			release the instance by calling Release()
 
-			@param[in] initialEstimateOfVoxelCount: Initial estimate of maximum number 
-			of Voxels the client is expecting		   
+			@param[in] voxelCount: Maximum number of Voxels 
+			client is expecting in each call to ExportSurfaceVoxels(...)
 		    
-			@param[in] bUseColor: Flag Indicated whether user wants 
+			@param[in] bUseColor: Flag Indicating whether user wants 
 			ScenePerception to return Color per voxel when ExportSurfaceVoxels(...) is 
 			called. If set the Color buffer will be allocated in PXCSurfaceVoxelsData 
 			Otherwise Color Buffer will not be created and any calls made to 
@@ -641,7 +651,7 @@ class PXCScenePerception : public PXCBase
 
 			@returns: on success returns valid handle to the instance otherwise returns NULL
 		*/
-		virtual PXCSurfaceVoxelsData* PXCAPI CreatePXCSurfaceVoxelsData(const pxcI32 initialEstimateOfVoxelCount, const pxcBool bUseColor) = 0;
+		virtual PXCSurfaceVoxelsData* PXCAPI CreatePXCSurfaceVoxelsData(const pxcI32 voxelCount, const pxcBool bUseColor) = 0;
 		/**
 			@brief: Allows Users to allocate CreatePXCSurfaceVoxelsData without color,
 			which can be passed to ExportSurfaceVoxels with default estimate of number of voxels. 
@@ -654,9 +664,10 @@ class PXCScenePerception : public PXCBase
 
 		/**
 			@brief: Allows user to export the centers of the voxels intersected
-		    by the surface scanned. The voxel size is set based on the resolution of 
-		    the the color images. Optionally allows to specify region of interest for 
-			surface voxels to be exported.
+		    by the surface scanned. Optionally allows to specify region of interest for 
+			surface voxels to be exported. Voxels will be exported in parts over 
+			multiple calls to this function. Client is expected to check return code to 
+			determine if all voxels are exported successfully or not.
 		   
 		    @param[out] surfaceVoxelsData: Pre-allocated instance of PXCSurfaceVoxelsData 
 			using CreatePXCSurfaceVoxelsData method. On Success the function will fill 
@@ -664,26 +675,32 @@ class PXCScenePerception : public PXCBase
 			and Number of voxels which can be retrieved using QueryNumberOfSurfaceVoxels()
 
 			@param[in] lowerLeftFrontPoint: Optional, PXCPoint3DF32 represents lower 
-			left corner of the front face of the bounding box specifies region of interest for exporting 
+			left corner of the front face of the bounding box which specifies region of interest for exporting 
 			surface voxels 
 
 			@param[in] upperRightRearPoint: Optional, PXCPoint3DF32 represents upper 
 			right corner of the rear face of the bounding box which specifies region of interest for exporting 
 			surface voxels 
 		   
-		   @returns: On success returns PXC_STATUS_NO_ERROR otherwise error code will be returned
+		    @returns: If Scene Perception module is able to export all the surface 
+		    voxels it has acquired it will return PXC_STATUS_NO_ERROR and after that 
+		    any calls made to ExportSurfaceVoxels will restart exporting all the
+		    voxels again.
+		    If all voxels cannot be fit into specified surfaceVoxelsData, it will 
+		    return warning code PXC_STATUS_DATA_PENDING indicating that client 
+		    should make additional calls to ExportSurfaceVoxels to get remaining 
+		    voxels until PXC_STATUS_NO_ERROR is returned
 		*/
 		virtual pxcStatus PXCAPI ExportSurfaceVoxels(PXCSurfaceVoxelsData* surfaceVoxelsData, const PXCPoint3DF32 *lowerLeftFrontPoint, const PXCPoint3DF32 *upperRightRearPoint) = 0;
 		
 		/**
-			@brief: Allows Users to allocate ExportSurfaceVoxel present in the entire volume
-
-			@returns: On success returns PXC_STATUS_NO_ERROR otherwise error code will be returned
+			@brief: Allows to Export Surface Voxels present in the entire volume
 		*/
 		__inline pxcStatus ExportSurfaceVoxels(PXCSurfaceVoxelsData* surfaceVoxelsData)
 		{
 			return ExportSurfaceVoxels(surfaceVoxelsData, 0, 0);
 		}
+
 		/**
 			@brief: Allows user to get information regarding the planar 
 			surfaces in the scene.
@@ -694,8 +711,8 @@ class PXCScenePerception : public PXCBase
 			dimension (m^2). This parameter refers to the physical size of the
 			frontal planar surface at 1 meter to 3 meter from the camera. It controls 
 			the threshold for the number of planes to be returned. Setting it to a
-			smaller values makes the function to return smaller planes as well.
-			E.g 0.213X0.213 m^2
+			smaller value makes the function to return smaller planes as well.
+			E.g 0.213X0.213 m^2. The maximum acceptable value is 16.
 
 			@param [in] maxPlaneNumber: Maximum number of planes that user wish
 			to detect, It should also match Number of rows of the equation 
@@ -703,8 +720,9 @@ class PXCScenePerception : public PXCBase
 
 			@param[out] pPlaneEq: Pre-allocated float array for storing the 
 			plane equations detected by the function. Each row contains the 
-			coefficients of the detected plane, Hence the number of rows are 
-			equal to maxPlaneNumber
+			coefficients {a,b,c,w} of the detected plane, Hence the number of 
+			rows are equal to maxPlaneNumber. a, b, c are co-efficients of 
+			normalized plane equation and w is in meters.
 			E.g. Row 0 of pPlaneEq will contain the plane equation: ax+by+cz+w
 			in the form	pPlaneEq[0][0] to pPlaneEq[0][3] = {a,b,c,w}. Similarly
 			rest of the rows will provide the equations for the remaining 
@@ -724,9 +742,9 @@ class PXCScenePerception : public PXCBase
 											   pxcF32 pPlaneEq[][4], pxcBYTE *pPlaneIndexImg) = 0;
 		
 		/**
-			@brief: Allows user to sets Meshing resolution for DoMeshingUpdate(...)
+			@brief: Allows user to set Meshing resolution for DoMeshingUpdate(...)
 
-			@param[in] meshResolution: Mesh Resolution you want to set
+			@param[in] meshResolution: Mesh Resolution user wishes to set
 
 			@returns: On success PXC_STATUS_NO_ERROR,			
 			Otherwise error code will be returned on failure
@@ -745,9 +763,10 @@ class PXCScenePerception : public PXCBase
 			Perception.
 
 			@param[out] maxDistanceChangeThreshold: Pre-allocated pxcF32 where 
-			you want retrieve max distance change threshold
+			user wishes to retrieve max distance change threshold
 
-			@param[out] avgDistanceChange"> : Pre-allocated pxcF32 where you want retrieve average distance change threshold
+			@param[out] avgDistanceChange: Pre-allocated pxcF32 where 
+			user wishes retrieve average distance change threshold
 
 			@returns: On success PXC_STATUS_NO_ERROR,			
 			Otherwise error code will be returned on failure
@@ -787,13 +806,14 @@ class PXCScenePerception : public PXCBase
 			first frame post a call to Reset Scene Perception.
 			
 			@param[in] pose: Array of 12 pxcF32 that stores the camera pose
-			user wish to set in row-major order. Camera pose is specified in a 
+			user wishes to set in row-major order. Camera pose is specified in a 
 			3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
 			where R = [ r11 r12 r13 ]
 			          [ r21 r22 r23 ] 
 			          [ r31 r32 r33 ]
 			      T = [ tx  ty  tz  ]
 			Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+			Translation vector is in meters.
 		
 			@returns: PXC_STATUS_NO_ERROR, If the function succeeds.
 			Otherwise error code will be returned.
@@ -822,4 +842,73 @@ class PXCScenePerception : public PXCBase
 			Otherwise error code will be returned.
 		*/
 		virtual pxcStatus PXCAPI GetInternalCameraIntrinsics(ScenePerceptionIntrinsics *spIntrinsics) = 0;
+
+		/**
+			@brief: Allows user to integrate specified stream from supplied pose in to 
+			the reconstructed volume.
+
+			@param[in] sample: Input stream sample required by Scene Perception module.
+			Obtained using PXCSenseManager::QueryScenePerceptionSample().
+
+			@param[in] pose: Estimated Pose for the supplied input stream.
+			Array of 12 pxcF32 that stores the camera pose
+			user wishes to set in row-major order. Camera pose is specified in a 
+			3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
+			where R = [ r11 r12 r13 ]
+			[ r21 r22 r23 ] 
+			[ r31 r32 r33 ]
+			T = [ tx  ty  tz  ]
+			Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+			Translation vector is in meters.
+
+			@returns: PXC_STATUS_NO_ERROR, If the function succeeds.
+			Otherwise error code will be returned.
+		*/
+		virtual pxcStatus PXCAPI DoReconstruction(PXCCapture::Sample *sample, const pxcF32 pose[12]) = 0;
+
+		/**
+			@brief: Allows user to Enable/Disable re-localization feature of Scene 
+			Perception's camera tracking. By default re-localization is enabled. This 
+			functionality is only available after PXCSenseManager::Init() is called.
+
+			@param[in] enableRelocalization: Flag specifying whether to enable or 
+			disable re-localization
+			
+			@returns: PXC_STATUS_NO_ERROR, If the function succeeds.
+			Otherwise error code will be returned.
+		*/
+		virtual pxcStatus PXCAPI EnableRelocalization(pxcBool enableRelocalization) = 0;
+
+		/**
+			@brief: Allows user to Transform plane equations obtained from
+			ExtractPlanes(...) to world co-ordinate system using the provided 
+			pose and returns number of planes found in supplied plane equation.
+
+			@param [in] maxPlaneNumber: Number of rows of the equation 
+			array pPlaneEq
+
+			@param[in | out] pPlaneEq: Pre-allocated float array plane equations 
+			obtained from  ExtractPlanes(...). On Success the plane equations will 
+			be transformed in to world coordinate system using supplied camera pose.
+
+			@param[in] pose: Array of 12 pxcF32 that stores camera pose
+			of the capture sample that was supplied to the ExtractPlanes(...).
+			stored in row-major order. Camera pose is specified in a 
+			3 by 4 matrix [R | T] = [Rotation Matrix | Translation Vector]
+			where R = [ r11 r12 r13 ]
+			[ r21 r22 r23 ] 
+			[ r31 r32 r33 ]
+			T = [ tx  ty  tz  ]
+			Pose Array Layout = [r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz]
+			Translation vector is in meters.
+
+			+NOTE: Use the pose obtained from GetCameraPose(...) 
+			to transform plane equations.
+
+			@returns: On Success, returns positive number indicating 
+			number of planes found in pPlaneEq. Negative number indicates errors like 
+			invalid argument.
+		*/
+		virtual pxcI32 PXCAPI TransformPlaneEquationToWorld(pxcI32 maxPlaneNumber, pxcF32 pPlaneEq[][4], const pxcF32 pose[12]) = 0;
+
 };
