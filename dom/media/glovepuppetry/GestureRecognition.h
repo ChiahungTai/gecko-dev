@@ -7,7 +7,10 @@
 #ifndef mozilla_dom_GestureRecognition_h
 #define mozilla_dom_GestureRecognition_h
 
+#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/Logging.h"
+
+class PXCSession;
 
 namespace mozilla {
 
@@ -16,10 +19,22 @@ namespace dom {
 PRLogModuleInfo* GetGestureRecognitionLog();
 #define GR_LOG(...) MOZ_LOG(GetGestureRecognitionLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
 
-class GestureRecognition final
+class GestureRecognition final : public DOMEventTargetHelper
 {
 public:
-  explicit GestureRecognition();
+  GestureRecognition();
+
+  nsISupports* GetParentObject() const;
+
+  virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
+
+  // WebIDL:
+  void Start();
+
+  void Stop();
+
+private:
+  PXCSession* mSession;
 
 };
 

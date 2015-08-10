@@ -6,7 +6,11 @@
 
 #include "GestureRecognition.h"
 
+#include "mozilla/dom/GestureRecognitionBinding.h"
+#include "pxcsession.h"
+
 namespace mozilla {
+
 namespace dom {
 
 PRLogModuleInfo*
@@ -19,6 +23,41 @@ GetGestureRecognitionLog()
 
   return sLog;
 }
+
+GestureRecognition::GestureRecognition() {
+  // Setup
+  mSession = PXCSession::CreateInstance();
+  if (!mSession)
+  {
+    GR_LOG(("Failed Creating PXCSession\n"));
+    return;
+  }
+}
+
+
+JSObject*
+GestureRecognition::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
+{
+  return GestureRecognitionBinding::Wrap(aCx, this, aGivenProto);
+}
+
+
+nsISupports*
+GestureRecognition::GetParentObject() const
+{
+  return GetOwner();
+}
+
+void GestureRecognition::Start()
+{
+
+}
+
+void GestureRecognition::Stop()
+{
+
+}
+
 
 } // namespace dom
 } // namespace mozilla
