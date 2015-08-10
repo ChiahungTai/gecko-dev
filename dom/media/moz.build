@@ -21,7 +21,6 @@ with Files('GetUserMedia*'):
 
 DIRS += [
     'encoder',
-	'glovepuppetry',
     'gmp',
     'gmp-plugin',
     'gmp-plugin-openh264',
@@ -36,6 +35,9 @@ DIRS += [
     'webvtt',
     'standalone',
 ]
+
+if CONFIG['OS_TARGET'] == 'WINNT':
+    DIRS += ['glovepuppetry']
 
 if CONFIG['MOZ_RAW']:
     DIRS += ['raw']

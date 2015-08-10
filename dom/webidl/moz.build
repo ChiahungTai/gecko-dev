@@ -163,6 +163,7 @@ WEBIDL_FILES = [
     'GainNode.webidl',
     'Geolocation.webidl',
     'GeometryUtils.webidl',
+	'GestureRecognition.webidl',
     'GetUserMediaRequest.webidl',
     'HDMIInputPort.webidl',
     'Headers.webidl',
