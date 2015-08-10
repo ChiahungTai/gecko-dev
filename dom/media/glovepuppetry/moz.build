@@ -15,11 +15,6 @@ LOCAL_INCLUDES += [
     '/dom/media/glovepuppetry/RSSDK/include',
 ]
 
-if CONFIG['MOZ_DEBUG']:
-    LDFLAGS += ['-llibpxc_d -libpxcutils_d']
-else:
-    LDFLAGS += ['-llibpxc -libpxcutils']
-
 OS_LIBS += CONFIG['RSSDK_LIBS']
 
 FINAL_LIBRARY = 'xul'

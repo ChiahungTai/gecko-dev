@@ -5242,9 +5242,9 @@ if test "$OS_ARCH" = "WINNT"; then
 	fi
 
 	if test -n "$MOZ_DEBUG"; then
-		RSSDK_LIBS="libpxc_d.lib libpxcutils_d.lib"
+		RSSDK_LIBS="libpxcmd_d libpxcutilsmd_d"
 	else
-		RSSDK_LIBS="libpxc.lib libpxcutils.lib"
+		RSSDK_LIBS="libpxcmd libpxcutilsmd"
 	fi
     AC_SUBST_LIST(RSSDK_LIBS)
 fi
