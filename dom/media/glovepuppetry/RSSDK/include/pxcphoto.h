@@ -39,14 +39,14 @@ public:
         @param[in]   filename           The file name.
         @return PXC_STATUS_NO_ERROR     Successful execution.
     */ 
-    virtual pxcStatus PXCAPI LoadXMP(pxcCHAR *filename)=0;
+    virtual pxcStatus PXCAPI LoadXDM(pxcCHAR *filename)=0;
 
     /** 
         @brief Export the photo content to the Google Depth File Format v2.0.
 		@param[in]   filename           The file name.
 		@return PXC_STATUS_NO_ERROR     Successful execution.
     */ 
-    virtual pxcStatus PXCAPI SaveXMP(pxcCHAR *filename)=0;
+    virtual pxcStatus PXCAPI SaveXDM(pxcCHAR *filename)=0;
 
 	/**
 	@brief Copy the content from the source photo
@@ -73,6 +73,12 @@ public:
 	*/
 	virtual PXCImage* PXCAPI QueryDepthImage(void) = 0;
 	
+	/**
+	@brief Get the raw depth image of the photo. This would be the unprocessed depth captured from the camera or loaded from a file if it existed.
+	@return The PXCImage instance.
+	*/
+	virtual PXCImage* PXCAPI QueryRawDepthImage(void) = 0;
+
 	/**
 	@brief Increase a reference count of the sample.
 	*/

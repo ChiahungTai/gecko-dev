@@ -6,7 +6,7 @@ accordance with the terms of that agreement
 Copyright(c) 2015 Intel Corporation. All Rights Reserved.
 *******************************************************************************/
 /// @file pxc3dscan.h
-/// 3D Capture video module interface
+/// 3D Scan video module interface
 #pragma once
 #include "pxccapture.h"
 
@@ -17,15 +17,15 @@ public:
 
     /// Scanning modes
     enum ScanningMode {
-        VARIABLE = 0,                        // Fixed (in this release) to the largest scanning area per camera
-        OBJECT_ON_PLANAR_SURFACE_DETECTION,  // Scanning area is auto-fit to detected object, surface is removed automaticaly
-        FACE,                                // Fixed scanning size for scanning human faces.
+        VARIABLE = 0,                        // Customizable scanning area, defaults to largest area
+        OBJECT_ON_PLANAR_SURFACE_DETECTION,  // Auto-fit scanning area to detected object & remove surface
+        FACE,                                // Fixed scanning size for scanning human faces
         HEAD,                                // Fixed scanning size for scanning human head (and shoulders, or hat)
         BODY                                 // Fixed scanning size for scanning human body (with arms at sides)
     };
 
     /// Reconstruction options
-    enum ReconstructionOption {             /// Bit field
+    enum ReconstructionOption {
         NONE           = 0,
         SOLIDIFICATION = (1<<0),             // Fill holes and close mesh (manifold)
         TEXTURE        = (1<<1)              // Generate texture map (instead of vertex color)
@@ -33,19 +33,23 @@ public:
 
     /// Configuration structure
     struct Configuration {
-        pxcI32               minFramesBeforeScanStart; // Must be at least 3 in this release
+        pxcBool              startScan;
         ScanningMode         mode;
         ReconstructionOption options;
-        pxcI32               reserved[256];
+        pxcI32               maxTriangles;
+        pxcI32               reserved[64];
     };
 
     /// Get a copy of the current configuration
     virtual Configuration PXCAPI QueryConfiguration(void) = 0;
 
-    /// Configure the scanning system according to the provided configuration and restart the scanning process
+    /// Reconfigure the scanning configuration according to the provided values 
+    /// and, if successful, restart the scanning process
     virtual pxcStatus PXCAPI SetConfiguration(Configuration config) = 0;
 
-    /// Render an image of the scanned data from the perspective of the last frame processed.
+    /// Allocate (from a pool) and return a rendered image of the scanned data 
+    /// from the perspective of the last frame processed.
+    /// Call Release to deallocate each returned image object.
     virtual PXCImage* PXCAPI AcquirePreviewImage(void) = 0;
 
     /// Determine if the scan has started.
@@ -66,6 +70,48 @@ public:
         }
         return (const pxcCHAR*)L"Unknown";
     }
+
+	/// Scanning area
+	struct Area {
+		PXCSize3DF32 shape;      // Scanning volume (width, height, depth) in camera space (m). Set to zero (0) to auto select smallest area.
+		pxcI32       resolution; // Voxel resolution (along longest shape axis). Set to zero (0) to auto select according to shape.
+		pxcI32       reserved[64];
+	};
+
+	/// Get a copy of the current scanning area values
+	virtual Area PXCAPI QueryArea(void) = 0;
+
+	/// Reconfigure the scanning area are according to the provided values 
+	/// and, if successful, restart the scanning process
+	virtual pxcStatus PXCAPI SetArea(Area area) = 0;
+
+	// Usage alerts
+    enum AlertEvent
+    {
+        ALERT_IN_RANGE = 0,
+        ALERT_TOO_CLOSE,
+        ALERT_TOO_FAR,
+        ALERT_TRACKING,
+        ALERT_LOST_TRACKING
+    };
+
+    struct AlertData
+    {
+        pxcI64     timeStamp;
+        AlertEvent label;
+        pxcI32     reserved[5];
+    };
+
+    class AlertHandler
+    {
+    public:
+        virtual void PXCAPI OnAlert(const AlertData& data) = 0;
+    };
+
+    /// Optionally register to receive event notifications.
+    /// A subsequent call will replace the previously registered handler object.
+    /// Subscribe(NULL) to unsubscribe.
+    virtual void PXCAPI Subscribe(PXC3DScan::AlertHandler* handler) = 0;
 };
 
 /// ReconstructionOption helper function

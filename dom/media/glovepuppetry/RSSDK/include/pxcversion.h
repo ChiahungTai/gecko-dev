@@ -9,16 +9,16 @@ Copyright(c) 2012-2015 Intel Corporation. All Rights Reserved.
 *******************************************************************************/ 
 #pragma once 
 
-#define PXC_VERSION_MAJOR    5 
+#define PXC_VERSION_MAJOR    6 
 #define PXC_VERSION_MINOR    0 
-#define PXC_VERSION_BUILD    3 
-#define PXC_VERSION_REVISION 7777 
+#define PXC_VERSION_BUILD    21 
+#define PXC_VERSION_REVISION 6598 
 
 #define RSSDK_REG_DEV           TEXT("Software\\Intel\\RSSDK") 
 #define RSSDK_REG_DEV32         TEXT("Software\\Wow6432Node\\Intel\\RSSDK") 
 
-#define RSSDK_REG_RUNTIME       TEXT("Software\\Intel\\RSSDK\\v5") 
-#define RSSDK_REG_RUNTIME32     TEXT("Software\\Wow6432Node\\Intel\\RSSDK\\v5") 
+#define RSSDK_REG_RUNTIME       TEXT("Software\\Intel\\RSSDK\\v6") 
+#define RSSDK_REG_RUNTIME32     TEXT("Software\\Wow6432Node\\Intel\\RSSDK\\v6") 
 
 #define RSSDK_REG_DISPATCH      RSSDK_REG_RUNTIME   TEXT("\\Dispatch") 
 #define RSSDK_REG_DISPATCH32    RSSDK_REG_RUNTIME32 TEXT("\\Dispatch") 
@@ -29,5 +29,7 @@ Copyright(c) 2012-2015 Intel Corporation. All Rights Reserved.
 #define RSDCM_REG_DEV           TEXT("Software\\Intel\\RSDCM") 
 #define RSDCM_REG_DEV32         TEXT("Software\\Wow6432Node\\Intel\\RSDCM") 
 
-#define STR(x) x 
+#define STR(x) #x 
 #define RS_COPYRIGHT(x) "Copyright(C) " STR(x) "-2015, Intel Corporation. All Rights Reserved." 
+
+#define STR_SDK_VERSION(MAJVER,MINVER,SUBVER,REV) STR(MAJVER) "." STR(MINVER) "." STR(SUBVER) "." STR(REV) 

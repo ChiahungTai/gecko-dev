@@ -109,6 +109,17 @@ public:
         ACCESS_READ_WRITE   = ACCESS_READ | ACCESS_WRITE,   /* read write access    */
     };
 
+    /**
+    @enum Rotation
+    Image rotation options.
+    */
+    enum Rotation {
+        ROTATION_0_DEGREE	    = 0x0,    /* 0 Degree rotation */
+        ROTATION_90_DEGREE  = 90,     /* 90 degree clockwise rotation */
+        ROTATION_180_DEGREE = 180,   /* 180 degree clockwise rotation */
+        ROTATION_270_DEGREE = 270,   /* 270 degree clockwise rotation */
+    };
+
     /** 
     @enum Option
     Describes the image options.
@@ -195,6 +206,9 @@ public:
     @return PXC_STATUS_NO_ERROR    Successful execution.
     */
     virtual pxcStatus PXCAPI AcquireAccess(Access access, PixelFormat format, Option options, ImageData *data)=0;
+    __inline pxcStatus AcquireAccess(Access access, PixelFormat format, Rotation rotation, Option options, ImageData *data) {
+        return AcquireAccess(access, format, (Option)(rotation | options), data);
+    }
 
     /** 
     @brief Lock to access the internal storage of a specified format. The function will perform format conversion if unmatched. 
