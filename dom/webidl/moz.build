@@ -163,7 +163,6 @@ WEBIDL_FILES = [
     'GainNode.webidl',
     'Geolocation.webidl',
     'GeometryUtils.webidl',
-	'GestureRecognition.webidl',
     'GetUserMediaRequest.webidl',
     'HDMIInputPort.webidl',
     'Headers.webidl',
@@ -612,6 +611,11 @@ if CONFIG['MOZ_WEBRTC']:
         'RTCRtpSender.webidl',
         'RTCSessionDescription.webidl',
         'WebrtcGlobalInformation.webidl',
+    ]
+
+if CONFIG['OS_TARGET'] == 'WINNT':
+    WEBIDL_FILES += [
+        'GestureRecognition.webidl',
     ]
 
 if CONFIG['MOZ_WEBSPEECH']:

@@ -497,6 +497,8 @@ pref("media.encoder.webm.enabled", true);
 pref("media.encoder.omx.enabled", true);
 #endif
 
+pref("glovepuppetry.enabled", false);
+
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
 
@@ -5069,3 +5071,4 @@ pref("media.useAudioChannelAPI", false);
 
 // Expose Request.context. Currently disabled since the spec is in flux.
 pref("dom.requestcontext.enabled", false);
+
