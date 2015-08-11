@@ -105,6 +105,8 @@
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/nsSynthVoiceRegistry.h"
 #endif
+// Project GlovePuppetry
+#include "mozilla/dom/GestureRecognition.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "SystemWorkerManager.h"
@@ -652,6 +654,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(FakeSpeechRecognitionService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(PocketSphinxSpeechRecognitionService)
 #endif
 
+// Project GlovePuppetry
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIGestureRecognitionService, NS_CreateGestureRecognitionService)
+
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCSPContext)
 NS_GENERIC_FACTORY_CONSTRUCTOR(CSPService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMixedContentBlocker)
@@ -872,6 +877,9 @@ NS_DEFINE_NAMED_CID(PRESENTATION_DEVICE_MANAGER_CID);
 NS_DEFINE_NAMED_CID(PRESENTATION_SESSION_TRANSPORT_CID);
 
 NS_DEFINE_NAMED_CID(TEXT_INPUT_PROCESSOR_CID);
+
+// Project GlovePuppetry
+NS_DEFINE_NAMED_CID(GESTURE_RECOGNITION_SERVICE_CID);
 
 static nsresult
 CreateWindowCommandTableConstructor(nsISupports *aOuter,
@@ -1115,6 +1123,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #ifdef MOZ_WEBSPEECH
   { &kNS_SYNTHVOICEREGISTRY_CID, true, nullptr, nsSynthVoiceRegistryConstructor },
 #endif
+  { &kGESTURE_RECOGNITION_SERVICE_CID, false, nullptr, nsIGestureRecognitionServiceConstructor },
   { &kCSPSERVICE_CID, false, nullptr, CSPServiceConstructor },
   { &kNS_CSPCONTEXT_CID, false, nullptr, nsCSPContextConstructor },
   { &kNS_MIXEDCONTENTBLOCKER_CID, false, nullptr, nsMixedContentBlockerConstructor },
@@ -1344,6 +1353,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/text-input-processor;1", &kTEXT_INPUT_PROCESSOR_CID },
   { FAKE_INPUTPORT_SERVICE_CONTRACTID, &kFAKE_INPUTPORT_SERVICE_CID },
   { INPUTPORT_DATA_CONTRACTID, &kINPUTPORT_DATA_CID },
+  { GESTURE_RECOGNITION_SERVICE_CONTRACTID, &kGESTURE_RECOGNITION_SERVICE_CID},
   { nullptr }
 };
 

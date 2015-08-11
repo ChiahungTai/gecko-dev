@@ -20,6 +20,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "UITour", "resource:///modules/UITour.js
 
 const gStringBundle = Services.strings.createBundle("chrome://global/locale/aboutReader.properties");
 
+// Project GLovePuppetry
+XPCOMUtils.defineLazyServiceGetter(this, "gGesture",
+                                   "@mozilla.org/glovepuppetry/gesturerecognitionservice;1",
+                                   "nsIGestureRecognitionService");
+dump("!!!!!! gGesture.initialize() \n")
+gGesture.initialize();
+
 let ReaderParent = {
   _readerModeInfoPanelOpen: false,
 
@@ -185,19 +192,22 @@ let ReaderParent = {
   },
 
   toggleReaderMode: function(event) {
-	// TODO: Trigger gesture recognition
     let win = event.target.ownerDocument.defaultView;
     let browser = win.gBrowser.selectedBrowser;
     let url = browser.currentURI.spec;
-
+    
     if (url.startsWith("about:reader")) {
       let originalURL = ReaderMode.getOriginalUrl(url);
       if (!originalURL) {
         Cu.reportError("Error finding original URL for about:reader URL: " + url);
       } else {
+        dump("@@@@ stop gesture!");
+        gGesture.stop()
         win.openUILinkIn(originalURL, "current", {"allowPinnedTabHostChange": true});
       }
     } else {
+      dump("@@@@ start gesture!");
+      gGesture.start()
       browser.messageManager.sendAsyncMessage("Reader:ParseDocument", { url: url });
     }
   },

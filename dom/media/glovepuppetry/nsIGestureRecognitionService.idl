@@ -1,0 +1,38 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+%{C++
+#include "mozilla/WeakPtr.h"
+
+namespace mozilla {
+namespace dom {
+class GestureRecognition;
+}
+}
+%}
+
+%{C++
+#define GESTURE_RECOGNITION_SERVICE_CID \
+  { 0x5c9fa7a2, 0xddce, 0x4d84, \
+    { 0x8d, 0xf2, 0x43, 0xb8, 0xe9, 0x27, 0x06, 0x47 } }
+#define GESTURE_RECOGNITION_SERVICE_CONTRACTID \
+  "@mozilla.org/glovepuppetry/gesturerecognitionservice;1"
+%}
+
+[uuid(bd7a4ba0-3f6a-11e5-b970-0800200c9a66)]
+interface nsIGestureRecognitionService : nsISupports {
+    void initialize();
+    void start();
+    void stop();
+};
+
+%{C++
+template<typename T> struct already_AddRefed;
+
+already_AddRefed<nsIGestureRecognitionService>
+NS_CreateGestureRecognitionService();
+%}
