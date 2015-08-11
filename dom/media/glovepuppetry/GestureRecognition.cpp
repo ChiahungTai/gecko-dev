@@ -7,51 +7,8 @@
 #include "GestureRecognition.h"
 
 #include "mozilla/dom/GestureRecognitionBinding.h"
-#include "pxcsession.h"
-
-already_AddRefed<nsIGestureRecognitionService>
-NS_CreateGestureRecognitionService()
-{
-  nsCOMPtr<nsIGestureRecognitionService> service;
-
-  service = new mozilla::GestureRecognitionService();
-
-  return service.forget();
-}
 
 namespace mozilla {
-
-NS_IMPL_ISUPPORTS(GestureRecognitionService, nsIGestureRecognitionService)
-
-GestureRecognitionService::GestureRecognitionService()
-{
-  /* member initializers and constructor code */
-}
-
-GestureRecognitionService::~GestureRecognitionService()
-{
-  /* destructor code */
-}
-
-/* void initialize (); */
-NS_IMETHODIMP GestureRecognitionService::Initialize()
-{
-  return NS_OK;
-}
-
-/* void start (); */
-NS_IMETHODIMP GestureRecognitionService::Start()
-{
-  return NS_OK;
-}
-
-/* void stop (); */
-NS_IMETHODIMP GestureRecognitionService::Stop()
-{
-  return NS_OK;
-}
-
-namespace dom {
 
 PRLogModuleInfo*
 GetGestureRecognitionLog()
@@ -64,14 +21,9 @@ GetGestureRecognitionLog()
   return sLog;
 }
 
+namespace dom {
+
 GestureRecognition::GestureRecognition() {
-  // Setup
-  mSession = PXCSession::CreateInstance();
-  if (!mSession)
-  {
-    GR_LOG(("Failed Creating PXCSession\n"));
-    return;
-  }
 }
 
 
@@ -97,7 +49,6 @@ void GestureRecognition::Stop()
 {
 
 }
-
 
 } // namespace dom
 } // namespace mozilla

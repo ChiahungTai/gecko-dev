@@ -21,11 +21,14 @@ XPCOMUtils.defineLazyModuleGetter(this, "UITour", "resource:///modules/UITour.js
 const gStringBundle = Services.strings.createBundle("chrome://global/locale/aboutReader.properties");
 
 // Project GLovePuppetry
-XPCOMUtils.defineLazyServiceGetter(this, "gGesture",
-                                   "@mozilla.org/glovepuppetry/gesturerecognitionservice;1",
-                                   "nsIGestureRecognitionService");
-dump("!!!!!! gGesture.initialize() \n")
-gGesture.initialize();
+let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
+if (!!allowGesture) {
+  let gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].
+    getService(Ci.nsIGestureRecognitionService);
+  if (!gGesture) {
+    dump("WTF, NO gesture service!\n")
+  }
+}
 
 let ReaderParent = {
   _readerModeInfoPanelOpen: false,
@@ -201,13 +204,17 @@ let ReaderParent = {
       if (!originalURL) {
         Cu.reportError("Error finding original URL for about:reader URL: " + url);
       } else {
-        dump("@@@@ stop gesture!");
-        gGesture.stop()
+        if (!!allowGesture) {
+          dump("@@@@ stop gesture!");
+          gGesture.stop()
+        }
         win.openUILinkIn(originalURL, "current", {"allowPinnedTabHostChange": true});
       }
     } else {
-      dump("@@@@ start gesture!");
-      gGesture.start()
+      if (!!allowGesture) {
+        dump("@@@@ start gesture!");
+        gGesture.start()
+      }
       browser.messageManager.sendAsyncMessage("Reader:ParseDocument", { url: url });
     }
   },

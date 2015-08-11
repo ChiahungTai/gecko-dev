@@ -5,34 +5,8 @@
 
 #include "nsISupports.idl"
 
-%{C++
-#include "mozilla/WeakPtr.h"
-
-namespace mozilla {
-namespace dom {
-class GestureRecognition;
-}
-}
-%}
-
-%{C++
-#define GESTURE_RECOGNITION_SERVICE_CID \
-  { 0x5c9fa7a2, 0xddce, 0x4d84, \
-    { 0x8d, 0xf2, 0x43, 0xb8, 0xe9, 0x27, 0x06, 0x47 } }
-#define GESTURE_RECOGNITION_SERVICE_CONTRACTID \
-  "@mozilla.org/glovepuppetry/gesturerecognitionservice;1"
-%}
-
-[uuid(bd7a4ba0-3f6a-11e5-b970-0800200c9a66)]
+[scriptable, uuid(62de4092-37a9-42da-a84b-67d564610245)]
 interface nsIGestureRecognitionService : nsISupports {
-    void initialize();
     void start();
     void stop();
 };
-
-%{C++
-template<typename T> struct already_AddRefed;
-
-already_AddRefed<nsIGestureRecognitionService>
-NS_CreateGestureRecognitionService();
-%}

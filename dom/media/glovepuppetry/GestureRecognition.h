@@ -9,46 +9,17 @@
 
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/Logging.h"
-#include "nsIGestureRecognitionService.h"
-
-class PXCSession;
-class PXCSenseManager;
-class PXCHandModule;
-class PXCHandData;
-class PXCHandConfiguration;
 
 namespace mozilla {
 
-PRLogModuleInfo* GetGestureRecognitionLog();
+extern PRLogModuleInfo* GetGestureRecognitionLog();
 #define GR_LOG(...) MOZ_LOG(GetGestureRecognitionLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
-
-class GestureRecognitionService : public nsIGestureRecognitionService
-{
-public:
-  // Add XPCOM glue code
-  NS_DECL_ISUPPORTS
-    NS_DECL_NSIGESTURERECOGNITIONSERVICE
-
-    /**
-    * Default constructs a PocketSphinxSpeechRecognitionService loading default
-    * files
-    */
-    GestureRecognitionService();
-
-private:
-  /**
-  * Private destructor to prevent bypassing of reference counting
-  */
-  virtual ~GestureRecognitionService();
-};
 
 namespace dom {
 
 class GestureRecognition final : public DOMEventTargetHelper 
 {
 public:
-  GestureRecognition();
-
   nsISupports* GetParentObject() const;
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
@@ -58,11 +29,8 @@ public:
 
   void Stop();
 protected:
+  GestureRecognition();
   ~GestureRecognition(){};
-
-private:
-  PXCSession* mSession;
-  PXCSenseManager *mSenseManager;
 
 };
 
