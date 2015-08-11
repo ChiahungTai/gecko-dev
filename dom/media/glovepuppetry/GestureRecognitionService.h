@@ -17,9 +17,6 @@ class PXCHandConfiguration;
 
 namespace mozilla {
 
-PRLogModuleInfo* GetGestureRecognitionLog();
-#define GR_LOG(...) MOZ_LOG(GetGestureRecognitionLog(), mozilla::LogLevel::Debug, (__VA_ARGS__))
-
 class GestureRecognitionService final : public nsIGestureRecognitionService
 {
 public:
@@ -35,9 +32,13 @@ private:
    */
   GestureRecognitionService();
   virtual ~GestureRecognitionService();
+  void ReleaseAll();
 
   PXCSession* mSession;
   PXCSenseManager *mSenseManager;
+  PXCHandModule *mHandModule;
+  PXCHandData *mHandDataOutput;
+  PXCHandConfiguration *mHandConfiguration;
 
 };
 

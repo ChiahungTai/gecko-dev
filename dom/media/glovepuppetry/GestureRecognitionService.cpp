@@ -9,7 +9,9 @@
 #include "GestureRecognition.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ModuleUtils.h"
-//#include "pxcsession.h"
+
+#include "pxcsensemanager.h"
+#include "pxcsession.h"
 
 #define NS_GESTURESERVICE_CID \
   { 0xc8942aa4, 0xe421, 0x483f, \
@@ -43,21 +45,51 @@ GestureRecognitionService::GestureRecognitionService()
   GR_LOG(("Test\n"));
 
   // Setup
-#if 0
   mSession = PXCSession::CreateInstance();
   if (!mSession)
   {
     GR_LOG(("Failed Creating PXCSession\n"));
     return;
   }
-#endif
+
+  mSenseManager = mSession->CreateSenseManager();
+  if (!mSenseManager)
+  {
+    ReleaseAll();
+	  std::printf("Failed Creating PXCSenseManager\n");
+	  return;
+  }
+
+  if (mSenseManager->EnableHand() != PXC_STATUS_NO_ERROR)
+  {
+    ReleaseAll();
+	  std::printf("Failed Enabling Hand Module\n");
+	  return;
+  }
 
 }
 
 GestureRecognitionService::~GestureRecognitionService()
 {
-  MOZ_ASSERT(!gGestureService);
+	ReleaseAll();
 }
+
+void GestureRecognitionService::ReleaseAll()
+{
+	MOZ_ASSERT(!gGestureService);
+	if (mSenseManager)
+	{
+		mSenseManager->Close();
+		mSenseManager->Release();
+		mSenseManager = NULL;
+	}
+	if (mSession)
+	{
+		mSession->Release();
+		mSession = NULL;
+	}
+}
+
 
 /* void start (); */
 NS_IMETHODIMP GestureRecognitionService::Start()

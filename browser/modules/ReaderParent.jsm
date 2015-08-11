@@ -22,11 +22,14 @@ const gStringBundle = Services.strings.createBundle("chrome://global/locale/abou
 
 // Project GLovePuppetry
 let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
-if (!!allowGesture) {
-  let gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].
+let gGesture;
+if (allowGesture) {
+  gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].
     getService(Ci.nsIGestureRecognitionService);
   if (!gGesture) {
     dump("WTF, NO gesture service!\n")
+  } else {
+    dump("We have gesture service!\n")
   }
 }
 
