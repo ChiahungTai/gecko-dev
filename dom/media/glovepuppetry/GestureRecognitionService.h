@@ -40,6 +40,7 @@ private:
   PXCHandData *mHandDataOutput;
   PXCHandConfiguration *mHandConfiguration;
 
+  bool mStop; // Leave recognition mode
 };
 
 } // namespace mozilla
