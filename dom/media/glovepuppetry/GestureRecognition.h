@@ -28,10 +28,10 @@ public:
   void Start();
 
   void Stop();
+
 protected:
   GestureRecognition();
   ~GestureRecognition(){};
-
 };
 
 } // namespace dom

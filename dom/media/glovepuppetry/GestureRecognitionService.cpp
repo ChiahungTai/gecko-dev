@@ -10,6 +10,9 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ModuleUtils.h"
 
+#include "Definitions.h"
+#include "pxchandconfiguration.h"
+#include "pxchanddata.h"
 #include "pxcsensemanager.h"
 #include "pxcsession.h"
 
@@ -39,16 +42,21 @@ GestureRecognitionService::FactoryCreate()
 }
 
 GestureRecognitionService::GestureRecognitionService()
+  : mSession(nullptr)
+  , mSenseManager(nullptr)
+  , mHandModule(nullptr)
+  , mHandDataOutput(nullptr)
+  , mHandConfiguration(nullptr)
+  , mStop(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!gGestureService);
-  GR_LOG(("Test\n"));
 
   // Setup
   mSession = PXCSession::CreateInstance();
   if (!mSession)
   {
-    GR_LOG(("Failed Creating PXCSession\n"));
+    GR_LOG(("Failed Creating PXCSession"));
     return;
   }
 
@@ -56,17 +64,53 @@ GestureRecognitionService::GestureRecognitionService()
   if (!mSenseManager)
   {
     ReleaseAll();
-	  std::printf("Failed Creating PXCSenseManager\n");
+    GR_LOG(("Failed Creating PXCSenseManager"));
 	  return;
   }
 
   if (mSenseManager->EnableHand() != PXC_STATUS_NO_ERROR)
   {
     ReleaseAll();
-	  std::printf("Failed Enabling Hand Module\n");
+    GR_LOG(("Failed Enabling Hand Module"));
 	  return;
   }
 
+  mHandModule = mSenseManager->QueryHand();
+  if (!mHandModule)
+  {
+    ReleaseAll();
+    GR_LOG(("Failed Creating PXCHandModule"));
+    return;
+  }
+
+  mHandDataOutput = mHandModule->CreateOutput();
+  if (!mHandDataOutput)
+  {
+    ReleaseAll();
+    GR_LOG(("Failed Creating PXCHandData"));
+    return;
+  }
+
+  mHandConfiguration = mHandModule->CreateActiveConfiguration();
+  if (!mHandConfiguration)
+  {
+    ReleaseAll();
+    GR_LOG(("Failed Creating PXCHandConfiguration"));
+    return;
+  }
+
+  // Enable all gestures.
+  mHandConfiguration->EnableAllGestures();
+  // Enable all alerts.
+  mHandConfiguration->EnableAllAlerts();
+  // Apply configuration setup
+  mHandConfiguration->ApplyChanges();
+
+  if (mHandConfiguration)
+  {
+    mHandConfiguration->Release();
+    mHandConfiguration = NULL;
+  }
 }
 
 GestureRecognitionService::~GestureRecognitionService()
@@ -76,7 +120,7 @@ GestureRecognitionService::~GestureRecognitionService()
 
 void GestureRecognitionService::ReleaseAll()
 {
-	MOZ_ASSERT(!gGestureService);
+	MOZ_ASSERT(gGestureService);
 	if (mSenseManager)
 	{
 		mSenseManager->Close();
@@ -94,12 +138,80 @@ void GestureRecognitionService::ReleaseAll()
 /* void start (); */
 NS_IMETHODIMP GestureRecognitionService::Start()
 {
+  pxcI32 numOfHands = 0;
+  // First Initializing the sense manager
+  if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
+  {
+    std::printf("\nPXCSenseManager Initializing OK\n========================\n");
+    std::printf("Number of hands: %d\n", numOfHands);
+    // Acquiring frames from input device
+    while (mSenseManager->AcquireFrame(true) == PXC_STATUS_NO_ERROR && !mStop)
+    {
+      // Get current hand outputs
+      if (mHandDataOutput->Update() == PXC_STATUS_NO_ERROR)
+      {
+        // Display alerts
+        PXCHandData::AlertData alertData;
+        for (int i = 0; i < mHandDataOutput->QueryFiredAlertsNumber(); ++i)
+        {
+          if (mHandDataOutput->QueryFiredAlertData(i, alertData) == PXC_STATUS_NO_ERROR)
+          {
+            std::printf("%s was fired at frame %d \n", Definitions::AlertToString(alertData.label).c_str(), alertData.frameNumber);
+          }
+        }
+
+        // Display gestures
+        PXCHandData::GestureData gestureData;
+        for (int i = 0; i < mHandDataOutput->QueryFiredGesturesNumber(); ++i)
+        {
+          if (mHandDataOutput->QueryFiredGestureData(i, gestureData) == PXC_STATUS_NO_ERROR)
+          {
+            std::wprintf(L"%s, Gesture: %s was fired at frame %d \n", Definitions::GestureStateToString(gestureData.state), gestureData.name, gestureData.frameNumber);
+          }
+        }
+
+        // Display joints
+        PXCHandData::IHand *hand;
+        PXCHandData::JointData jointData;
+        for (int i = 0; i < mHandDataOutput->QueryNumberOfHands(); ++i)
+        {
+          mHandDataOutput->QueryHandData(PXCHandData::ACCESS_ORDER_BY_TIME, i, hand);
+          std::string handSide = "Unknown Hand";
+          handSide = hand->QueryBodySide() == PXCHandData::BODY_SIDE_LEFT ? "Left Hand" : "Right Hand";
+
+          std::printf("%s\n==============\n", handSide.c_str());
+          for (int j = 0; j < 22; ++j)
+          {
+            if (hand->QueryTrackedJoint((PXCHandData::JointType)j, jointData) == PXC_STATUS_NO_ERROR)
+            {
+              std::printf("     %s)\tX: %f, Y: %f, Z: %f \n", Definitions::JointToString((PXCHandData::JointType)j).c_str(), jointData.positionWorld.x, jointData.positionWorld.y, jointData.positionWorld.z);
+            }
+          }
+        }
+
+        // Display number of hands
+        if (numOfHands != mHandDataOutput->QueryNumberOfHands())
+        {
+          numOfHands = mHandDataOutput->QueryNumberOfHands();
+          std::printf("Number of hands: %d\n", numOfHands);
+        }
+
+      } // end if update
+
+      mSenseManager->ReleaseFrame();
+    } // end while acquire frame
+  } else {
+    ReleaseAll();
+    std::printf("Failed Initializing PXCSenseManager\n");
+    return NS_ERROR_NOT_INITIALIZED;
+  }
   return NS_OK;
 }
 
 /* void stop (); */
 NS_IMETHODIMP GestureRecognitionService::Stop()
 {
+  ReleaseAll();
   return NS_OK;
 }
 
