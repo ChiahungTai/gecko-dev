@@ -17,6 +17,8 @@ class PXCHandConfiguration;
 
 namespace mozilla {
 
+  class DispatchHandler;
+
 class GestureRecognitionService final : public nsIGestureRecognitionService
 {
 public:
@@ -27,6 +29,8 @@ public:
   static already_AddRefed<GestureRecognitionService> FactoryCreate();
 
 private:
+  class LaunchGestureRecognitionRunnable;
+
   /**
    * Private destructor to prevent bypassing of reference counting
    */
@@ -35,11 +39,12 @@ private:
   void ReleaseAll();
 
   PXCSession* mSession;
-  PXCSenseManager *mSenseManager;
-  PXCHandModule *mHandModule;
-  PXCHandData *mHandDataOutput;
-  PXCHandConfiguration *mHandConfiguration;
+  PXCSenseManager* mSenseManager;
+  PXCHandModule* mHandModule;
+  PXCHandData* mHandDataOutput;
+  PXCHandConfiguration* mHandConfiguration;
 
+  nsCOMPtr<nsIThread> mThread;
   bool mStop; // Leave recognition mode
 };
 
