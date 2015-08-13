@@ -121,6 +121,10 @@ GestureRecognitionService::~GestureRecognitionService()
 void GestureRecognitionService::ReleaseAll()
 {
 	MOZ_ASSERT(gGestureService);
+  if (mHandDataOutput)
+  {
+    mHandDataOutput->Release();
+  }
 	if (mSenseManager)
 	{
 		mSenseManager->Close();
@@ -134,19 +138,12 @@ void GestureRecognitionService::ReleaseAll()
 	}
 }
 
-
-/* void start (); */
-NS_IMETHODIMP GestureRecognitionService::Start()
-{
-  pxcI32 numOfHands = 0;
-  // First Initializing the sense manager
-  if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
-  {
-    std::printf("\nPXCSenseManager Initializing OK\n========================\n");
-    std::printf("Number of hands: %d\n", numOfHands);
-    // Acquiring frames from input device
-    while (mSenseManager->AcquireFrame(true) == PXC_STATUS_NO_ERROR && !mStop)
-    {
+class DispatchHandler : public PXCSenseManager::Handler {
+public:
+  virtual pxcStatus PXCAPI OnModuleProcessedFrame(pxcUID mid, PXCBase
+                                                  *module, PXCCapture::Sample *sample) {
+    // check if the callback is from the hand tracking module
+    if (mid == PXCHandModule::CUID) {
       // Get current hand outputs
       if (mHandDataOutput->Update() == PXC_STATUS_NO_ERROR)
       {
@@ -190,16 +187,81 @@ NS_IMETHODIMP GestureRecognitionService::Start()
         }
 
         // Display number of hands
-        if (numOfHands != mHandDataOutput->QueryNumberOfHands())
+        if (mNumOfHands != mHandDataOutput->QueryNumberOfHands())
         {
-          numOfHands = mHandDataOutput->QueryNumberOfHands();
-          std::printf("Number of hands: %d\n", numOfHands);
+          mNumOfHands = mHandDataOutput->QueryNumberOfHands();
+          std::printf("Number of hands: %d\n", mNumOfHands);
         }
+      }
+    }
+    // return NO_ERROR to continue, or any error to abort
+    return PXC_STATUS_NO_ERROR;
+  }
 
-      } // end if update
+  DispatchHandler(PXCHandData *data)
+    :mHandDataOutput(data)
+    ,mNumOfHands(0)
+  {
+  }
 
-      mSenseManager->ReleaseFrame();
-    } // end while acquire frame
+protected:
+  PXCHandData *mHandDataOutput;
+  pxcI32 mNumOfHands;
+};
+
+class GestureRecognitionService::LaunchGestureRecognitionRunnable final : public nsRunnable
+{
+public:
+  LaunchGestureRecognitionRunnable(PXCSenseManager* aSenseManager,
+                                   PXCHandData* aHandDataOutput)
+    : mSenseManager(aSenseManager)
+    , mHandDataOutput(aHandDataOutput)
+    , mHandler(nullptr)
+  {
+    MOZ_ASSERT(mSenseManager);
+    MOZ_ASSERT(mHandDataOutput);
+  }
+
+  NS_IMETHOD Run() override
+  {
+    // Initialize and stream data
+    nsAutoPtr<DispatchHandler> dispatchHandler(new DispatchHandler(mHandDataOutput)); // Instantiate the handler object
+    mHandler = dispatchHandler.forget();
+    mSenseManager->Init(mHandler.get()); // Register the handler object
+    // Initiate SenseManager¡¦s processing loop in the blocking mode
+    mSenseManager->StreamFrames(true);
+
+    return NS_OK;
+  }
+
+private:
+  PXCSenseManager* mSenseManager;
+  PXCHandData* mHandDataOutput;
+
+  nsAutoPtr<DispatchHandler> mHandler;
+
+};
+
+
+/* void start (); */
+NS_IMETHODIMP GestureRecognitionService::Start()
+{
+  // First Initializing the sense manager
+  if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
+  {
+    std::printf("\nPXCSenseManager Initializing OK\n========================\n");
+
+    nsresult rv = NS_NewNamedThread("GRThread", getter_AddRefs(mThread));
+    if (NS_FAILED(rv)) {
+      NS_WARNING("Can't create gesture recognition worker thread.");
+      return rv;
+    }
+
+    rv = mThread->Dispatch(new LaunchGestureRecognitionRunnable(mSenseManager, mHandDataOutput),
+                           nsIEventTarget::DISPATCH_NORMAL);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
   } else {
     ReleaseAll();
     std::printf("Failed Initializing PXCSenseManager\n");
@@ -211,6 +273,10 @@ NS_IMETHODIMP GestureRecognitionService::Start()
 /* void stop (); */
 NS_IMETHODIMP GestureRecognitionService::Stop()
 {
+  MOZ_ASSERT(mThread);
+  mThread->Shutdown();
+  mThread = nullptr; // deletes NFC worker thread
+
   ReleaseAll();
   return NS_OK;
 }
