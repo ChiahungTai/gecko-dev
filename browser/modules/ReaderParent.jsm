@@ -21,7 +21,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "UITour", "resource:///modules/UITour.js
 const gStringBundle = Services.strings.createBundle("chrome://global/locale/aboutReader.properties");
 
 // Project GLovePuppetry
-let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
+// let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
+let allowGesture = false;
 let gGesture;
 if (allowGesture) {
   gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].

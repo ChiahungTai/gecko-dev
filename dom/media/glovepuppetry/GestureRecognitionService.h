@@ -17,8 +17,6 @@ class PXCHandConfiguration;
 
 namespace mozilla {
 
-  class DispatchHandler;
-
 class GestureRecognitionService final : public nsIGestureRecognitionService
 {
 public:

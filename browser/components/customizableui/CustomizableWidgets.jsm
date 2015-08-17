@@ -44,6 +44,20 @@ const kNSXUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const kPrefCustomizationDebug = "browser.uiCustomization.debug";
 const kWidePanelItemClass = "panel-wide-item";
 
+// Project GLovePuppetry
+let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
+let gGesture;
+if (allowGesture) {
+  gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].
+    getService(Ci.nsIGestureRecognitionService);
+  if (!gGesture) {
+    dump("WTF, NO gesture service!\n")
+  } else {
+    dump("We have gesture service!\n")
+  }
+}
+let gGestureToggle = false;
+
 let gModuleName = "[CustomizableWidgets]";
 #include logging.js
 
@@ -753,6 +767,7 @@ const CustomizableWidgets = [
 
       // Here, we only care about the case where we have exactly 1 feed and the
       // user clicked...
+	  /*
       let isClick = (aEvent.button == 0 || aEvent.button == 1);
       if (feeds && feeds.length == 1 && isClick) {
         aEvent.preventDefault();
@@ -760,6 +775,23 @@ const CustomizableWidgets = [
         win.FeedHandler.subscribeToFeed(feeds[0].href, aEvent);
         CustomizableUI.hidePanelForNode(aEvent.target);
       }
+	  */
+      // Hack for project GlovePuppetry
+   	  aEvent.preventDefault();
+      aEvent.stopPropagation();
+      if (gGestureToggle == false) {
+  	    gGestureToggle = true;
+      	if (!!allowGesture) {
+      		dump("@@@@ start gesture!");
+      		gGesture.start()
+      	}
+      } else {
+	    gGestureToggle = false;
+	    if (!!allowGesture) {
+          dump("@@@@ stop gesture!");
+          gGesture.stop()
+        }
+	  }
     },
     onViewShowing: function(aEvent) {
       let doc = aEvent.detail.ownerDocument;
@@ -767,7 +799,7 @@ const CustomizableWidgets = [
       let gotView = doc.defaultView.FeedHandler.buildFeedList(container, true);
 
       // For no feeds or only a single one, don't show the panel.
-      if (!gotView) {
+	  if (!gotView) {
         aEvent.preventDefault();
         aEvent.stopPropagation();
         return;
@@ -777,9 +809,13 @@ const CustomizableWidgets = [
       let win = node.ownerDocument.defaultView;
       let selectedBrowser = win.gBrowser.selectedBrowser;
       let feeds = selectedBrowser && selectedBrowser.feeds;
+	  // Force showing for porject GlovePuppetry demo.
+	  /*
       if (!feeds || !feeds.length) {
         node.setAttribute("disabled", "true");
       }
+	  */
+	  aNode.removeAttribute("disabled");
     }
   }, {
     id: "characterencoding-button",
