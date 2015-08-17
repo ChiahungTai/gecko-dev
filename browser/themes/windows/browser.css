@@ -691,7 +691,8 @@ toolbar[brighttext] .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
 }
 
 #nav-bar .toolbarbutton-1[type=panel],
-#nav-bar .toolbarbutton-1[type=menu]:not(#back-button):not(#forward-button):not(#feed-button):not(#PanelUI-menu-button) {
+/*#nav-bar .toolbarbutton-1[type=menu]:not(#back-button):not(#forward-button):not(#feed-button):not(#PanelUI-menu-button) {*/
+#nav-bar .toolbarbutton-1[type=menu]:not(#back-button):not(#forward-button):not(#PanelUI-menu-button) {
   padding-left: 5px;
   padding-right: 5px;
 }
