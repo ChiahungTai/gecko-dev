@@ -24,6 +24,7 @@
 namespace mozilla {
 
 static GestureRecognitionService* gGestureService;
+volatile bool g_stop = true;
 
 NS_IMPL_ISUPPORTS(GestureRecognitionService, nsIGestureRecognitionService)
 
@@ -43,11 +44,6 @@ GestureRecognitionService::FactoryCreate()
 
 GestureRecognitionService::GestureRecognitionService()
   : mSession(nullptr)
-  , mSenseManager(nullptr)
-  , mHandModule(nullptr)
-  , mHandDataOutput(nullptr)
-  , mHandConfiguration(nullptr)
-  , mStop(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!gGestureService);
@@ -59,85 +55,20 @@ GestureRecognitionService::GestureRecognitionService()
     GR_LOG(("Failed Creating PXCSession"));
     return;
   }
-
-  mSenseManager = mSession->CreateSenseManager();
-  if (!mSenseManager)
-  {
-    ReleaseAll();
-    GR_LOG(("Failed Creating PXCSenseManager"));
-	  return;
-  }
-
-  if (mSenseManager->EnableHand() != PXC_STATUS_NO_ERROR)
-  {
-    ReleaseAll();
-    GR_LOG(("Failed Enabling Hand Module"));
-	  return;
-  }
-
-  mHandModule = mSenseManager->QueryHand();
-  if (!mHandModule)
-  {
-    ReleaseAll();
-    GR_LOG(("Failed Creating PXCHandModule"));
-    return;
-  }
-
-  mHandDataOutput = mHandModule->CreateOutput();
-  if (!mHandDataOutput)
-  {
-    ReleaseAll();
-    GR_LOG(("Failed Creating PXCHandData"));
-    return;
-  }
-
-  mHandConfiguration = mHandModule->CreateActiveConfiguration();
-  if (!mHandConfiguration)
-  {
-    ReleaseAll();
-    GR_LOG(("Failed Creating PXCHandConfiguration"));
-    return;
-  }
-
-  // Enable all gestures.
-  mHandConfiguration->EnableAllGestures();
-  // Enable all alerts.
-  mHandConfiguration->EnableAllAlerts();
-  // Apply configuration setup
-  mHandConfiguration->ApplyChanges();
-
-  if (mHandConfiguration)
-  {
-    mHandConfiguration->Release();
-    mHandConfiguration = NULL;
-  }
 }
 
 GestureRecognitionService::~GestureRecognitionService()
 {
 	ReleaseAll();
 }
-
 void GestureRecognitionService::ReleaseAll()
 {
-	MOZ_ASSERT(gGestureService);
-  if (mHandDataOutput)
-  {
-    mHandDataOutput->Release();
-  }
-	if (mSenseManager)
-	{
-		mSenseManager->Close();
-		mSenseManager->Release();
-		mSenseManager = NULL;
-	}
-	if (mSession)
+  if (mSession)
 	{
 		mSession->Release();
 		mSession = NULL;
 	}
 }
-
 class DispatchHandler : public PXCSenseManager::Handler {
 public:
   virtual pxcStatus PXCAPI OnModuleProcessedFrame(pxcUID mid, PXCBase
@@ -212,43 +143,163 @@ protected:
 class GestureRecognitionService::LaunchGestureRecognitionRunnable final : public nsRunnable
 {
 public:
-  LaunchGestureRecognitionRunnable(PXCSenseManager* aSenseManager,
-                                   PXCHandData* aHandDataOutput)
-    : mSenseManager(aSenseManager)
-    , mHandDataOutput(aHandDataOutput)
-    , mHandler(nullptr)
+  LaunchGestureRecognitionRunnable(PXCSession *aSession)
+    : mSession(aSession)
+    , mSenseManager(nullptr)
   {
-    MOZ_ASSERT(mSenseManager);
-    MOZ_ASSERT(mHandDataOutput);
+    MOZ_ASSERT(mSession);
+  }
+
+  ~LaunchGestureRecognitionRunnable()
+  {
+    ReleaseAll();
+  }
+
+  void ReleaseAll()
+  {
+    MOZ_ASSERT(gGestureService);
+    if (mSenseManager)
+    {
+      mSenseManager->Close();
+      mSenseManager->Release();
+      mSenseManager = NULL;
+    }
+  }
+  void BasicGestureControl() {
+  
   }
 
   NS_IMETHOD Run() override
   {
-    // Initialize and stream data
-    nsAutoPtr<DispatchHandler> dispatchHandler(new DispatchHandler(mHandDataOutput)); // Instantiate the handler object
-    mHandler = dispatchHandler.forget();
-    mSenseManager->Init(mHandler.get()); // Register the handler object
-    // Initiate SenseManager¡¦s processing loop in the blocking mode
-    mSenseManager->StreamFrames(true);
+    mSenseManager = mSession->CreateSenseManager();
+    if (!mSenseManager)
+    {
+      ReleaseAll();
+      GR_LOG(("Failed Creating PXCSenseManager"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
 
+    if (mSenseManager->EnableHand() != PXC_STATUS_NO_ERROR)
+    {
+      ReleaseAll();
+      GR_LOG(("Failed Enabling Hand Module"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCHandModule* handModule = mSenseManager->QueryHand();
+    if (!handModule)
+    {
+      ReleaseAll();
+      GR_LOG(("Failed Creating PXCHandModule"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCHandData* handDataOutput = handModule->CreateOutput();
+    if (!handDataOutput)
+    {
+      ReleaseAll();
+      GR_LOG(("Failed Creating PXCHandData"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCHandConfiguration* handConfiguration = handModule->CreateActiveConfiguration();
+    if (!handConfiguration)
+    {
+      ReleaseAll();
+      GR_LOG(("Failed Creating PXCHandConfiguration"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    // Enable all gestures.
+    handConfiguration->EnableAllGestures();
+    // Enable all alerts.
+    handConfiguration->EnableAllAlerts();
+    // Apply configuration setup
+    handConfiguration->ApplyChanges();
+    handConfiguration->Update();
+
+    if (handConfiguration)
+    {
+      handConfiguration->Release();
+      handConfiguration = NULL;
+    }
+    pxcI32 numOfHands = 0;
+    if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
+    {
+      // Acquiring frames from input device
+      while (mSenseManager->AcquireFrame(true) == PXC_STATUS_NO_ERROR && !g_stop)
+      {
+        // Get current hand outputs
+        if (handDataOutput->Update() == PXC_STATUS_NO_ERROR)
+        {
+          // Display alerts
+          PXCHandData::AlertData alertData;
+          for (int i = 0; i < handDataOutput->QueryFiredAlertsNumber(); ++i)
+          {
+            if (handDataOutput->QueryFiredAlertData(i, alertData) == PXC_STATUS_NO_ERROR)
+            {
+              std::printf("%s was fired at frame %d \n", Definitions::AlertToString(alertData.label).c_str(), alertData.frameNumber);
+            }
+          }
+
+          // Display gestures
+          PXCHandData::GestureData gestureData;
+          for (int i = 0; i < handDataOutput->QueryFiredGesturesNumber(); ++i)
+          {
+            if (handDataOutput->QueryFiredGestureData(i, gestureData) == PXC_STATUS_NO_ERROR)
+            {
+              std::wprintf(L"%s, Gesture: %s was fired at frame %d \n", Definitions::GestureStateToString(gestureData.state), gestureData.name, gestureData.frameNumber);
+            }
+          }
+
+          // Display joints
+          PXCHandData::IHand *hand;
+          PXCHandData::JointData jointData;
+          for (int i = 0; i < handDataOutput->QueryNumberOfHands(); ++i)
+          {
+            handDataOutput->QueryHandData(PXCHandData::ACCESS_ORDER_BY_TIME, i, hand);
+            std::string handSide = "Unknown Hand";
+            handSide = hand->QueryBodySide() == PXCHandData::BODY_SIDE_LEFT ? "Left Hand" : "Right Hand";
+
+            std::printf("%s\n==============\n", handSide.c_str());
+            for (int j = 0; j < 22; ++j)
+            {
+              if (hand->QueryTrackedJoint((PXCHandData::JointType)j, jointData) == PXC_STATUS_NO_ERROR)
+              {
+                std::printf("     %s)\tX: %f, Y: %f, Z: %f \n", Definitions::JointToString((PXCHandData::JointType)j).c_str(), jointData.positionWorld.x, jointData.positionWorld.y, jointData.positionWorld.z);
+              }
+            }
+          }
+
+          // Display number of hands
+          if (numOfHands != handDataOutput->QueryNumberOfHands())
+          {
+            numOfHands = handDataOutput->QueryNumberOfHands();
+            std::printf("Number of hands: %d\n", numOfHands);
+          }
+        }
+      mSenseManager->ReleaseFrame();
+      } // end while acquire frame
+      handDataOutput->Release();
+    } // end if Init
+    else
+    {
+      ReleaseAll();
+      std::printf("Failed Initializing PXCSenseManager\n");
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
     return NS_OK;
   }
 
 private:
+  PXCSession *mSession;
   PXCSenseManager* mSenseManager;
-  PXCHandData* mHandDataOutput;
-
-  nsAutoPtr<DispatchHandler> mHandler;
-
 };
 
 
 /* void start (); */
 NS_IMETHODIMP GestureRecognitionService::Start()
 {
-  // First Initializing the sense manager
-  if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
-  {
     std::printf("\nPXCSenseManager Initializing OK\n========================\n");
 
     nsresult rv = NS_NewNamedThread("GRThread", getter_AddRefs(mThread));
@@ -256,28 +307,28 @@ NS_IMETHODIMP GestureRecognitionService::Start()
       NS_WARNING("Can't create gesture recognition worker thread.");
       return rv;
     }
-
-    rv = mThread->Dispatch(new LaunchGestureRecognitionRunnable(mSenseManager, mHandDataOutput),
+    g_stop = false;
+    rv = mThread->Dispatch(new LaunchGestureRecognitionRunnable(mSession),
                            nsIEventTarget::DISPATCH_NORMAL);
     if (NS_FAILED(rv)) {
       return rv;
     }
-  } else {
-    ReleaseAll();
-    std::printf("Failed Initializing PXCSenseManager\n");
-    return NS_ERROR_NOT_INITIALIZED;
-  }
   return NS_OK;
 }
 
 /* void stop (); */
 NS_IMETHODIMP GestureRecognitionService::Stop()
 {
+  std::printf("\n GestureRecognitionService::Stop() \n========================\n");
+  std::printf("\n========================\n");
+  std::printf("\n========================\n");
+  std::printf("\n========================\n");
+  g_stop = true;
   MOZ_ASSERT(mThread);
-  mThread->Shutdown();
-  mThread = nullptr; // deletes NFC worker thread
 
-  ReleaseAll();
+  mThread->Shutdown();
+  mThread = nullptr; // deletes GR worker thread
+
   return NS_OK;
 }
 

@@ -37,13 +37,8 @@ private:
   void ReleaseAll();
 
   PXCSession* mSession;
-  PXCSenseManager* mSenseManager;
-  PXCHandModule* mHandModule;
-  PXCHandData* mHandDataOutput;
-  PXCHandConfiguration* mHandConfiguration;
 
   nsCOMPtr<nsIThread> mThread;
-  bool mStop; // Leave recognition mode
 };
 
 } // namespace mozilla
