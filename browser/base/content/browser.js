@@ -1849,16 +1849,19 @@ function BrowserForward(aEvent) {
 
 function BrowserBack(aEvent) {
   let where = whereToOpenLink(aEvent, false, true);
-
+  dump("\n--------------\n");
+  dump("where:" + where);
   if (where == "current") {
     try {
+      dump("\ngBrowser.goBack()\n");
       gBrowser.goBack();
     }
     catch(ex) {
     }
   }
   else {
-    duplicateTabIn(gBrowser.selectedTab, where, -1);
+  	dump("\nduplicateTabIn\n");
+  	duplicateTabIn(gBrowser.selectedTab, where, -1);
   }
 }
 
