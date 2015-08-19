@@ -18,7 +18,9 @@ UNIFIED_SOURCES += [
     'GestureRecognitionService.cpp',
 ]
 
+# /dom/base needed for nsGlobalWindow.h in MediaChild.cpp
 LOCAL_INCLUDES += [
+    '/dom/base',
     '/dom/media/glovepuppetry/RSSDK/include',
 ]
 

@@ -9,12 +9,16 @@
 #include "GestureRecognition.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ModuleUtils.h"
+#include "nsGlobalWindow.h"
+#include "nsIController.h"
+#include "nsPIWindowRoot.h"
 
 #include "Definitions.h"
 #include "pxchandconfiguration.h"
 #include "pxchanddata.h"
 #include "pxcsensemanager.h"
 #include "pxcsession.h"
+
 
 #define NS_GESTURESERVICE_CID \
   { 0xc8942aa4, 0xe421, 0x483f, \
@@ -146,7 +150,10 @@ public:
   LaunchGestureRecognitionRunnable(PXCSession *aSession)
     : mSession(aSession)
     , mSenseManager(nullptr)
+    , mScriptGlobal(nullptr)
   {
+    mScriptGlobal = 
+    NS_NewScriptGlobalObject(false, false);
     MOZ_ASSERT(mSession);
   }
 
@@ -168,6 +175,39 @@ public:
   void BasicGestureControl() {
   
   }
+
+  //
+  // Routines for selection and clipboard
+  //
+  nsresult
+    GetControllerForCommand(const char* aCommand,
+    nsIController** aResult)
+  {
+    NS_ENSURE_ARG_POINTER(aResult);
+    *aResult = nullptr;
+
+    NS_ENSURE_TRUE(mScriptGlobal, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsPIWindowRoot> root = mScriptGlobal->GetTopWindowRoot();
+    NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
+
+    return root->GetControllerForCommand(aCommand, aResult);
+  }
+
+  NS_IMETHODIMP
+  DoCommand(const char* aCommand)
+  {
+    nsresult rv = NS_ERROR_FAILURE;
+
+    nsCOMPtr<nsIController> controller;
+    rv = GetControllerForCommand(aCommand, getter_AddRefs(controller));
+    if (controller) {
+      rv = controller->DoCommand(aCommand);
+    }
+
+    return rv;
+  }
+
 
   NS_IMETHOD Run() override
   {
@@ -211,9 +251,19 @@ public:
     }
 
     // Enable all gestures.
-    handConfiguration->EnableAllGestures();
+//    handConfiguration->EnableAllGestures();
+    handConfiguration->DisableAllGestures();
+    handConfiguration->EnableGesture(L"thumb_up", true);
+    handConfiguration->EnableGesture(L"thumb_down", true);
+    handConfiguration->EnableGesture(L"swipe_up", true);
+    handConfiguration->EnableGesture(L"swipe_down", true);
+    handConfiguration->EnableGesture(L"swipe_left", true);
+    handConfiguration->EnableGesture(L"swipe_right", true);
+    handConfiguration->ApplyChanges();
+
     // Enable all alerts.
-    handConfiguration->EnableAllAlerts();
+//    handConfiguration->EnableAllAlerts();
+    handConfiguration->DisableAllAlerts();
     // Apply configuration setup
     handConfiguration->ApplyChanges();
     handConfiguration->Update();
@@ -251,7 +301,7 @@ public:
               std::wprintf(L"%s, Gesture: %s was fired at frame %d \n", Definitions::GestureStateToString(gestureData.state), gestureData.name, gestureData.frameNumber);
             }
           }
-
+          /*
           // Display joints
           PXCHandData::IHand *hand;
           PXCHandData::JointData jointData;
@@ -270,7 +320,7 @@ public:
               }
             }
           }
-
+          */
           // Display number of hands
           if (numOfHands != handDataOutput->QueryNumberOfHands())
           {
@@ -294,6 +344,7 @@ public:
 private:
   PXCSession *mSession;
   PXCSenseManager* mSenseManager;
+  nsRefPtr<nsGlobalWindow> mScriptGlobal;
 };
 
 
