@@ -3,23 +3,23 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* globals ViewHelpers, Task, AnimationsPanel, promise, EventEmitter,
+   AnimationsFront */
 
 "use strict";
 
 const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/devtools/Loader.jsm");
+let { loader, require } = Cu.import("resource://gre/modules/devtools/Loader.jsm");
 Cu.import("resource://gre/modules/devtools/Console.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 
-devtools.lazyRequireGetter(this, "promise");
-devtools.lazyRequireGetter(this, "EventEmitter",
-                                 "devtools/toolkit/event-emitter");
-devtools.lazyRequireGetter(this, "AnimationsFront",
-                                 "devtools/server/actors/animation", true);
-
-const require = devtools.require;
+loader.lazyRequireGetter(this, "promise");
+loader.lazyRequireGetter(this, "EventEmitter",
+                               "devtools/toolkit/event-emitter");
+loader.lazyRequireGetter(this, "AnimationsFront",
+                               "devtools/server/actors/animation", true);
 
 const STRINGS_URI = "chrome://browser/locale/devtools/animationinspector.properties";
 const L10N = new ViewHelpers.L10N(STRINGS_URI);
@@ -37,7 +37,8 @@ let startup = Task.async(function*(inspector) {
 
   // Don't assume that AnimationsPanel is defined here, it's in another file.
   if (!typeof AnimationsPanel === "undefined") {
-    throw new Error("AnimationsPanel was not loaded in the animationinspector window");
+    throw new Error("AnimationsPanel was not loaded in the " +
+                    "animationinspector window");
   }
 
   // Startup first initalizes the controller and then the panel, in sequence.
@@ -172,7 +173,7 @@ let AnimationsController = {
            gInspector.sidebar.getCurrentTabID() == "animationinspector";
   },
 
-  onPanelVisibilityChange: Task.async(function*(e, id) {
+  onPanelVisibilityChange: Task.async(function*() {
     if (this.isPanelVisible()) {
       this.onNewNodeFront();
       this.startAllAutoRefresh();
@@ -183,14 +184,15 @@ let AnimationsController = {
 
   onNewNodeFront: Task.async(function*() {
     // Ignore if the panel isn't visible or the node selection hasn't changed.
-    if (!this.isPanelVisible() || this.nodeFront === gInspector.selection.nodeFront) {
+    if (!this.isPanelVisible() ||
+        this.nodeFront === gInspector.selection.nodeFront) {
       return;
     }
 
     let done = gInspector.updating("animationscontroller");
 
-    if(!gInspector.selection.isConnected() ||
-       !gInspector.selection.isElementNode()) {
+    if (!gInspector.selection.isConnected() ||
+        !gInspector.selection.isElementNode()) {
       yield this.destroyAnimationPlayers();
       this.emit(this.PLAYERS_UPDATED_EVENT);
       done();
@@ -209,7 +211,7 @@ let AnimationsController = {
    */
   toggleAll: function() {
     if (!this.hasToggleAll) {
-      return promis.resolve();
+      return promise.resolve();
     }
 
     return this.animationsFront.toggleAll().catch(Cu.reportError);

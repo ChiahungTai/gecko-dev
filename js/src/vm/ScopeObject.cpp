@@ -369,7 +369,7 @@ js::XDRStaticWithObject(XDRState<mode>* xdr, HandleObject enclosingScope,
         Rooted<StaticWithObject*> obj(cx, StaticWithObject::create(cx));
         if (!obj)
             return false;
-        obj->initEnclosingNestedScope(enclosingScope);
+        obj->initEnclosingScope(enclosingScope);
         objp.set(obj);
     }
     // For encoding, there is nothing to do.  The only information that is
@@ -398,7 +398,7 @@ CloneStaticWithObject(JSContext* cx, HandleObject enclosingScope, Handle<StaticW
     if (!clone)
         return nullptr;
 
-    clone->initEnclosingNestedScope(enclosingScope);
+    clone->initEnclosingScope(enclosingScope);
 
     return clone;
 }
@@ -593,6 +593,25 @@ const Class NonSyntacticVariablesObject::class_ = {
     JSCLASS_IS_ANONYMOUS
 };
 
+/* static */ StaticFunctionBoxScopeObject*
+StaticFunctionBoxScopeObject::create(ExclusiveContext* cx, HandleObject enclosing)
+{
+    StaticFunctionBoxScopeObject* obj =
+        NewObjectWithNullTaggedProto<StaticFunctionBoxScopeObject>(cx, GenericObject,
+                                                                   BaseShape::DELEGATE);
+    if (!obj)
+        return nullptr;
+
+    obj->setReservedSlot(SCOPE_CHAIN_SLOT, ObjectOrNullValue(enclosing));
+    return obj;
+}
+
+const Class StaticFunctionBoxScopeObject::class_ = {
+    "StaticFunctionBoxScopeObject",
+    JSCLASS_HAS_RESERVED_SLOTS(StaticFunctionBoxScopeObject::RESERVED_SLOTS) |
+    JSCLASS_IS_ANONYMOUS
+};
+
 /*****************************************************************************/
 
 /* static */ ClonedBlockObject*
@@ -749,7 +768,7 @@ js::XDRStaticBlockObject(XDRState<mode>* xdr, HandleObject enclosingScope,
         obj = StaticBlockObject::create(cx);
         if (!obj)
             return false;
-        obj->initEnclosingNestedScope(enclosingScope);
+        obj->initEnclosingScope(enclosingScope);
         objp.set(obj);
     }
 
@@ -796,7 +815,7 @@ js::XDRStaticBlockObject(XDRState<mode>* xdr, HandleObject enclosingScope,
             return false;
 
         for (Shape::Range<NoGC> r(obj->lastProperty()); !r.empty(); r.popFront())
-            shapes[obj->shapeToIndex(r.front())] = &r.front();
+            shapes[obj->shapeToIndex(r.front())].set(&r.front());
 
         RootedShape shape(cx);
         RootedId propid(cx);
@@ -840,7 +859,7 @@ CloneStaticBlockObject(JSContext* cx, HandleObject enclosingScope, Handle<Static
     if (!clone)
         return nullptr;
 
-    clone->initEnclosingNestedScope(enclosingScope);
+    clone->initEnclosingScope(enclosingScope);
     clone->setLocalOffset(srcBlock->localOffset());
 
     /* Shape::Range is reverse order, so build a list in forward order. */
@@ -849,7 +868,7 @@ CloneStaticBlockObject(JSContext* cx, HandleObject enclosingScope, Handle<Static
         return nullptr;
 
     for (Shape::Range<NoGC> r(srcBlock->lastProperty()); !r.empty(); r.popFront())
-        shapes[srcBlock->shapeToIndex(r.front())] = &r.front();
+        shapes[srcBlock->shapeToIndex(r.front())].set(&r.front());
 
     RootedId id(cx);
     for (Shape* shape : shapes) {
@@ -2018,8 +2037,6 @@ DebugScopes::addDebugScope(JSContext* cx, const ScopeIter& si, DebugScopeObject&
 {
     MOZ_ASSERT(!si.hasSyntacticScopeObject());
     MOZ_ASSERT(cx->compartment() == debugScope.compartment());
-    MOZ_ASSERT_IF(si.withinInitialFrame() && si.initialFrame().isFunctionFrame(),
-                  !si.initialFrame().callee()->isGenerator());
     // Generators should always reify their scopes.
     MOZ_ASSERT_IF(si.type() == ScopeIter::Call, !si.fun().isGenerator());
 
@@ -2270,13 +2287,14 @@ DebugScopes::hasLiveScope(ScopeObject& scope)
 /* static */ void
 DebugScopes::unsetPrevUpToDateUntil(JSContext* cx, AbstractFramePtr until)
 {
-    // This is the one exception where fp->prevUpToDate() is cleared without
-    // popping the frame. When a frame is rematerialized, all frames younger
-    // than the rematerialized frame have their prevUpToDate set to
-    // false. This is because unrematerialized Ion frames have no usable
-    // AbstractFramePtr, and so are skipped by the updateLiveScopes. If in the
-    // future a frame suddenly gains a usable AbstractFramePtr via
-    // rematerialization, the prevUpToDate invariant will no longer hold.
+    // This are two exceptions where fp->prevUpToDate() is cleared without
+    // popping the frame. When a frame is rematerialized or has its
+    // debuggeeness toggled off->on, all frames younger than the frame must
+    // have their prevUpToDate set to false. This is because unrematerialized
+    // Ion frames and non-debuggee frames are skipped by updateLiveScopes. If
+    // in the future a frame suddenly gains a usable AbstractFramePtr via
+    // rematerialization or becomes a debuggee, the prevUpToDate invariant
+    // will no longer hold for older frames on its stack.
     for (AllFramesIter i(cx); !i.done(); ++i) {
         if (!i.hasUsableAbstractFramePtr())
             continue;
@@ -2400,8 +2418,15 @@ GetDebugScopeForMissing(JSContext* cx, const ScopeIter& si)
         break;
       }
       case ScopeIter::Block: {
-        // Generators should always reify their scopes.
-        MOZ_ASSERT_IF(si.withinInitialFrame() && si.initialFrame().isFunctionFrame(),
+        // Generators should always reify their scopes, except in this one
+        // weird case of deprecated let expressions where we can create a
+        // 0-variable StaticBlockObject inside a generator that does not need
+        // cloning.
+        //
+        // For example, |let ({} = "") { yield evalInFrame("foo"); }|.
+        MOZ_ASSERT_IF(si.staticBlock().numVariables() > 0 &&
+                      si.withinInitialFrame() &&
+                      si.initialFrame().isFunctionFrame(),
                       !si.initialFrame().callee()->isGenerator());
 
         Rooted<StaticBlockObject*> staticBlock(cx, &si.staticBlock());
@@ -2523,7 +2548,7 @@ js::CreateScopeObjectsForScopeChain(JSContext* cx, AutoObjectVector& scopeChain,
         staticWith = StaticWithObject::create(cx);
         if (!staticWith)
             return false;
-        staticWith->initEnclosingNestedScope(staticEnclosingScope);
+        staticWith->initEnclosingScope(staticEnclosingScope);
         staticEnclosingScope = staticWith;
 
         dynamicWith = DynamicWithObject::create(cx, scopeChain[--i], dynamicEnclosingScope,
@@ -2551,31 +2576,48 @@ js::HasNonSyntacticStaticScopeChain(JSObject* staticScope)
     return false;
 }
 
+uint32_t
+js::StaticScopeChainLength(JSObject* staticScope)
+{
+    uint32_t length = 0;
+    for (StaticScopeIter<NoGC> ssi(staticScope); !ssi.done(); ssi++)
+        length++;
+    return length;
+}
+
 #ifdef DEBUG
 
 void
 js::DumpStaticScopeChain(JSScript* script)
 {
-    JSObject* enclosingScope = script->enclosingStaticScope();
-    for (StaticScopeIter<NoGC> ssi(enclosingScope); !ssi.done(); ssi++) {
+    DumpStaticScopeChain(script->enclosingStaticScope());
+}
+
+void
+js::DumpStaticScopeChain(JSObject* staticScope)
+{
+    for (StaticScopeIter<NoGC> ssi(staticScope); !ssi.done(); ssi++) {
         switch (ssi.type()) {
           case StaticScopeIter<NoGC>::Function:
-            fprintf(stdout, "function");
+            if (ssi.maybeFunctionBox())
+                fprintf(stdout, "funbox [%p fun=%p]", ssi.maybeFunctionBox(), &ssi.fun());
+            else
+                fprintf(stdout, "function [%p]", &ssi.fun());
             break;
           case StaticScopeIter<NoGC>::Block:
-            fprintf(stdout, "block");
+            fprintf(stdout, "block [%p]", &ssi.block());
             break;
           case StaticScopeIter<NoGC>::With:
-            fprintf(stdout, "with");
+            fprintf(stdout, "with [%p]", &ssi.staticWith());
             break;
           case StaticScopeIter<NoGC>::NamedLambda:
             fprintf(stdout, "named lambda");
             break;
           case StaticScopeIter<NoGC>::Eval:
-            fprintf(stdout, "eval");
+            fprintf(stdout, "eval [%p]", &ssi.eval());
             break;
           case StaticScopeIter<NoGC>::NonSyntactic:
-            fprintf(stdout, "non-syntactic");
+            fprintf(stdout, "non-syntactic [%p]", &ssi.nonSyntactic());
             break;
         }
         fprintf(stdout, " -> ");

@@ -14,10 +14,10 @@ loader.lazyImporter(this, "escapeHTML", "resource:///modules/devtools/VariablesV
 loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
 loader.lazyImporter(this, "Task", "resource://gre/modules/Task.jsm");
 loader.lazyImporter(this, "PluralForm", "resource://gre/modules/PluralForm.jsm");
-loader.lazyImporter(this, "ObjectClient", "resource://gre/modules/devtools/dbg-client.jsm");
 
 loader.lazyRequireGetter(this, "promise");
 loader.lazyRequireGetter(this, "TableWidget", "devtools/shared/widgets/TableWidget", true);
+loader.lazyRequireGetter(this, "ObjectClient", "devtools/toolkit/client/main", true);
 
 const Heritage = require("sdk/core/heritage");
 const URI = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
@@ -44,6 +44,7 @@ const COMPAT = {
     INPUT: 4,
     OUTPUT: 5,
     SECURITY: 6,
+    SERVER: 7,
   },
 
   // The possible message severities.
@@ -68,11 +69,12 @@ const COMPAT = {
     [ null,         null,         null,   null,          ],  // Input
     [ null,         null,         null,   null,          ],  // Output
     [ "secerror",   "secwarn",    null,   null,          ],  // Security
+    [ "servererror", "serverwarn", "serverinfo", "serverlog",   ],  // Server Logging
   ],
 
   // The fragment of a CSS class name that identifies each category.
   CATEGORY_CLASS_FRAGMENTS: [ "network", "cssparser", "exception", "console",
-                              "input", "output", "security" ],
+                              "input", "output", "security", "server" ],
 
   // The fragment of a CSS class name that identifies each severity.
   SEVERITY_CLASS_FRAGMENTS: [ "error", "warn", "info", "log" ],
@@ -1300,7 +1302,7 @@ Messages.ConsoleGeneric = function(packet)
   let options = {
     className: "cm-s-mozilla",
     timestamp: packet.timeStamp,
-    category: "webdev",
+    category: packet.category || "webdev",
     severity: CONSOLE_API_LEVELS_TO_SEVERITIES[packet.level],
     prefix: packet.prefix,
     private: packet.private,
@@ -1571,7 +1573,7 @@ Messages.ConsoleTrace = function(packet)
   let options = {
     className: "cm-s-mozilla",
     timestamp: packet.timeStamp,
-    category: "webdev",
+    category: packet.category || "webdev",
     severity: CONSOLE_API_LEVELS_TO_SEVERITIES[packet.level],
     private: packet.private,
     filterDuplicates: true,
@@ -1708,7 +1710,7 @@ Messages.ConsoleTable = function(packet)
   let options = {
     className: "cm-s-mozilla",
     timestamp: packet.timeStamp,
-    category: "webdev",
+    category: packet.category || "webdev",
     severity: CONSOLE_API_LEVELS_TO_SEVERITIES[packet.level],
     private: packet.private,
     filterDuplicates: false,

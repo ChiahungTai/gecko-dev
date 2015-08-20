@@ -434,8 +434,9 @@ pref("ui.mouse.radius.bottommm", 2);
 pref("ui.mouse.radius.visitedWeight", 120);
 pref("ui.mouse.radius.reposition", true);
 
-// The percentage of the screen that needs to be scrolled before margins are exposed.
-pref("browser.ui.show-margins-threshold", 10);
+// The percentage of the screen that needs to be scrolled before toolbar
+// manipulation is allowed.
+pref("browser.ui.scroll-toolbar-threshold", 10);
 
 // Maximum distance from the point where the user pressed where we still
 // look for text to select
@@ -924,12 +925,6 @@ pref("caret.manages-android-actionbar", true);
 pref("consoleservice.logcat", false);
 #else
 pref("consoleservice.logcat", true);
-#endif
-
-// Enable Service Workers for Android on non-release builds
-#ifndef RELEASE_BUILD
-pref("dom.serviceWorkers.enabled", true);
-pref("dom.serviceWorkers.interception.enabled", true);
 #endif
 
 // Enable Cardboard VR on mobile, assuming VR at all is enabled

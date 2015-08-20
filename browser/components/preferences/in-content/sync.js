@@ -119,6 +119,7 @@ let gSyncPane = {
                   "weave:service:setup-complete",
                   "weave:service:logout:finish",
                   FxAccountsCommon.ONVERIFIED_NOTIFICATION,
+                  FxAccountsCommon.ONLOGIN_NOTIFICATION,
                   FxAccountsCommon.ON_PROFILE_CHANGE_NOTIFICATION,
                   ];
     let migrateTopic = "fxa-migration:state-changed";
@@ -192,7 +193,6 @@ let gSyncPane = {
       aEvent.stopPropagation();
       gSyncPane.openSetup('pair');
     });
-    setEventListener("syncViewQuota", "command", gSyncPane.openQuotaDialog);
     setEventListener("syncChangePassword", "command",
       () => gSyncUtils.changePassword());
     setEventListener("syncResetPassphrase", "command",
@@ -239,16 +239,12 @@ let gSyncPane = {
       gSyncPane.startOver(true);
       return false;
     });
-    setEventListener("noFxaSignUp", "click", function () {
+    setEventListener("noFxaSignUp", "command", function () {
       gSyncPane.signUp();
       return false;
     });
-    setEventListener("noFxaSignIn", "click", function () {
+    setEventListener("noFxaSignIn", "command", function () {
       gSyncPane.signIn();
-      return false;
-    });
-    setEventListener("noFxaUseOldSync", "click", function () {
-      gSyncPane.openOldSyncSupportPage();
       return false;
     });
     setEventListener("verifiedManage", "command",
@@ -258,13 +254,13 @@ let gSyncPane = {
     });
     setEventListener("verifyFxaAccount", "command",
       gSyncPane.verifyFirefoxAccount);
-    setEventListener("unverifiedUnlinkFxaAccount", "click", function () {
+    setEventListener("unverifiedUnlinkFxaAccount", "command", function () {
       /* no warning as account can't have previously synced */
       gSyncPane.unlinkFirefoxAccount(false);
     });
     setEventListener("rejectReSignIn", "command",
       gSyncPane.reSignIn);
-    setEventListener("rejectUnlinkFxaAccount", "click", function () {
+    setEventListener("rejectUnlinkFxaAccount", "command", function () {
       gSyncPane.unlinkFirefoxAccount(true);
     });
     setEventListener("tosPP-small-ToS", "click", gSyncPane.openToS);
@@ -366,7 +362,7 @@ let gSyncPane = {
         document.getElementById("fxaChangeDeviceName").disabled = !syncReady;
 
         // Clear the profile image (if any) of the previously logged in account.
-        document.getElementById("fxaProfileImage").style.removeProperty("background-image");
+        document.getElementById("fxaProfileImage").style.removeProperty("list-style-image");
 
         // If the account is verified the next promise in the chain will
         // fetch profile data.
@@ -389,7 +385,7 @@ let gSyncPane = {
             let img = new Image();
             img.onload = () => {
               let bgImage = "url('" + data.avatar + "')";
-              document.getElementById("fxaProfileImage").style.backgroundImage = bgImage;
+              document.getElementById("fxaProfileImage").style.listStyleImage = bgImage;
             };
             img.src = data.avatar;
           }
@@ -715,15 +711,6 @@ let gSyncPane = {
     fxAccounts.signOut().then(() => {
       this.updateWeavePrefs();
     });
-  },
-
-  openQuotaDialog: function () {
-    let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
-    if (win)
-      win.focus();
-    else 
-      window.openDialog("chrome://browser/content/sync/quota.xul", "",
-                        "centerscreen,chrome,dialog,modal");
   },
 
   openAddDevice: function () {

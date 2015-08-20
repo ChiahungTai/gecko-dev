@@ -4,7 +4,7 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["Extension"];
+this.EXPORTED_SYMBOLS = ["Extension"];
 
 /*
  * This file is the main entry point for extensions. When an extension
@@ -141,6 +141,10 @@ let Management = {
     this.lazyInit();
     this.emitter.emit(hook, ...args);
   },
+
+  off(hook, callback) {
+    this.emitter.off(hook, callback);
+  }
 };
 
 // A MessageBroker that's used to send and receive messages for
@@ -302,7 +306,7 @@ let GlobalManager = {
 
 // We create one instance of this class per extension. |addonData|
 // comes directly from bootstrap.js when initializing.
-function Extension(addonData)
+this.Extension = function(addonData)
 {
   let uuidGenerator = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator);
   let uuid = uuidGenerator.generateUUID().number;
@@ -529,12 +533,12 @@ Extension.prototype = {
   },
 
   startup() {
-    GlobalManager.init(this);
-
     return Promise.all([this.readManifest(), this.readLocaleMessages()]).then(([manifest, messages]) => {
       if (this.hasShutdown) {
         return;
       }
+
+      GlobalManager.init(this);
 
       this.manifest = manifest;
       this.localeMessages = messages;

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothprofilemanagerbase_h__
-#define mozilla_dom_bluetooth_bluetoothprofilemanagerbase_h__
+#ifndef mozilla_dom_bluetooth_BluetoothProfileManagerBase_h
+#define mozilla_dom_bluetooth_BluetoothProfileManagerBase_h
 
 /**
  * Error Messages used in Bluetooth profiles
@@ -50,12 +50,12 @@ public:
   virtual void OnUpdateSdpRecords(const nsAString& aDeviceAddress) = 0;
 
   /**
-   * Returns the address of the connected device.
+   * Return the address of the connected device.
    */
   virtual void GetAddress(nsAString& aDeviceAddress) = 0;
 
   /**
-   * Returns true if the profile is connected.
+   * Return true if the profile is connected.
    */
   virtual bool IsConnected() = 0;
 
@@ -84,7 +84,7 @@ public:
   virtual void Reset() = 0;
 
   /**
-   * Returns string of profile name.
+   * Return string of profile name.
    */
   virtual void GetName(nsACString& aName) = 0;
 };
@@ -103,9 +103,9 @@ public:                                                                      \
                        BluetoothProfileController* aController) override;    \
   virtual void Disconnect(BluetoothProfileController* aController) override; \
   virtual void OnConnect(const nsAString& aErrorStr) override;               \
-  virtual void OnDisconnect(const nsAString& AErrorStr) override;            \
+  virtual void OnDisconnect(const nsAString& aErrorStr) override;            \
   virtual void Reset() override;
 
 END_BLUETOOTH_NAMESPACE
 
-#endif  //#ifndef mozilla_dom_bluetooth_bluetoothprofilemanagerbase_h__
+#endif  // mozilla_dom_bluetooth_BluetoothProfileManagerBase_h

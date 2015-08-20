@@ -1812,7 +1812,7 @@ ICToBool_Object::Compiler::generateStubCode(MacroAssembler& masm)
     EmitReturnFromIC(masm);
 
     masm.bind(&slowPath);
-    masm.setupUnalignedABICall(1, scratch);
+    masm.setupUnalignedABICall(scratch);
     masm.passABIArg(objReg);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, js::EmulatesUndefined));
     masm.convertBoolToInt32(ReturnReg, ReturnReg);
@@ -2265,7 +2265,7 @@ ICBinaryArith_Double::Compiler::generateStubCode(MacroAssembler& masm)
         masm.divDouble(FloatReg1, FloatReg0);
         break;
       case JSOP_MOD:
-        masm.setupUnalignedABICall(2, R0.scratchReg());
+        masm.setupUnalignedABICall(R0.scratchReg());
         masm.passABIArg(FloatReg0, MoveOp::DOUBLE);
         masm.passABIArg(FloatReg1, MoveOp::DOUBLE);
         masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, NumberMod), MoveOp::DOUBLE);
@@ -2393,7 +2393,7 @@ ICBinaryArith_DoubleWithInt32::Compiler::generateStubCode(MacroAssembler& masm)
 
         masm.bind(&truncateABICall);
         masm.push(intReg);
-        masm.setupUnalignedABICall(1, scratchReg);
+        masm.setupUnalignedABICall(scratchReg);
         masm.passABIArg(FloatReg0, MoveOp::DOUBLE);
         masm.callWithABI(mozilla::BitwiseCast<void*, int32_t(*)(double)>(JS::ToInt32));
         masm.storeCallResult(scratchReg);
@@ -2545,7 +2545,7 @@ ICUnaryArith_Double::Compiler::generateStubCode(MacroAssembler& masm)
         masm.jump(&doneTruncate);
 
         masm.bind(&truncateABICall);
-        masm.setupUnalignedABICall(1, scratchReg);
+        masm.setupUnalignedABICall(scratchReg);
         masm.passABIArg(FloatReg0, MoveOp::DOUBLE);
         masm.callWithABI(BitwiseCast<void*, int32_t(*)(double)>(JS::ToInt32));
         masm.storeCallResult(scratchReg);
@@ -4765,6 +4765,10 @@ CanOptimizeDenseOrUnboxedArraySetElem(JSObject* obj, uint32_t index,
     if (initLength < oldInitLength || capacity < oldCapacity)
         return false;
 
+    // Unboxed arrays need to be able to emit floating point code.
+    if (obj->is<UnboxedArrayObject>() && !obj->runtimeFromMainThread()->jitSupportsFloatingPoint)
+        return false;
+
     Shape* shape = obj->maybeShape();
 
     // Cannot optimize if the shape changed.
@@ -6572,20 +6576,8 @@ TryAttachMagicArgumentsGetPropStub(JSContext* cx, JSScript* script, ICGetProp_Fa
         // Unlike ICGetProp_ArgumentsLength, only magic argument stubs are
         // supported at the moment.
         ICStub* monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
-
-        // XXXshu the compiler really should be stack allocated, but stack
-        // allocating it causes the test_temporary_storage indexedDB test to
-        // fail on GCC 4.7-compiled ARMv6 optimized builds on Android 2.3 and
-        // below with a NotFoundError, despite that test never exercising this
-        // code.
-        //
-        // Instead of tracking down the GCC bug, I've opted to heap allocate
-        // instead.
-        ScopedJSDeletePtr<ICGetProp_ArgumentsCallee::Compiler> compiler;
-        compiler = js_new<ICGetProp_ArgumentsCallee::Compiler>(cx, monitorStub);
-        if (!compiler)
-            return false;
-        ICStub* newStub = compiler->getStub(compiler->getStubSpace(script));
+        ICGetProp_ArgumentsCallee::Compiler compiler(cx, monitorStub);
+        ICStub* newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
         stub->addNewStub(newStub);
@@ -9541,7 +9533,7 @@ TryAttachFunCallStub(JSContext* cx, ICCall_Fallback* stub, HandleScript script, 
 
 static bool
 GetTemplateObjectForNative(JSContext* cx, Native native, const CallArgs& args,
-                           MutableHandleObject res, bool* skipAttach)
+                           MutableHandleObject res)
 {
     // Check for natives to which template objects can be attached. This is
     // done to provide templates to Ion for inlining these natives later on.
@@ -9557,17 +9549,10 @@ GetTemplateObjectForNative(JSContext* cx, Native native, const CallArgs& args,
             count = args[0].toInt32();
 
         if (count <= ArrayObject::EagerAllocationMaxLength) {
-            ObjectGroup* group = ObjectGroup::callingAllocationSiteGroup(cx, JSProto_Array);
-            if (!group)
-                return false;
-            if (group->maybePreliminaryObjects()) {
-                *skipAttach = true;
-                return true;
-            }
-
             // With this and other array templates, set forceAnalyze so that we
             // don't end up with a template whose structure might change later.
-            res.set(NewFullyAllocatedArrayForCallingAllocationSite(cx, count, TenuredObject));
+            res.set(NewFullyAllocatedArrayForCallingAllocationSite(cx, count, TenuredObject,
+                                                                   /* forceAnalyze = */ true));
             if (!res)
                 return false;
             return true;
@@ -9575,30 +9560,17 @@ GetTemplateObjectForNative(JSContext* cx, Native native, const CallArgs& args,
     }
 
     if (native == js::array_concat || native == js::array_slice) {
-        if (args.thisv().isObject()) {
-            JSObject* obj = &args.thisv().toObject();
-            if (!obj->isSingleton()) {
-                if (obj->group()->maybePreliminaryObjects()) {
-                    *skipAttach = true;
-                    return true;
-                }
-                res.set(NewFullyAllocatedArrayTryReuseGroup(cx, &args.thisv().toObject(), 0,
-                                                            TenuredObject));
-                return !!res;
-            }
+        if (args.thisv().isObject() && !args.thisv().toObject().isSingleton()) {
+            res.set(NewFullyAllocatedArrayTryReuseGroup(cx, &args.thisv().toObject(), 0,
+                                                        TenuredObject, /* forceAnalyze = */ true));
+            if (!res)
+                return false;
         }
     }
 
     if (native == js::str_split && args.length() == 1 && args[0].isString()) {
-        ObjectGroup* group = ObjectGroup::callingAllocationSiteGroup(cx, JSProto_Array);
-        if (!group)
-            return false;
-        if (group->maybePreliminaryObjects()) {
-            *skipAttach = true;
-            return true;
-        }
-
-        res.set(NewFullyAllocatedArrayForCallingAllocationSite(cx, 0, TenuredObject));
+        res.set(NewFullyAllocatedArrayForCallingAllocationSite(cx, 0, TenuredObject,
+                                                               /* forceAnalyze = */ true));
         if (!res)
             return false;
         return true;
@@ -9897,15 +9869,9 @@ TryAttachCallStub(JSContext* cx, ICCall_Fallback* stub, HandleScript script, jsb
 
         RootedObject templateObject(cx);
         if (MOZ_LIKELY(!isSpread)) {
-            bool skipAttach = false;
             CallArgs args = CallArgsFromVp(argc, vp);
-            if (!GetTemplateObjectForNative(cx, fun->native(), args, &templateObject, &skipAttach))
+            if (!GetTemplateObjectForNative(cx, fun->native(), args, &templateObject))
                 return false;
-            if (skipAttach) {
-                *handled = true;
-                return true;
-            }
-            MOZ_ASSERT_IF(templateObject, !templateObject->group()->maybePreliminaryObjects());
         }
 
         JitSpew(JitSpew_BaselineIC, "  Generating Call_Native stub (fun=%p, cons=%s, spread=%s)",
@@ -10037,7 +10003,25 @@ DoCallFallback(JSContext* cx, BaselineFrame* frame, ICCall_Fallback* stub_, uint
     }
 
     if (op == JSOP_NEW) {
-        if (!InvokeConstructor(cx, callee, argc, args, true, res))
+        // Callees from the stack could have any old non-constructor callee.
+        if (!IsConstructor(callee)) {
+            ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, callee, nullptr);
+            return false;
+        }
+
+        ConstructArgs cargs(cx);
+        if (!cargs.init(argc))
+            return false;
+
+        for (uint32_t i = 0; i < argc; i++)
+            cargs[i].set(args[i]);
+
+        RootedValue newTarget(cx, args[argc]);
+        MOZ_ASSERT(IsConstructor(newTarget),
+                   "either callee == newTarget, or the initial |new| checked "
+                   "that IsConstructor(newTarget)");
+
+        if (!Construct(cx, callee, cargs, newTarget, res))
             return false;
     } else if ((op == JSOP_EVAL || op == JSOP_STRICTEVAL) &&
                frame->scopeChain()->global().valueIsEval(callee))
@@ -11061,7 +11045,7 @@ ICCall_Native::Compiler::generateStubCode(MacroAssembler& masm)
     masm.enterFakeExitFrame(NativeExitFrameLayout::Token());
 
     // Execute call.
-    masm.setupUnalignedABICall(3, scratch);
+    masm.setupUnalignedABICall(scratch);
     masm.loadJSContext(scratch);
     masm.passABIArg(scratch);
     masm.passABIArg(argcReg);
@@ -11159,7 +11143,7 @@ ICCall_ClassHook::Compiler::generateStubCode(MacroAssembler& masm)
     masm.enterFakeExitFrame(NativeExitFrameLayout::Token());
 
     // Execute call.
-    masm.setupUnalignedABICall(3, scratch);
+    masm.setupUnalignedABICall(scratch);
     masm.loadJSContext(scratch);
     masm.passABIArg(scratch);
     masm.passABIArg(argcReg);
@@ -11562,7 +11546,7 @@ ICTableSwitch::Compiler::generateStubCode(MacroAssembler& masm)
         masm.pushValue(R0);
         masm.moveStackPtrTo(R0.scratchReg());
 
-        masm.setupUnalignedABICall(1, scratch);
+        masm.setupUnalignedABICall(scratch);
         masm.passABIArg(R0.scratchReg());
         masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, DoubleValueToInt32ForSwitch));
 

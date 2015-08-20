@@ -561,14 +561,16 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+      aController->NotifyCompletion(
+        NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     }
     return;
   }
 
   if (!mA2dpConnected) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+      aController->NotifyCompletion(
+        NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
     }
     return;
   }
@@ -580,7 +582,8 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   if (!sBtA2dpInterface) {
     BT_LOGR("sBluetoothA2dpInterface is null");
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+      aController->NotifyCompletion(
+        NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     }
     return;
   }
@@ -1011,8 +1014,8 @@ BluetoothA2dpManager::GetArtist(nsAString& aArtist)
  */
 
 void
-BluetoothA2dpManager::ConnectionStateNotification(BluetoothA2dpConnectionState aState,
-                                                  const nsAString& aBdAddr)
+BluetoothA2dpManager::ConnectionStateNotification(
+  BluetoothA2dpConnectionState aState, const nsAString& aBdAddr)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -1065,15 +1068,8 @@ BluetoothA2dpManager::GetPlayStatusNotification()
     return;
   }
 
-#ifndef MOZ_B2G_BT_API_V1
   bs->DistributeSignal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
                        NS_LITERAL_STRING(KEY_ADAPTER));
-#else
-  bs->DistributeSignal(
-    BluetoothSignal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
-                    NS_LITERAL_STRING(KEY_ADAPTER),
-                    InfallibleTArray<BluetoothNamedValue>()));
-#endif
 }
 
 /* Player application settings is optional for AVRCP 1.3. B2G

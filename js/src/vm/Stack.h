@@ -508,9 +508,7 @@ class InterpreterFrame
         return isEvalFrame() && !script()->strict();
     }
 
-    bool isDirectEvalFrame() const {
-        return isEvalFrame() && script()->staticLevel() > 0;
-    }
+    bool isDirectEvalFrame() const;
 
     bool isNonStrictDirectEvalFrame() const {
         return isNonStrictEvalFrame() && isDirectEvalFrame();
@@ -1085,23 +1083,61 @@ void MarkInterpreterActivations(JSRuntime* rt, JSTracer* trc);
 
 /*****************************************************************************/
 
-class InvokeArgs : public JS::CallArgs
+namespace detail {
+
+class GenericInvokeArgs : public JS::CallArgs
 {
+  protected:
     AutoValueVector v_;
 
-  public:
-    explicit InvokeArgs(JSContext* cx, bool construct = false) : v_(cx) {}
+    explicit GenericInvokeArgs(JSContext* cx) : v_(cx) {}
 
-    bool init(unsigned argc, bool construct = false) {
+    bool init(unsigned argc, bool construct) {
         MOZ_ASSERT(2 + argc + construct > argc);  // no overflow
         if (!v_.resize(2 + argc + construct))
             return false;
-        ImplicitCast<CallArgs>(*this) = CallArgsFromVp(argc, v_.begin());
-        // Set the internal flag, since we are not initializing from a made array
+
+        *static_cast<JS::CallArgs*>(this) = CallArgsFromVp(argc, v_.begin());
         constructing_ = construct;
         return true;
     }
 };
+
+} // namespace detail
+
+class InvokeArgs : public detail::GenericInvokeArgs
+{
+  public:
+    explicit InvokeArgs(JSContext* cx) : detail::GenericInvokeArgs(cx) {}
+
+    bool init(unsigned argc) {
+        return detail::GenericInvokeArgs::init(argc, false);
+    }
+};
+
+class ConstructArgs : public detail::GenericInvokeArgs
+{
+  public:
+    explicit ConstructArgs(JSContext* cx) : detail::GenericInvokeArgs(cx) {}
+
+    bool init(unsigned argc) {
+        return detail::GenericInvokeArgs::init(argc, true);
+    }
+};
+
+template <class Args, class Arraylike>
+inline bool
+FillArgumentsFromArraylike(JSContext* cx, Args& args, const Arraylike& arraylike)
+{
+    uint32_t len = arraylike.length();
+    if (!args.init(len))
+        return false;
+
+    for (uint32_t i = 0; i < len; i++)
+        args[i].set(arraylike[i]);
+
+    return true;
+}
 
 template <>
 struct DefaultHasher<AbstractFramePtr> {
@@ -1606,6 +1642,10 @@ class JitActivation : public Activation
     // bounds of what has been rematerialized, nullptr is returned.
     RematerializedFrame* lookupRematerializedFrame(uint8_t* top, size_t inlineDepth = 0);
 
+    // Remove all rematerialized frames associated with the fp top from the
+    // Debugger.
+    void removeRematerializedFramesFromDebugger(JSContext* cx, uint8_t* top);
+
     bool hasRematerializedFrame(uint8_t* top, size_t inlineDepth = 0) {
         return !!lookupRematerializedFrame(top, inlineDepth);
     }
@@ -1849,7 +1889,7 @@ class FrameIter
               DebuggerEvalOption = FOLLOW_DEBUGGER_EVAL_PREV_LINK);
     FrameIter(JSContext* cx, ContextOption, SavedOption, DebuggerEvalOption, JSPrincipals*);
     FrameIter(const FrameIter& iter);
-    MOZ_IMPLICIT FrameIter(const Data& data);
+    FrameIter(JSContext* cx, const Data& data);
     MOZ_IMPLICIT FrameIter(AbstractFramePtr frame);
 
     bool done() const { return data_.state_ == DONE; }
@@ -1961,6 +2001,11 @@ class FrameIter
     // -----------------------------------------------------------
 
     AbstractFramePtr abstractFramePtr() const;
+
+    // N.B. Copying the internal data nulls out the saved cx_, as the
+    // JSContext's lifetime is not tied to the Data lifetime. When
+    // re-instantiating a new FrameIter with a saved data, a new cx must be
+    // provided.
     AbstractFramePtr copyDataAsAbstractFramePtr() const;
     Data* copyData() const;
 
@@ -2016,7 +2061,7 @@ class ScriptFrameIter : public FrameIter
     }
 
     ScriptFrameIter(const ScriptFrameIter& iter) : FrameIter(iter) { settle(); }
-    explicit ScriptFrameIter(const FrameIter::Data& data) : FrameIter(data) { settle(); }
+    ScriptFrameIter(JSContext* cx, const FrameIter::Data& data) : FrameIter(cx, data) { settle(); }
     explicit ScriptFrameIter(AbstractFramePtr frame) : FrameIter(frame) { settle(); }
 
     ScriptFrameIter& operator++() {
@@ -2076,8 +2121,8 @@ class NonBuiltinFrameIter : public FrameIter
         settle();
     }
 
-    explicit NonBuiltinFrameIter(const FrameIter::Data& data)
-      : FrameIter(data)
+    explicit NonBuiltinFrameIter(JSContext* cx, const FrameIter::Data& data)
+      : FrameIter(cx, data)
     {}
 
     NonBuiltinFrameIter& operator++() {
@@ -2121,8 +2166,8 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
         settle();
     }
 
-    explicit NonBuiltinScriptFrameIter(const ScriptFrameIter::Data& data)
-      : ScriptFrameIter(data)
+    explicit NonBuiltinScriptFrameIter(JSContext* cx, const ScriptFrameIter::Data& data)
+      : ScriptFrameIter(cx, data)
     {}
 
     NonBuiltinScriptFrameIter& operator++() {

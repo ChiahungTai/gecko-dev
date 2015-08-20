@@ -102,7 +102,6 @@ pref("network.predictor.max-db-size", 2097152); // bytes
 pref("network.predictor.preserve", 50); // percentage of predictor data to keep when cleaning up
 
 /* session history */
-pref("browser.sessionhistory.max_total_viewers", 1);
 pref("browser.sessionhistory.max_entries", 50);
 pref("browser.sessionhistory.contentViewerTimeout", 360);
 
@@ -996,6 +995,9 @@ pref("gfx.canvas.max-size-for-skia-gl", -1);
 // enable fence with readpixels for SurfaceStream
 pref("gfx.gralloc.fence-with-readpixels", true);
 
+// enable screen mirroring to external display
+pref("gfx.screen-mirroring.enabled", true);
+
 // The url of the page used to display network error details.
 pref("b2g.neterror.url", "net_error.html");
 
@@ -1145,16 +1147,14 @@ pref("dom.mozSettings.allowForceReadOnly", false);
 // RequestSync API is enabled by default on B2G.
 pref("dom.requestSync.enabled", true);
 
-// Resample touch events on b2g
-pref("gfx.touch.resample", true);
-
 // Comma separated list of activity names that can only be provided by
 // the system app in dev mode.
 pref("dom.activities.developer_mode_only", "import-app");
 
 // mulet apparently loads firefox.js as well as b2g.js, so we have to explicitly
-// disable serviceworkers here to get them disabled in mulet.
+// disable serviceworkers and push here to get them disabled in mulet.
 pref("dom.serviceWorkers.enabled", false);
+pref("dom.push.enabled", false);
 
 // Retain at most 10 processes' layers buffers
 pref("layers.compositor-lru-size", 10);
@@ -1165,5 +1165,12 @@ pref("dom.vr.cardboard.enabled", true);
 // In B2G by deafult any AudioChannelAgent is muted when created.
 pref("dom.audiochannel.mutedByDefault", true);
 
+// The app origin of bluetooth app, which is responsible for listening pairing
+// requests.
+pref("dom.bluetooth.app-origin", "app://bluetooth.gaiamobile.org");
+
 // Default device name for Presentation API
 pref("dom.presentation.device.name", "Firefox OS");
+
+// Enable notification of performance timing
+pref("dom.performance.enable_notify_performance_timing", true);

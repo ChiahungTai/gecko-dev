@@ -28,6 +28,7 @@
 #include "builtin/TypedObject.h"
 #include "builtin/WeakSetObject.h"
 #include "gc/Marking.h"
+#include "js/Date.h"
 #include "vm/Compression.h"
 #include "vm/GeneratorObject.h"
 #include "vm/Interpreter.h"
@@ -1301,6 +1302,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("std_Object_getOwnPropertyNames",      obj_getOwnPropertyNames,      1,0),
     JS_FN("std_Object_getOwnPropertyDescriptor", obj_getOwnPropertyDescriptor, 2,0),
     JS_FN("std_Object_hasOwnProperty",           obj_hasOwnProperty,           1,0),
+    JS_FN("std_Object_toString",                 obj_toString,                 0,0),
 
     JS_FN("std_Reflect_getPrototypeOf",          Reflect_getPrototypeOf,       1,0),
     JS_FN("std_Reflect_isExtensible",            Reflect_isExtensible,         1,0),
@@ -1777,7 +1779,7 @@ CloneObject(JSContext* cx, HandleNativeObject selfHostedObject)
         MOZ_ASSERT(source->isPermanentAtom());
         clone = RegExpObject::createNoStatics(cx, source, reobj.getFlags(), nullptr, cx->tempLifoAlloc());
     } else if (selfHostedObject->is<DateObject>()) {
-        clone = JS_NewDateObjectMsec(cx, selfHostedObject->as<DateObject>().UTCTime().toNumber());
+        clone = JS::NewDateObject(cx, selfHostedObject->as<DateObject>().clippedTime());
     } else if (selfHostedObject->is<BooleanObject>()) {
         clone = BooleanObject::create(cx, selfHostedObject->as<BooleanObject>().unbox());
     } else if (selfHostedObject->is<NumberObject>()) {

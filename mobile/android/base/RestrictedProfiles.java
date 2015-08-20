@@ -5,9 +5,9 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.annotation.RobocopTarget;
+import org.mozilla.gecko.annotation.WrapForJNI;
 import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.restrictions.DefaultConfiguration;
 import org.mozilla.gecko.restrictions.GuestProfileConfiguration;
 import org.mozilla.gecko.restrictions.RestrictedProfileConfiguration;
@@ -41,7 +41,7 @@ public class RestrictedProfiles {
             return configuration;
         }
 
-        if (isGuestProfile()) {
+        if (isGuestProfile(context)) {
             return new GuestProfileConfiguration();
         } else if(isRestrictedProfile(context)) {
             return new RestrictedProfileConfiguration(context);
@@ -50,19 +50,26 @@ public class RestrictedProfiles {
         }
     }
 
-    private static boolean isGuestProfile() {
-        return GeckoAppShell.getGeckoInterface().getProfile().inGuestMode();
+    private static boolean isGuestProfile(Context context) {
+        GeckoAppShell.GeckoInterface geckoInterface = GeckoAppShell.getGeckoInterface();
+        if (geckoInterface != null) {
+            return geckoInterface.getProfile().inGuestMode();
+        }
+
+        return GeckoProfile.get(context).inGuestMode();
     }
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-    private static boolean isRestrictedProfile(Context context) {
+    public static boolean isRestrictedProfile(Context context) {
         if (Versions.preJBMR2) {
             // Early versions don't support restrictions at all
             return false;
         }
 
         final UserManager mgr = (UserManager) context.getSystemService(Context.USER_SERVICE);
-        Bundle restrictions = mgr.getApplicationRestrictions(context.getPackageName());
+        final Bundle restrictions = new Bundle();
+        restrictions.putAll(mgr.getApplicationRestrictions(context.getPackageName()));
+        restrictions.putAll(mgr.getUserRestrictions());
 
         for (String key : restrictions.keySet()) {
             if (restrictions.getBoolean(key)) {
@@ -88,7 +95,7 @@ public class RestrictedProfiles {
         return getConfiguration(context).canLoadUrl(url);
     }
 
-    @WrapElementForJNI
+    @WrapForJNI
     public static boolean isUserRestricted() {
         return isUserRestricted(GeckoAppShell.getContext());
     }
@@ -101,7 +108,7 @@ public class RestrictedProfiles {
         return getConfiguration(context).isAllowed(restriction);
     }
 
-    @WrapElementForJNI
+    @WrapForJNI
     public static boolean isAllowed(int action, String url) {
         final Restriction restriction;
         try {

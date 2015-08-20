@@ -28,7 +28,6 @@
 #include "nsStyleSet.h"
 #include "nsStyleChangeList.h"
 
-
 using mozilla::layers::Layer;
 using mozilla::dom::Animation;
 using mozilla::dom::KeyframeEffectReadOnly;
@@ -50,8 +49,6 @@ IsGeometricProperty(nsCSSProperty aProperty)
       return false;
   }
 }
-
-namespace css {
 
 CommonAnimationManager::CommonAnimationManager(nsPresContext *aPresContext)
   : mPresContext(aPresContext)
@@ -175,7 +172,7 @@ CommonAnimationManager::GetAnimationsForCompositor(const nsIFrame* aFrame,
 {
   AnimationCollection* collection = GetAnimationCollection(aFrame);
   if (!collection ||
-      !collection->HasAnimationOfProperty(aProperty) ||
+      !collection->HasCurrentAnimationOfProperty(aProperty) ||
       !collection->CanPerformOnCompositorThread(
         AnimationCollection::CanAnimate_AllowPartial)) {
     return nullptr;
@@ -184,12 +181,6 @@ CommonAnimationManager::GetAnimationsForCompositor(const nsIFrame* aFrame,
   // This animation can be done on the compositor.
   return collection;
 }
-
-/*
- * nsISupports implementation
- */
-
-NS_IMPL_ISUPPORTS(CommonAnimationManager, nsIStyleRuleProcessor)
 
 nsRestyleHint
 CommonAnimationManager::HasStateDependentStyle(StateRuleProcessorData* aData)
@@ -210,7 +201,9 @@ CommonAnimationManager::HasDocumentStateDependentStyle(StateRuleProcessorData* a
 }
 
 nsRestyleHint
-CommonAnimationManager::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
+CommonAnimationManager::HasAttributeDependentStyle(
+    AttributeRuleProcessorData* aData,
+    RestyleHintData& aRestyleHintDataResult)
 {
   return nsRestyleHint(0);
 }
@@ -296,7 +289,7 @@ CommonAnimationManager::AddStyleUpdatesTo(RestyleTracker& aTracker)
     AnimationCollection* collection = static_cast<AnimationCollection*>(next);
     next = PR_NEXT_LINK(next);
 
-    collection->EnsureStyleRuleFor(now, EnsureStyleRule_IsNotThrottled);
+    collection->EnsureStyleRuleFor(now);
 
     dom::Element* elementToRestyle = collection->GetElementToRestyle();
     if (elementToRestyle) {
@@ -305,17 +298,6 @@ CommonAnimationManager::AddStyleUpdatesTo(RestyleTracker& aTracker)
       aTracker.AddPendingRestyle(elementToRestyle, rshint, nsChangeHint(0));
     }
   }
-}
-
-void
-CommonAnimationManager::NotifyCollectionUpdated(AnimationCollection&
-                                                  aCollection)
-{
-  MaybeStartObservingRefreshDriver();
-  mPresContext->ClearLastStyleUpdateForAllAnimations();
-  mPresContext->RestyleManager()->IncrementAnimationGeneration();
-  aCollection.UpdateAnimationGeneration(mPresContext);
-  aCollection.PostRestyleForAnimation(mPresContext);
 }
 
 /* static */ bool
@@ -385,6 +367,30 @@ CommonAnimationManager::GetAnimations(dom::Element *aElement,
   return collection;
 }
 
+void
+CommonAnimationManager::FlushAnimations(FlushFlags aFlags)
+{
+  TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
+  for (PRCList *l = PR_LIST_HEAD(&mElementCollections);
+       l != &mElementCollections;
+       l = PR_NEXT_LINK(l)) {
+    AnimationCollection* collection = static_cast<AnimationCollection*>(l);
+
+    if (collection->mStyleRuleRefreshTime == now) {
+      continue;
+    }
+
+    if (aFlags == Cannot_Throttle) {
+      collection->RequestRestyle(AnimationCollection::RestyleType::Standard);
+    }
+
+    nsAutoAnimationMutationBatch mb(collection->mElement);
+    collection->Tick();
+  }
+
+  MaybeStartOrStopObservingRefreshDriver();
+}
+
 nsIStyleRule*
 CommonAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
                                          nsCSSPseudoElements::Type aPseudoType)
@@ -412,8 +418,7 @@ CommonAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
   }
 
   collection->EnsureStyleRuleFor(
-    mPresContext->RefreshDriver()->MostRecentRefresh(),
-    EnsureStyleRule_IsNotThrottled);
+    mPresContext->RefreshDriver()->MostRecentRefresh());
 
   return collection->mStyleRule;
 }
@@ -442,11 +447,29 @@ CommonAnimationManager::LayerAnimationRecordFor(nsCSSProperty aProperty)
   return nullptr;
 }
 
+/* virtual */ void
+CommonAnimationManager::WillRefresh(TimeStamp aTime)
+{
+  MOZ_ASSERT(mPresContext,
+             "refresh driver should not notify additional observers "
+             "after pres context has been destroyed");
+  if (!mPresContext->GetPresShell()) {
+    // Someone might be keeping mPresContext alive past the point
+    // where it has been torn down; don't bother doing anything in
+    // this case.  But do get rid of all our animations so we stop
+    // triggering refreshes.
+    RemoveAllElementCollections();
+    return;
+  }
+
+  FlushAnimations(Can_Throttle);
+}
+
 #ifdef DEBUG
 /* static */ void
 CommonAnimationManager::Initialize()
 {
-  const auto& info = css::CommonAnimationManager::sLayerAnimationInfo;
+  const auto& info = CommonAnimationManager::sLayerAnimationInfo;
   for (size_t i = 0; i < ArrayLength(info); i++) {
     auto record = info[i];
     MOZ_ASSERT(nsCSSProps::PropHasFlags(record.mProperty,
@@ -539,8 +562,6 @@ AnimValuesStyleRule::List(FILE* out, int32_t aIndent) const
   fprintf_stderr(out, "%s", str.get());
 }
 #endif
-
-} // namespace css
 
 bool
 AnimationCollection::CanAnimatePropertyOnCompositor(
@@ -691,41 +712,32 @@ AnimationCollection::CanPerformOnCompositorThread(
   return true;
 }
 
-void
-AnimationCollection::PostUpdateLayerAnimations()
-{
-  nsCSSPropertySet propsHandled;
-  for (size_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
-    const auto& properties = mAnimations[animIdx]->GetEffect()->Properties();
-    for (size_t propIdx = properties.Length(); propIdx-- != 0; ) {
-      nsCSSProperty prop = properties[propIdx].mProperty;
-      if (nsCSSProps::PropHasFlags(prop,
-                                   CSS_PROPERTY_CAN_ANIMATE_ON_COMPOSITOR) &&
-          !propsHandled.HasProperty(prop)) {
-        propsHandled.AddProperty(prop);
-        nsChangeHint changeHint = css::CommonAnimationManager::
-          LayerAnimationRecordFor(prop)->mChangeHint;
-        dom::Element* element = GetElementToRestyle();
-        if (element) {
-          mManager->mPresContext->RestyleManager()->
-            PostRestyleEvent(element, nsRestyleHint(0), changeHint);
-        }
-      }
-    }
-  }
-}
-
 bool
-AnimationCollection::HasAnimationOfProperty(nsCSSProperty aProperty) const
+AnimationCollection::HasCurrentAnimationOfProperty(nsCSSProperty
+                                                     aProperty) const
 {
-  for (size_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
-    const KeyframeEffectReadOnly* effect = mAnimations[animIdx]->GetEffect();
-    if (effect && effect->HasAnimationOfProperty(aProperty) &&
-        !effect->IsFinishedTransition()) {
+  for (Animation* animation : mAnimations) {
+    if (animation->HasCurrentEffect() &&
+        animation->GetEffect()->HasAnimationOfProperty(aProperty)) {
       return true;
     }
   }
   return false;
+}
+
+/*static*/ nsString
+AnimationCollection::PseudoTypeAsString(nsCSSPseudoElements::Type aPseudoType)
+{
+  switch (aPseudoType) {
+    case nsCSSPseudoElements::ePseudo_before:
+      return NS_LITERAL_STRING("::before");
+    case nsCSSPseudoElements::ePseudo_after:
+      return NS_LITERAL_STRING("::after");
+    default:
+      MOZ_ASSERT(aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
+                 "Unexpected pseudo type");
+      return EmptyString();
+  }
 }
 
 mozilla::dom::Element*
@@ -752,16 +764,6 @@ AnimationCollection::GetElementToRestyle() const
     return nullptr;
   }
   return pseudoFrame->GetContent()->AsElement();
-}
-
-void
-AnimationCollection::NotifyAnimationUpdated()
-{
-  // On the next flush, force us to update the style rule
-  mNeedsRefreshes = true;
-  mStyleRuleRefreshTime = TimeStamp();
-
-  mManager->NotifyCollectionUpdated(*this);
 }
 
 /* static */ void
@@ -814,9 +816,10 @@ AnimationCollection::Tick()
 }
 
 void
-AnimationCollection::EnsureStyleRuleFor(TimeStamp aRefreshTime,
-                                        EnsureStyleRuleFlags aFlags)
+AnimationCollection::EnsureStyleRuleFor(TimeStamp aRefreshTime)
 {
+  mHasPendingAnimationRestyle = false;
+
   if (!mNeedsRefreshes) {
     mStyleRuleRefreshTime = aRefreshTime;
     return;
@@ -825,25 +828,6 @@ AnimationCollection::EnsureStyleRuleFor(TimeStamp aRefreshTime,
   if (!mStyleRuleRefreshTime.IsNull() &&
       mStyleRuleRefreshTime == aRefreshTime) {
     // mStyleRule may be null and valid, if we have no style to apply.
-    return;
-  }
-
-  // If we're performing animations on the compositor thread, then we can skip
-  // most of the work in this method. But even if we are throttled, then we
-  // have to do the work if an animation is ending in order to get correct end
-  // of animation behavior (the styles of the animation disappear, or the fill
-  // mode behavior). CanThrottle returns false for any finishing animations
-  // so we can force style recalculation in that case.
-  if (aFlags == EnsureStyleRule_IsThrottled) {
-    for (size_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
-      if (!mAnimations[animIdx]->CanThrottle()) {
-        aFlags = EnsureStyleRule_IsNotThrottled;
-        break;
-      }
-    }
-  }
-
-  if (aFlags == EnsureStyleRule_IsThrottled) {
     return;
   }
 
@@ -927,11 +911,18 @@ AnimationCollection::CanThrottleAnimation(TimeStamp aTime)
     return false;
   }
 
-
-  const auto& info = css::CommonAnimationManager::sLayerAnimationInfo;
+  const auto& info = CommonAnimationManager::sLayerAnimationInfo;
   for (size_t i = 0; i < ArrayLength(info); i++) {
     auto record = info[i];
-    if (!HasAnimationOfProperty(record.mProperty)) {
+    // We only need to worry about *current* animations here.
+    // - If we have a newly-finished animation, Animation::CanThrottle will
+    //   detect that and force an unthrottled sample.
+    // - If we have a newly-idle animation, then whatever caused the animation
+    //   to be idle will update the animation generation so we'll return false
+    //   from the layer generation check below for any other running compositor
+    //   animations (and if no other compositor animations exist we won't get
+    //   this far).
+    if (!HasCurrentAnimationOfProperty(record.mProperty)) {
       continue;
     }
 
@@ -948,6 +939,66 @@ AnimationCollection::CanThrottleAnimation(TimeStamp aTime)
   }
 
   return true;
+}
+
+void
+AnimationCollection::RequestRestyle(RestyleType aRestyleType)
+{
+  MOZ_ASSERT(IsForElement() || IsForBeforePseudo() || IsForAfterPseudo(),
+             "Unexpected mElementProperty; might restyle too much");
+
+  nsPresContext* presContext = mManager->PresContext();
+  if (!presContext) {
+    // Pres context will be null after the manager is disconnected.
+    return;
+  }
+
+  MOZ_ASSERT(mElement->GetCrossShadowCurrentDoc() == presContext->Document(),
+             "Element::UnbindFromTree should have destroyed the element "
+             "transition/animations object");
+
+  // Steps for Restyle::Layer:
+
+  if (aRestyleType == RestyleType::Layer) {
+    mStyleRuleRefreshTime = TimeStamp();
+    // FIXME: We should be able to remove these two lines once we move
+    // ticking to animation timelines as part of bug 1151731.
+    mNeedsRefreshes = true;
+    mManager->MaybeStartObservingRefreshDriver();
+
+    // Prompt layers to re-sync their animations.
+    presContext->ClearLastStyleUpdateForAllAnimations();
+    presContext->RestyleManager()->IncrementAnimationGeneration();
+    UpdateAnimationGeneration(presContext);
+  }
+
+  // Steps for RestyleType::Standard and above:
+
+  if (mHasPendingAnimationRestyle) {
+    return;
+  }
+
+  // Upgrade throttled restyles if other factors prevent
+  // throttling (e.g. async animations are not enabled).
+  if (aRestyleType == RestyleType::Throttled) {
+    TimeStamp now = presContext->RefreshDriver()->MostRecentRefresh();
+    if (!CanPerformOnCompositorThread(CanAnimateFlags(0)) ||
+        !CanThrottleAnimation(now)) {
+      aRestyleType = RestyleType::Standard;
+    }
+  }
+
+  if (aRestyleType >= RestyleType::Standard) {
+    mHasPendingAnimationRestyle = true;
+    PostRestyleForAnimation(presContext);
+    return;
+  }
+
+  // Steps for RestyleType::Throttled:
+
+  MOZ_ASSERT(aRestyleType == RestyleType::Throttled,
+             "Should have already handled all non-throttled restyles");
+  presContext->Document()->SetNeedStyleFlush();
 }
 
 void
@@ -993,6 +1044,26 @@ AnimationCollection::HasCurrentAnimationsForProperties(
   }
 
   return false;
+}
+
+nsPresContext*
+OwningElementRef::GetRenderedPresContext() const
+{
+  if (!mElement) {
+    return nullptr;
+  }
+
+  nsIDocument* doc = mElement->GetComposedDoc();
+  if (!doc) {
+    return nullptr;
+  }
+
+  nsIPresShell* shell = doc->GetShell();
+  if (!shell) {
+    return nullptr;
+  }
+
+  return shell->GetPresContext();
 }
 
 } // namespace mozilla

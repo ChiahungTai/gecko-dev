@@ -54,7 +54,7 @@ var fakeRooms = [
   }
 ];
 
-var fakeContacts = [{
+var fakeManyContacts = [{
   id: 1,
   _guid: 1,
   name: ["Ally Avocado"],
@@ -112,7 +112,44 @@ var fakeContacts = [{
   category: ["google"],
   published: 1406798311748,
   updated: 1406798311748
+}, {
+  id: 5,
+  _guid: 5,
+  name: ["Erin J. Bazile"],
+  email: [{
+    "pref": true,
+    "type": ["work"],
+    "value": "erinjbazile@armyspy.com"
+  }],
+  category: ["google"],
+  published: 1406798311748,
+  updated: 1406798311748
+}, {
+  id: 6,
+  _guid: 6,
+  name: ["Kelly F. Maldanado"],
+  email: [{
+    "pref": true,
+    "type": ["work"],
+    "value": "kellyfmaldonado@jourrapide.com"
+  }],
+  category: ["google"],
+  published: 1406798311748,
+  updated: 1406798311748
+}, {
+  id: 7,
+  _guid: 7,
+  name: ["John J. Brown"],
+  email: [{
+    "pref": true,
+    "type": ["work"],
+    "value": "johnjbrow@johndoe.com"
+  }],
+  category: ["google"],
+  published: 1406798311748,
+  updated: 1406798311748
 }];
+var fakeFewerContacts = fakeManyContacts.slice(0, 4);
 
 (function() {
   "use strict";
@@ -140,8 +177,8 @@ var fakeContacts = [{
     releaseCallData: function() {},
     copyString: function() {},
     getUserAvatar: function(emailAddress) {
-      return "http://www.gravatar.com/avatar/" + (Math.ceil(Math.random() * 3) === 2 ?
-        "0a996f0fe2727ef1668bdb11897e4459" : "foo") + ".jpg?default=blank&s=40";
+      var avatarUrl = "http://www.gravatar.com/avatar/0a996f0fe2727ef1668bdb11897e4459.jpg?default=blank&s=40";
+      return Math.ceil(Math.random() * 3) === 2 ? avatarUrl : null;
     },
     getSelectedTabMetadata: function(callback) {
       callback({
@@ -152,7 +189,7 @@ var fakeContacts = [{
     },
     contacts: {
       getAll: function(callback) {
-        callback(null, [].concat(fakeContacts));
+        callback(null, [].concat(fakeManyContacts));
       },
       on: function() {}
     },
@@ -164,6 +201,7 @@ var fakeContacts = [{
     },
     fxAEnabled: true,
     startAlerting: function() {},
-    stopAlerting: function() {}
+    stopAlerting: function() {},
+    userProfile: null
   };
 })();

@@ -870,6 +870,24 @@ moz_gtk_splitter_get_metrics(gint orientation, gint* size)
 }
 
 static gint
+moz_gtk_window_paint(cairo_t *cr, GdkRectangle* rect,
+                     GtkTextDirection direction)
+{
+    GtkStyleContext* style;
+
+    ensure_window_widget();
+    gtk_widget_set_direction(gProtoWindow, direction);
+
+    style = gtk_widget_get_style_context(gProtoWindow);	
+    gtk_style_context_save(style);
+    gtk_style_context_add_class(style, GTK_STYLE_CLASS_BACKGROUND);
+    gtk_render_background(style, cr, rect->x, rect->y, rect->width, rect->height);
+    gtk_style_context_restore(style);
+
+    return MOZ_GTK_SUCCESS;
+}
+
+static gint
 moz_gtk_button_paint(cairo_t *cr, GdkRectangle* rect,
                      GtkWidgetState* state,
                      GtkReliefStyle relief, GtkWidget* widget,
@@ -2389,6 +2407,10 @@ moz_gtk_menu_popup_paint(cairo_t *cr, GdkRectangle* rect,
     ensure_menu_popup_widget();
     gtk_widget_set_direction(gMenuPopupWidget, direction);
 
+    // Draw a backing toplevel. This fixes themes that don't provide a menu
+    // background, and depend on the GtkMenu's implementation window to provide it.
+    moz_gtk_window_paint(cr, rect, direction);
+
     style = gtk_widget_get_style_context(gMenuPopupWidget);
     gtk_style_context_save(style);
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_MENU);
@@ -2581,24 +2603,6 @@ moz_gtk_check_menu_item_paint(cairo_t *cr, GdkRectangle* rect,
     return MOZ_GTK_SUCCESS;
 }
 
-static gint
-moz_gtk_window_paint(cairo_t *cr, GdkRectangle* rect,
-                     GtkTextDirection direction)
-{
-    GtkStyleContext* style;
-
-    ensure_window_widget();
-    gtk_widget_set_direction(gProtoWindow, direction);
-
-    style = gtk_widget_get_style_context(gProtoWindow);	
-    gtk_style_context_save(style);
-    gtk_style_context_add_class(style, GTK_STYLE_CLASS_BACKGROUND);
-    gtk_render_background(style, cr, rect->x, rect->y, rect->width, rect->height);
-    gtk_style_context_restore(style);
-
-    return MOZ_GTK_SUCCESS;
-}
-
 static void
 moz_gtk_add_style_border(GtkStyleContext* style,
                          gint* left, gint* top, gint* right, gint* bottom)
@@ -2638,6 +2642,7 @@ moz_gtk_get_widget_border(GtkThemeWidgetType widget, gint* left, gint* top,
 
     switch (widget) {
     case MOZ_GTK_BUTTON:
+    case MOZ_GTK_TOOLBAR_BUTTON:
         {
             ensure_button_widget();
             style = gtk_widget_get_style_context(gButtonWidget);
@@ -2647,7 +2652,15 @@ moz_gtk_get_widget_border(GtkThemeWidgetType widget, gint* left, gint* top,
             /* Don't add this padding in HTML, otherwise the buttons will
                become too big and stuff the layout. */
             if (!inhtml) {
+                if (widget == MOZ_GTK_TOOLBAR_BUTTON) {
+                    gtk_style_context_save(style);
+                    gtk_style_context_add_class(style, "image-button");
+                }
+              
                 moz_gtk_add_style_padding(style, left, top, right, bottom);
+                
+                if (widget == MOZ_GTK_TOOLBAR_BUTTON)
+                    gtk_style_context_restore(style);
             }
 
             moz_gtk_add_style_border(style, left, top, right, bottom);
@@ -3109,6 +3122,7 @@ moz_gtk_widget_paint(GtkThemeWidgetType widget, cairo_t *cr,
 
     switch (widget) {
     case MOZ_GTK_BUTTON:
+    case MOZ_GTK_TOOLBAR_BUTTON:
         if (state->depressed) {
             ensure_toggle_button_widget();
             return moz_gtk_button_paint(cr, rect, state,

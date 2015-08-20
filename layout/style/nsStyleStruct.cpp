@@ -152,7 +152,7 @@ nsStyleFont::Init(nsPresContext* aPresContext)
   // Content-Language may be a comma-separated list of language codes,
   // in which case the HTML5 spec says to treat it as unknown
   if (!language.IsEmpty() &&
-      language.FindChar(char16_t(',')) == kNotFound) {
+      !language.Contains(char16_t(','))) {
     mLanguage = do_GetAtom(language);
     // NOTE:  This does *not* count as an explicit language; in other
     // words, it doesn't trigger language-specific hyphenation.
@@ -1600,7 +1600,7 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
     // elements with percentage heights in descendants which also have
     // percentage heights. This is handled via nsChangeHint_UpdateComputedBSize
     // which clears intrinsic sizes for frames that have such replaced elements.
-    return NS_CombineHint(hint, nsChangeHint_NeedReflow |
+    NS_UpdateHint(hint, nsChangeHint_NeedReflow |
         nsChangeHint_UpdateComputedBSize |
         nsChangeHint_ReflowChangesSizeOrPosition);
   }
@@ -1610,16 +1610,13 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
       mMaxWidth != aOther.mMaxWidth) {
     // None of our width differences can affect descendant intrinsic
     // sizes and none of them need to force children to reflow.
-    return
-      NS_CombineHint(hint,
-                     NS_SubtractHint(nsChangeHint_AllReflowHints,
-                                     NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
-                                                    nsChangeHint_NeedDirtyReflow)));
+    NS_UpdateHint(hint, NS_SubtractHint(nsChangeHint_AllReflowHints,
+                                        NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
+                                                       nsChangeHint_NeedDirtyReflow)));
   }
 
-  // If width and height have not changed, but any of the offsets have changed,
-  // then return the respective hints so that we would hopefully be able to
-  // avoid reflowing.
+  // If any of the offsets have changed, then return the respective hints
+  // so that we would hopefully be able to avoid reflowing.
   // Note that it is possible that we'll need to reflow when processing
   // restyles, but we don't have enough information to make a good decision
   // right now.
@@ -1630,7 +1627,7 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
       NS_UpdateHint(hint, nsChangeHint(nsChangeHint_RecomputePosition |
                                        nsChangeHint_UpdateParentOverflow));
     } else {
-      return NS_CombineHint(hint, nsChangeHint_AllReflowHints);
+      NS_UpdateHint(hint, nsChangeHint_AllReflowHints);
     }
   }
   return hint;
@@ -2847,6 +2844,11 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
         break;
       }
 
+    if (HasPerspectiveStyle() != aOther.HasPerspectiveStyle()) {
+      // A change from/to being a containing block for position:fixed.
+      NS_UpdateHint(hint, nsChangeHint_UpdateContainingBlock);
+    }
+
     if (mChildPerspective != aOther.mChildPerspective ||
         mTransformStyle != aOther.mTransformStyle ||
         mTransformBox != aOther.mTransformBox)
@@ -2954,6 +2956,9 @@ nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) 
   nsChangeHint hint = nsChangeHint(0);
 
   if (mDirection != aOther.mDirection || mWritingMode != aOther.mWritingMode) {
+    // It's important that a change in mWritingMode results in frame
+    // reconstruction, because it may affect intrinsic size (see
+    // nsSubDocumentFrame::GetIntrinsicISize/BSize).
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
   } else {
     if ((mImageOrientation != aOther.mImageOrientation)) {

@@ -162,7 +162,9 @@ if (AppConstants.NIGHTLY_BUILD) {
 }
 if (AppConstants.MOZ_WEBRTC) {
   lazilyLoadedObserverScripts.push(
-    ["WebrtcUI", ["getUserMedia:request", "recording-device-events"], "chrome://browser/content/WebrtcUI.js"])
+    ["WebrtcUI", ["getUserMedia:request",
+                  "PeerConnection:request",
+                  "recording-device-events"], "chrome://browser/content/WebrtcUI.js"])
 }
 
 lazilyLoadedObserverScripts.forEach(function (aScript) {
@@ -442,7 +444,12 @@ var BrowserApp = {
 
     this.deck = document.getElementById("browsers");
 
-    BrowserEventHandler.init();
+    // This check and BrowserEventHandler should be removed once we have
+    // switched over to the C++ APZ code
+    if (!AppConstants.MOZ_ANDROID_APZ) {
+      BrowserEventHandler.init();
+    }
+
     ViewportHandler.init();
 
     Services.androidBridge.browserApp = this;
@@ -466,7 +473,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FullScreen:Exit", false);
     Services.obs.addObserver(this, "Viewport:Change", false);
     Services.obs.addObserver(this, "Viewport:Flush", false);
-    Services.obs.addObserver(this, "Viewport:FixedMarginsChanged", false);
     Services.obs.addObserver(this, "Passwords:Init", false);
     Services.obs.addObserver(this, "FormHistory:Init", false);
     Services.obs.addObserver(this, "gather-telemetry", false);
@@ -1750,16 +1756,7 @@ var BrowserApp = {
         // Check to see if this is a message to enable/disable mixed content blocking.
         if (aData) {
           let data = JSON.parse(aData);
-          if (data.contentType === "mixed") {
-            if (data.allowContent) {
-              // Set a flag to disable mixed content blocking.
-              flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_MIXED_CONTENT;
-            } else {
-              // Set mixedContentChannel to null to re-enable mixed content blocking.
-              let docShell = browser.webNavigation.QueryInterface(Ci.nsIDocShell);
-              docShell.mixedContentChannel = null;
-            }
-          } else if (data.contentType === "tracking") {
+          if (data.contentType === "tracking") {
             // Convert document URI into the format used by
             // nsChannelClassifier::ShouldEnableTrackingProtection
             // (any scheme turned into https is correct)
@@ -1949,13 +1946,6 @@ var BrowserApp = {
 
       case "gather-telemetry":
         Messaging.sendRequest({ type: "Telemetry:Gather" });
-        break;
-
-      case "Viewport:FixedMarginsChanged":
-        gViewportMargins = JSON.parse(aData);
-        if (this.selectedTab) {
-          this.selectedTab.updateViewportSize(gScreenWidth);
-        }
         break;
 
       case "nsPref:changed":
@@ -3410,12 +3400,6 @@ let gScreenWidth = 1;
 let gScreenHeight = 1;
 let gReflowPending = null;
 
-// The margins that should be applied to the viewport for fixed position
-// children. This is used to avoid browser chrome permanently obscuring
-// fixed position content, and also to make sure window-sized pages take
-// into account said browser chrome.
-let gViewportMargins = { top: 0, right: 0, bottom: 0, left: 0};
-
 // The URL where suggested tile clicks are posted.
 let gTilesReportURL = null;
 
@@ -3427,15 +3411,7 @@ function Tab(aURL, aParams) {
   this._zoom = 1.0;
   this._drawZoom = 1.0;
   this._restoreZoom = false;
-  this._fixedMarginLeft = 0;
-  this._fixedMarginTop = 0;
-  this._fixedMarginRight = 0;
-  this._fixedMarginBottom = 0;
   this.userScrollPos = { x: 0, y: 0 };
-  this.viewportExcludesHorizontalMargins = true;
-  this.viewportExcludesVerticalMargins = true;
-  this.viewportMeasureCallback = null;
-  this.lastPageSizeAfterViewportRemeasure = { width: 0, height: 0 };
   this.contentDocumentIsDisplayed = true;
   this.pluginDoorhangerTimeout = null;
   this.shouldShowPluginDoorhanger = true;
@@ -3586,8 +3562,8 @@ Tab.prototype = {
     this.browser.addEventListener("DOMLinkChanged", this, true);
     this.browser.addEventListener("DOMMetaAdded", this, false);
     this.browser.addEventListener("DOMTitleChanged", this, true);
-    this.browser.addEventListener("DOMMediaPlaybackStarted", this, true);
-    this.browser.addEventListener("DOMMediaPlaybackStopped", this, true);
+    this.browser.addEventListener("DOMAudioPlaybackStarted", this, true);
+    this.browser.addEventListener("DOMAudioPlaybackStopped", this, true);
     this.browser.addEventListener("DOMWindowClose", this, true);
     this.browser.addEventListener("DOMWillOpenModalDialog", this, true);
     this.browser.addEventListener("DOMAutoComplete", this, true);
@@ -3770,8 +3746,8 @@ Tab.prototype = {
     this.browser.removeEventListener("DOMLinkChanged", this, true);
     this.browser.removeEventListener("DOMMetaAdded", this, false);
     this.browser.removeEventListener("DOMTitleChanged", this, true);
-    this.browser.removeEventListener("DOMMediaPlaybackStarted", this, true);
-    this.browser.removeEventListener("DOMMediaPlaybackStopped", this, true);
+    this.browser.removeEventListener("DOMAudioPlaybackStarted", this, true);
+    this.browser.removeEventListener("DOMAudioPlaybackStopped", this, true);
     this.browser.removeEventListener("DOMWindowClose", this, true);
     this.browser.removeEventListener("DOMWillOpenModalDialog", this, true);
     this.browser.removeEventListener("DOMAutoComplete", this, true);
@@ -3859,13 +3835,11 @@ Tab.prototype = {
 
     let scrollx = this.browser.contentWindow.scrollX * zoom;
     let scrolly = this.browser.contentWindow.scrollY * zoom;
-    let screenWidth = gScreenWidth - gViewportMargins.left - gViewportMargins.right;
-    let screenHeight = gScreenHeight - gViewportMargins.top - gViewportMargins.bottom;
     let displayPortMargins = {
       left: scrollx - aDisplayPort.left,
       top: scrolly - aDisplayPort.top,
-      right: aDisplayPort.right - (scrollx + screenWidth),
-      bottom: aDisplayPort.bottom - (scrolly + screenHeight)
+      right: aDisplayPort.right - (scrollx + gScreenWidth),
+      bottom: aDisplayPort.bottom - (scrolly + gScreenHeight)
     };
 
     if (this._oldDisplayPortMargins == null ||
@@ -3887,16 +3861,6 @@ Tab.prototype = {
     let viewportHeight = gScreenHeight / zoom;
     let screenWidth = gScreenWidth;
     let screenHeight = gScreenHeight;
-
-    // Shrink the viewport appropriately if the margins are excluded
-    if (this.viewportExcludesVerticalMargins) {
-      screenHeight = gScreenHeight - gViewportMargins.top - gViewportMargins.bottom;
-      viewportHeight = screenHeight / zoom;
-    }
-    if (this.viewportExcludesHorizontalMargins) {
-      screenWidth = gScreenWidth - gViewportMargins.left - gViewportMargins.right;
-      viewportWidth = screenWidth / zoom;
-    }
 
     // Make sure the aspect ratio of the screen is maintained when setting
     // the clamping scroll-port size.
@@ -3947,19 +3911,6 @@ Tab.prototype = {
     if (aViewport.displayPort)
       this.setDisplayPort(aViewport.displayPort);
 
-    // Store fixed margins for later retrieval in getViewport.
-    this._fixedMarginLeft = aViewport.fixedMarginLeft;
-    this._fixedMarginTop = aViewport.fixedMarginTop;
-    this._fixedMarginRight = aViewport.fixedMarginRight;
-    this._fixedMarginBottom = aViewport.fixedMarginBottom;
-
-    let dwi = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    dwi.setContentDocumentFixedPositionMargins(
-      aViewport.fixedMarginTop / aViewport.zoom,
-      aViewport.fixedMarginRight / aViewport.zoom,
-      aViewport.fixedMarginBottom / aViewport.zoom,
-      aViewport.fixedMarginLeft / aViewport.zoom);
-
     Services.obs.notifyObservers(null, "after-viewport-change", "");
     if (docViewer) {
         docViewer.resumePainting();
@@ -3979,28 +3930,22 @@ Tab.prototype = {
   },
 
   getViewport: function() {
-    let screenW = gScreenWidth - gViewportMargins.left - gViewportMargins.right;
-    let screenH = gScreenHeight - gViewportMargins.top - gViewportMargins.bottom;
     let zoom = this.restoredSessionZoom() || this._zoom;
 
     let viewport = {
-      width: screenW,
-      height: screenH,
-      cssWidth: screenW / zoom,
-      cssHeight: screenH / zoom,
+      width: gScreenWidth,
+      height: gScreenHeight,
+      cssWidth: gScreenWidth / zoom,
+      cssHeight: gScreenHeight / zoom,
       pageLeft: 0,
       pageTop: 0,
-      pageRight: screenW,
-      pageBottom: screenH,
+      pageRight: gScreenWidth,
+      pageBottom: gScreenHeight,
       // We make up matching css page dimensions
       cssPageLeft: 0,
       cssPageTop: 0,
-      cssPageRight: screenW / zoom,
-      cssPageBottom: screenH / zoom,
-      fixedMarginLeft: this._fixedMarginLeft,
-      fixedMarginTop: this._fixedMarginTop,
-      fixedMarginRight: this._fixedMarginRight,
-      fixedMarginBottom: this._fixedMarginBottom,
+      cssPageRight: gScreenWidth / zoom,
+      cssPageBottom: gScreenHeight / zoom,
       zoom: zoom,
     };
 
@@ -4050,66 +3995,6 @@ Tab.prototype = {
     let displayPort = Services.androidBridge.getDisplayPort(aPageSizeUpdate, BrowserApp.isBrowserContentDocumentDisplayed(), this.id, viewport);
     if (displayPort != null)
       this.setDisplayPort(displayPort);
-  },
-
-  updateViewportForPageSize: function() {
-    let hasHorizontalMargins = gViewportMargins.left != 0 || gViewportMargins.right != 0;
-    let hasVerticalMargins = gViewportMargins.top != 0 || gViewportMargins.bottom != 0;
-
-    if (!hasHorizontalMargins && !hasVerticalMargins) {
-      // If there are no margins, then we don't need to do any remeasuring
-      return;
-    }
-
-    // If the page size has changed so that it might or might not fit on the
-    // screen with the margins included, run updateViewportSize to resize the
-    // browser accordingly.
-    // A page will receive the smaller viewport when its page size fits
-    // within the screen size, so remeasure when the page size remains within
-    // the threshold of screen + margins, in case it's sizing itself relative
-    // to the viewport.
-    let viewport = this.getViewport();
-    let pageWidth = viewport.pageRight - viewport.pageLeft;
-    let pageHeight = viewport.pageBottom - viewport.pageTop;
-    let remeasureNeeded = false;
-
-    if (hasHorizontalMargins) {
-      let viewportShouldExcludeHorizontalMargins = (pageWidth <= gScreenWidth - 0.5);
-      if (viewportShouldExcludeHorizontalMargins != this.viewportExcludesHorizontalMargins) {
-        remeasureNeeded = true;
-      }
-    }
-    if (hasVerticalMargins) {
-      let viewportShouldExcludeVerticalMargins = (pageHeight <= gScreenHeight - 0.5);
-      if (viewportShouldExcludeVerticalMargins != this.viewportExcludesVerticalMargins) {
-        remeasureNeeded = true;
-      }
-    }
-
-    if (remeasureNeeded) {
-      if (!this.viewportMeasureCallback) {
-        this.viewportMeasureCallback = setTimeout(function() {
-          this.viewportMeasureCallback = null;
-
-          // Re-fetch the viewport as it may have changed between setting the timeout
-          // and running this callback
-          let viewport = this.getViewport();
-          let pageWidth = viewport.pageRight - viewport.pageLeft;
-          let pageHeight = viewport.pageBottom - viewport.pageTop;
-
-          if (Math.abs(pageWidth - this.lastPageSizeAfterViewportRemeasure.width) >= 0.5 ||
-              Math.abs(pageHeight - this.lastPageSizeAfterViewportRemeasure.height) >= 0.5) {
-            this.updateViewportSize(gScreenWidth);
-          }
-        }.bind(this), kViewportRemeasureThrottle);
-      }
-    } else if (this.viewportMeasureCallback) {
-      // If the page changed size twice since we last measured the viewport and
-      // the latest size change reveals we don't need to remeasure, cancel any
-      // pending remeasure.
-      clearTimeout(this.viewportMeasureCallback);
-      this.viewportMeasureCallback = null;
-    }
   },
 
   // These constants are used to prioritize high quality metadata over low quality data, so that
@@ -4404,8 +4289,8 @@ Tab.prototype = {
         break;
       }
 
-      case "DOMMediaPlaybackStarted":
-      case "DOMMediaPlaybackStopped": {
+      case "DOMAudioPlaybackStarted":
+      case "DOMAudioPlaybackStopped": {
         if (!Services.prefs.getBoolPref("browser.tabs.showAudioPlayingIcon") ||
             !aEvent.isTrusted) {
           return;
@@ -4419,7 +4304,7 @@ Tab.prototype = {
         Messaging.sendRequest({
           type: "Tab:AudioPlayingChange",
           tabID: this.id,
-          isAudioPlaying: aEvent.type === "DOMMediaPlaybackStarted"
+          isAudioPlaying: aEvent.type === "DOMAudioPlaybackStarted"
         });
         return;
       }
@@ -4473,7 +4358,6 @@ Tab.prototype = {
           return;
 
         this.sendViewportUpdate(true);
-        this.updateViewportForPageSize();
         break;
       }
 
@@ -4674,12 +4558,13 @@ Tab.prototype = {
     this.pluginDoorhangerTimeout = null;
     this.shouldShowPluginDoorhanger = true;
     this.clickToPlayPluginsActivated = false;
-    // Borrowed from desktop Firefox: http://mxr.mozilla.org/mozilla-central/source/browser/base/content/urlbarBindings.xml#174
-    let documentURI = contentWin.document.documentURIObject.spec
+
+    let documentURI = contentWin.document.documentURIObject.spec;
 
     // If reader mode, get the base domain for the original url.
     let strippedURI = this._stripAboutReaderURL(documentURI);
 
+    // Borrowed from desktop Firefox: http://hg.mozilla.org/mozilla-central/annotate/72835344333f/browser/base/content/urlbarBindings.xml#l236
     let matchedURL = strippedURI.match(/^((?:[a-z]+:\/\/)?(?:[^\/]+@)?)(.+?)(?::\d+)?(?:\/|$)/);
     let baseDomain = "";
     if (matchedURL) {
@@ -4696,13 +4581,24 @@ Tab.prototype = {
       } catch (e) {}
     }
 
+    // If we are navigating to a new location with a different host,
+    // clear any URL origin that might have been pinned to this tab.
+    let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+    let appOrigin = ss.getTabValue(this, "appOrigin");
+    if (appOrigin) {
+      let originHost = Services.io.newURI(appOrigin, null, null).host;
+      if (originHost != aLocationURI.host) {
+        // Note: going 'back' will not make this tab pinned again
+        ss.deleteTabValue(this, "appOrigin");
+      }
+    }
+
     // Update the page actions URI for helper apps.
     if (BrowserApp.selectedTab == this) {
       ExternalApps.updatePageActionUri(fixedURI);
     }
 
-    let webNav = contentWin.QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIWebNavigation);
+    let webNav = contentWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation);
 
     let message = {
       type: "Content:LocationChange",
@@ -4876,23 +4772,16 @@ Tab.prototype = {
     // is not accidentally removed (the call to sendViewportUpdate() is
     // at the very end).
 
-    if (this.viewportMeasureCallback) {
-      clearTimeout(this.viewportMeasureCallback);
-      this.viewportMeasureCallback = null;
-    }
-
     let browser = this.browser;
     if (!browser)
       return;
 
-    let screenW = gScreenWidth - gViewportMargins.left - gViewportMargins.right;
-    let screenH = gScreenHeight - gViewportMargins.top - gViewportMargins.bottom;
     let viewportW, viewportH;
 
     let metadata = this.metadata;
     if (metadata.autoSize) {
-      viewportW = screenW / window.devicePixelRatio;
-      viewportH = screenH / window.devicePixelRatio;
+      viewportW = gScreenWidth / window.devicePixelRatio;
+      viewportH = gScreenHeight / window.devicePixelRatio;
     } else {
       viewportW = metadata.width;
       viewportH = metadata.height;
@@ -4900,16 +4789,16 @@ Tab.prototype = {
       // If (scale * width) < device-width, increase the width (bug 561413).
       let maxInitialZoom = metadata.defaultZoom || metadata.maxZoom;
       if (maxInitialZoom && viewportW) {
-        viewportW = Math.max(viewportW, screenW / maxInitialZoom);
+        viewportW = Math.max(viewportW, gScreenWidth / maxInitialZoom);
       }
 
       let validW = viewportW > 0;
       let validH = viewportH > 0;
 
       if (!validW)
-        viewportW = validH ? (viewportH * (screenW / screenH)) : BrowserApp.defaultBrowserWidth;
+        viewportW = validH ? (viewportH * (gScreenWidth / gScreenHeight)) : BrowserApp.defaultBrowserWidth;
       if (!validH)
-        viewportH = viewportW * (screenH / screenW);
+        viewportH = viewportW * (gScreenHeight / gScreenWidth);
     }
 
     // Make sure the viewport height is not shorter than the window when
@@ -4947,14 +4836,12 @@ Tab.prototype = {
     // with respect to CSS pixels because of the CSS viewport size changing.
     let zoom = this.restoredSessionZoom() || metadata.defaultZoom;
     if (!zoom || !aInitialLoad) {
-      let zoomScale = (screenW * oldBrowserWidth) / (aOldScreenWidth * viewportW);
+      let zoomScale = (gScreenWidth * oldBrowserWidth) / (aOldScreenWidth * viewportW);
       zoom = this.clampZoom(this._zoom * zoomScale);
     }
     this.setResolution(zoom, false);
     this.setScrollClampingSize(zoom);
 
-    this.viewportExcludesHorizontalMargins = true;
-    this.viewportExcludesVerticalMargins = true;
     let minScale = 1.0;
     if (this.browser.contentDocument) {
       // this may get run during a Viewport:Change message while the document
@@ -4962,22 +4849,10 @@ Tab.prototype = {
       let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
       let cssPageRect = cwu.getRootBounds();
 
-      // In the situation the page size equals or exceeds the screen size,
-      // lengthen the viewport on the corresponding axis to include the margins.
-      // The '- 0.5' is to account for rounding errors.
-      if (cssPageRect.width * this._zoom > gScreenWidth - 0.5) {
-        screenW = gScreenWidth;
-        this.viewportExcludesHorizontalMargins = false;
-      }
-      if (cssPageRect.height * this._zoom > gScreenHeight - 0.5) {
-        screenH = gScreenHeight;
-        this.viewportExcludesVerticalMargins = false;
-      }
-
-      minScale = screenW / cssPageRect.width;
+      minScale = gScreenWidth / cssPageRect.width;
     }
     minScale = this.clampZoom(minScale);
-    viewportH = Math.max(viewportH, screenH / minScale);
+    viewportH = Math.max(viewportH, gScreenHeight / minScale);
 
     // In general we want to keep calls to setBrowserSize and setScrollClampingSize
     // together because setBrowserSize could mark the viewport size as dirty, creating
@@ -4998,20 +4873,12 @@ Tab.prototype = {
       // If the CSS viewport is narrower than the screen (i.e. width <= device-width)
       // then we disable double-tap-to-zoom behaviour.
       var oldAllowDoubleTapZoom = metadata.allowDoubleTapZoom;
-      var newAllowDoubleTapZoom = (!metadata.isSpecified) || (viewportW > screenW / window.devicePixelRatio);
+      var newAllowDoubleTapZoom = (!metadata.isSpecified) || (viewportW > gScreenWidth / window.devicePixelRatio);
       if (oldAllowDoubleTapZoom !== newAllowDoubleTapZoom) {
         metadata.allowDoubleTapZoom = newAllowDoubleTapZoom;
         this.sendViewportMetadata();
       }
     }
-
-    // Store the page size that was used to calculate the viewport so that we
-    // can verify it's changed when we consider remeasuring in updateViewportForPageSize
-    let viewport = this.getViewport();
-    this.lastPageSizeAfterViewportRemeasure = {
-      width: viewport.pageRight - viewport.pageLeft,
-      height: viewport.pageBottom - viewport.pageTop
-    };
   },
 
   sendViewportMetadata: function sendViewportMetadata() {
@@ -6616,6 +6483,16 @@ var ViewportHandler = {
         for (let i = 0; i < tabs.length; i++)
           tabs[i].updateViewportSize(oldScreenWidth);
         break;
+      default:
+        return;
+    }
+
+    if (aData) {
+      let scrollChange = JSON.parse(aData);
+      let win = BrowserApp.selectedTab.browser.contentWindow;
+      let windowUtils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+      windowUtils.setNextPaintSyncId(scrollChange.id);
+      win.scrollBy(scrollChange.x, scrollChange.y);
     }
   },
 
@@ -7075,11 +6952,11 @@ var IdentityHandler = {
   // No trusted identity information. No site identity icon is shown.
   IDENTITY_MODE_UNKNOWN: "unknown",
 
-  // Minimal SSL CA-signed domain verification. Blue lock icon is shown.
-  IDENTITY_MODE_DOMAIN_VERIFIED: "verified",
-
-  // High-quality identity information. Green lock icon is shown.
+  // Domain-Validation SSL CA-signed domain verification (DV).
   IDENTITY_MODE_IDENTIFIED: "identified",
+
+  // Extended-Validation SSL CA-signed identity information (EV). A more rigorous validation process.
+  IDENTITY_MODE_VERIFIED: "verified",
 
   // The following mixed content modes are only used if "security.mixed_content.block_active_content"
   // is enabled. Our Java frontend coalesces them into one indicator.
@@ -7087,11 +6964,11 @@ var IdentityHandler = {
   // No mixed content information. No mixed content icon is shown.
   MIXED_MODE_UNKNOWN: "unknown",
 
-  // Blocked active mixed content. Shield icon is shown, with a popup option to load content.
-  MIXED_MODE_CONTENT_BLOCKED: "mixed_content_blocked",
+  // Blocked active mixed content.
+  MIXED_MODE_CONTENT_BLOCKED: "blocked",
 
-  // Loaded active mixed content. Yellow triangle icon is shown.
-  MIXED_MODE_CONTENT_LOADED: "mixed_content_loaded",
+  // Loaded active mixed content.
+  MIXED_MODE_CONTENT_LOADED: "loaded",
 
   // The following tracking content modes are only used if tracking protection
   // is enabled. Our Java frontend coalesces them into one indicator.
@@ -7147,25 +7024,37 @@ var IdentityHandler = {
    */
   getIdentityMode: function getIdentityMode(aState) {
     if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL) {
-      return this.IDENTITY_MODE_IDENTIFIED;
+      return this.IDENTITY_MODE_VERIFIED;
     }
 
     if (aState & Ci.nsIWebProgressListener.STATE_IS_SECURE) {
-      return this.IDENTITY_MODE_DOMAIN_VERIFIED;
+      return this.IDENTITY_MODE_IDENTIFIED;
     }
 
     return this.IDENTITY_MODE_UNKNOWN;
   },
 
-  getMixedMode: function getMixedMode(aState) {
-    if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) {
-      return this.MIXED_MODE_CONTENT_BLOCKED;
+  getMixedDisplayMode: function getMixedDisplayMode(aState) {
+    if (aState & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_DISPLAY_CONTENT) {
+        return this.MIXED_MODE_CONTENT_LOADED;
     }
 
+    if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_DISPLAY_CONTENT) {
+        return this.MIXED_MODE_CONTENT_BLOCKED;
+    }
+
+    return this.MIXED_MODE_UNKNOWN;
+  },
+
+  getMixedActiveMode: function getActiveDisplayMode(aState) {
     // Only show an indicator for loaded mixed content if the pref to block it is enabled
     if ((aState & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) &&
          !Services.prefs.getBoolPref("security.mixed_content.block_active_content")) {
       return this.MIXED_MODE_CONTENT_LOADED;
+    }
+
+    if (aState & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) {
+      return this.MIXED_MODE_CONTENT_BLOCKED;
     }
 
     return this.MIXED_MODE_UNKNOWN;
@@ -7218,13 +7107,15 @@ var IdentityHandler = {
     this._lastLocation = locationObj;
 
     let identityMode = this.getIdentityMode(aState);
-    let mixedMode = this.getMixedMode(aState);
+    let mixedDisplay = this.getMixedDisplayMode(aState);
+    let mixedActive = this.getMixedActiveMode(aState);
     let trackingMode = this.getTrackingMode(aState, aBrowser);
     let result = {
       origin: locationObj.origin,
       mode: {
         identity: identityMode,
-        mixed: mixedMode,
+        mixed_display: mixedDisplay,
+        mixed_active: mixedActive,
         tracking: trackingMode
       }
     };
@@ -7232,10 +7123,12 @@ var IdentityHandler = {
     // Don't show identity data for pages with an unknown identity or if any
     // mixed content is loaded (mixed display content is loaded by default).
     if (identityMode == this.IDENTITY_MODE_UNKNOWN || aState & Ci.nsIWebProgressListener.STATE_IS_BROKEN) {
+      result.secure = false;
       return result;
     }
 
-    result.encrypted = true;
+    result.secure = true;
+
     result.host = this.getEffectiveHost();
 
     let iData = this.getIdentityData();

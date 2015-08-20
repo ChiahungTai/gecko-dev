@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothcommon_h
-#define mozilla_dom_bluetooth_bluetoothcommon_h
+#ifndef mozilla_dom_bluetooth_BluetoothCommon_h
+#define mozilla_dom_bluetooth_BluetoothCommon_h
 
 #include "mozilla/Compiler.h"
 #include "mozilla/Observer.h"
@@ -88,8 +88,6 @@ extern bool gBluetoothDebugFlag;
 /**
  * Wrap literal name and value into a BluetoothNamedValue
  * and insert it to the array.
- *
- * TODO: remove with bluetooth1
  */
 #define BT_INSERT_NAMED_VALUE(array, index, name, value)                      \
   array.InsertElementAt(index, BluetoothNamedValue(NS_LITERAL_STRING(name),   \
@@ -168,6 +166,7 @@ extern bool gBluetoothDebugFlag;
  */
 #define BLUETOOTH_A2DP_STATUS_CHANGED_ID "bluetooth-a2dp-status-changed"
 #define BLUETOOTH_HFP_STATUS_CHANGED_ID  "bluetooth-hfp-status-changed"
+#define BLUETOOTH_HFP_NREC_STATUS_CHANGED_ID  "bluetooth-hfp-nrec-status-changed"
 #define BLUETOOTH_HID_STATUS_CHANGED_ID  "bluetooth-hid-status-changed"
 #define BLUETOOTH_SCO_STATUS_CHANGED_ID  "bluetooth-sco-status-changed"
 
@@ -189,31 +188,16 @@ extern bool gBluetoothDebugFlag;
 #define PAIRING_REQ_TYPE_CONSENT              "pairingconsentreq"
 
 /**
- * When the pair status of a Bluetooth device is changed, we'll dispatch an
- * event.
- *
- * TODO: remove with bluetooth1
- */
-#define PAIRED_STATUS_CHANGED_ID             "pairedstatuschanged"
-
-/**
- * This event would be fired when discovery procedure starts or stops.
- *
- * TODO: remove with bluetooth1
- */
-#define DISCOVERY_STATE_CHANGED_ID           "discoverystatechanged"
-
-/**
  * System message to launch bluetooth app if no pairing listener is ready to
  * receive pairing requests.
  */
 #define SYS_MSG_BT_PAIRING_REQ                "bluetooth-pairing-request"
 
 /**
- * The app origin of bluetooth app, which is responsible for listening pairing
- * requests.
+ * The preference name of bluetooth app origin of bluetooth app. The default
+ * value is defined in b2g/app/b2g.js.
  */
-#define BLUETOOTH_APP_ORIGIN                  "app://bluetooth.gaiamobile.org"
+#define PREF_BLUETOOTH_APP_ORIGIN             "dom.bluetooth.app-origin"
 
 /**
  * When a remote device gets paired / unpaired with local bluetooth adapter or
@@ -810,4 +794,4 @@ enum BluetoothGapDataType {
 
 END_BLUETOOTH_NAMESPACE
 
-#endif // mozilla_dom_bluetooth_bluetoothcommon_h__
+#endif // mozilla_dom_bluetooth_BluetoothCommon_h

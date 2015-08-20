@@ -451,6 +451,8 @@ CompositorOGL::PrepareViewport(CompositingRenderTargetOGL* aRenderTarget)
   // Set the viewport correctly.
   mGLContext->fViewport(0, 0, size.width, size.height);
 
+  mRenderBound = Rect(0, 0, size.width, size.height);
+
   mViewportSize = size;
 
   if (!aRenderTarget->HasComplexProjection()) {
@@ -628,8 +630,6 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   if (aRenderBoundsOut) {
     *aRenderBoundsOut = rect;
   }
-
-  mRenderBoundsOut = rect;
 
   GLint width = rect.width;
   GLint height = rect.height;
@@ -812,6 +812,10 @@ CompositorOGL::GetShaderConfigFor(Effect *aEffect,
   case EffectTypes::YCBCR:
     config.SetYCbCr(true);
     break;
+  case EffectTypes::NV12:
+    config.SetNV12(true);
+    config.SetTextureTarget(LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+    break;
   case EffectTypes::COMPONENT_ALPHA:
   {
     config.SetComponentAlpha(true);
@@ -986,10 +990,13 @@ CompositorOGL::DrawQuad(const Rect& aRect,
   Rect destRect = aTransform.TransformBounds(aRect);
   mPixelsFilled += destRect.width * destRect.height;
 
+  IntPoint offset = mCurrentRenderTarget->GetOrigin();
+
   // Do a simple culling if this rect is out of target buffer.
   // Inflate a small size to avoid some numerical imprecision issue.
   destRect.Inflate(1, 1);
-  if (!mRenderBoundsOut.Intersects(destRect)) {
+  destRect.MoveBy(-offset);
+  if (!mRenderBound.Intersects(destRect)) {
     return;
   }
 
@@ -1088,7 +1095,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
       program->SetColorMatrix(effectColorMatrix->mColorMatrix);
   }
 
-  IntPoint offset = mCurrentRenderTarget->GetOrigin();
   program->SetRenderOffset(offset.x, offset.y);
   LayerScope::SetRenderOffset(offset.x, offset.y);
 
@@ -1249,6 +1255,40 @@ CompositorOGL::DrawQuad(const Rect& aRect,
                                      aRect,
                                      effectYCbCr->mTextureCoords,
                                      sourceYCbCr->GetSubSource(Y));
+    }
+    break;
+  case EffectTypes::NV12: {
+      EffectNV12* effectNV12 =
+        static_cast<EffectNV12*>(aEffectChain.mPrimaryEffect.get());
+      TextureSource* sourceNV12 = effectNV12->mTexture;
+      const int Y = 0, CbCr = 1;
+      TextureSourceOGL* sourceY =  sourceNV12->GetSubSource(Y)->AsSourceOGL();
+      TextureSourceOGL* sourceCbCr = sourceNV12->GetSubSource(CbCr)->AsSourceOGL();
+
+      if (!sourceY || !sourceCbCr) {
+        NS_WARNING("Invalid layer texture.");
+        return;
+      }
+
+      sourceY->BindTexture(LOCAL_GL_TEXTURE0, effectNV12->mFilter);
+      sourceCbCr->BindTexture(LOCAL_GL_TEXTURE1, effectNV12->mFilter);
+
+      if (config.mFeatures & ENABLE_TEXTURE_RECT) {
+        // This is used by IOSurface that use 0,0...w,h coordinate rather then 0,0..1,1.
+        program->SetCbCrTexCoordMultiplier(sourceCbCr->GetSize().width, sourceCbCr->GetSize().height);
+      }
+
+      program->SetNV12TextureUnits(Y, CbCr);
+      program->SetTextureTransform(Matrix4x4());
+
+      if (maskType != MaskType::MaskNone) {
+        BindMaskForProgram(program, sourceMask, LOCAL_GL_TEXTURE2, maskQuadTransform);
+      }
+      didSetBlendMode = SetBlendMode(gl(), blendMode);
+      BindAndDrawQuadWithTextureRect(program,
+                                     aRect,
+                                     effectNV12->mTextureCoords,
+                                     sourceNV12->GetSubSource(Y));
     }
     break;
   case EffectTypes::RENDER_TARGET: {
@@ -1433,7 +1473,7 @@ CompositorOGL::EndFrame()
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
 void
-CompositorOGL::SetDispAcquireFence(Layer* aLayer)
+CompositorOGL::SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget)
 {
   // OpenGL does not provide ReleaseFence for rendering.
   // Instead use DispAcquireFence as layer buffer's ReleaseFence
@@ -1442,10 +1482,10 @@ CompositorOGL::SetDispAcquireFence(Layer* aLayer)
   // AcquireFence will be signaled when a buffer's content is available.
   // See Bug 974152.
 
-  if (!aLayer) {
+  if (!aLayer || !aWidget) {
     return;
   }
-  nsWindow* window = static_cast<nsWindow*>(mWidget);
+  nsWindow* window = static_cast<nsWindow*>(aWidget);
   RefPtr<FenceHandle::FdObj> fence = new FenceHandle::FdObj(
       window->GetScreen()->GetPrevDispAcquireFd());
   mReleaseFenceHandle.Merge(FenceHandle(fence));
@@ -1464,7 +1504,7 @@ CompositorOGL::GetReleaseFence()
 
 #else
 void
-CompositorOGL::SetDispAcquireFence(Layer* aLayer)
+CompositorOGL::SetDispAcquireFence(Layer* aLayer, nsIWidget* aWidget)
 {
 }
 

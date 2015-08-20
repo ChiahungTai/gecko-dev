@@ -368,12 +368,12 @@ IterPerformanceStats(JSContext* cx,
             continue;
         }
         js::AutoCompartment autoCompartment(cx, compartment);
-        PerformanceGroup* ownGroup = compartment->performanceMonitoring.getOwnGroup(cx);
+        mozilla::RefPtr<PerformanceGroup> ownGroup = compartment->performanceMonitoring.getOwnGroup();
         if (ownGroup->data.ticks == 0) {
             // Don't report compartments that have never been used.
             continue;
         }
-        PerformanceGroup* sharedGroup = compartment->performanceMonitoring.getSharedGroup(cx);
+        mozilla::RefPtr<PerformanceGroup> sharedGroup = compartment->performanceMonitoring.getSharedGroup(cx);
         if (!(*walker)(cx,
                        ownGroup->data, ownGroup->uid, &sharedGroup->uid,
                        closure)) {
@@ -383,7 +383,7 @@ IterPerformanceStats(JSContext* cx,
     }
 
     // Finally, report the process stats
-    *processStats = rt->stopwatch.performance;
+    *processStats = rt->stopwatch.performance.getOwnGroup()->data;
     return true;
 }
 
@@ -1764,25 +1764,6 @@ JS_SetNativeStackQuota(JSRuntime* rt, size_t systemCodeStackSize, size_t trusted
 }
 
 /************************************************************************/
-
-JS_PUBLIC_API(int)
-JS_IdArrayLength(JSContext* cx, JSIdArray* ida)
-{
-    return ida->length;
-}
-
-JS_PUBLIC_API(jsid)
-JS_IdArrayGet(JSContext* cx, JSIdArray* ida, unsigned index)
-{
-    MOZ_ASSERT(index < unsigned(ida->length));
-    return ida->vector[index];
-}
-
-JS_PUBLIC_API(void)
-JS_DestroyIdArray(JSContext* cx, JSIdArray* ida)
-{
-    cx->runtime()->defaultFreeOp()->free_(ida);
-}
 
 JS_PUBLIC_API(bool)
 JS_ValueToId(JSContext* cx, HandleValue value, MutableHandleId idp)
@@ -3166,18 +3147,19 @@ JS_SetAllNonReservedSlotsToUndefined(JSContext* cx, JSObject* objArg)
         obj->as<NativeObject>().setSlot(i, UndefinedValue());
 }
 
-JS_PUBLIC_API(JSIdArray*)
-JS_Enumerate(JSContext* cx, HandleObject obj)
+JS_PUBLIC_API(bool)
+JS_Enumerate(JSContext* cx, HandleObject obj, JS::MutableHandle<IdVector> props)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
+    MOZ_ASSERT(props.empty());
 
-    AutoIdVector props(cx);
-    JSIdArray* ida;
-    if (!GetPropertyKeys(cx, obj, JSITER_OWNONLY, &props) || !VectorToIdArray(cx, props, &ida))
-        return nullptr;
-    return ida;
+    AutoIdVector ids(cx);
+    if (!GetPropertyKeys(cx, obj, JSITER_OWNONLY, &ids))
+        return false;
+
+    return props.append(ids.begin(), ids.end());
 }
 
 JS_PUBLIC_API(Value)
@@ -3813,13 +3795,18 @@ AutoFile::open(JSContext* cx, const char* filename)
     return true;
 }
 
+JSObject * const JS::ReadOnlyCompileOptions::nullObjectPtr = nullptr;
+
 void
-JS::TransitiveCompileOptions::copyPODTransitiveOptions(const TransitiveCompileOptions& rhs)
+JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions& rhs)
 {
-    mutedErrors_ = rhs.mutedErrors_;
     version = rhs.version;
     versionSet = rhs.versionSet;
     utf8 = rhs.utf8;
+    lineno = rhs.lineno;
+    column = rhs.column;
+    forEval = rhs.forEval;
+    noScriptRval = rhs.noScriptRval;
     selfHostingMode = rhs.selfHostingMode;
     canLazilyParse = rhs.canLazilyParse;
     strictOption = rhs.strictOption;
@@ -3833,17 +3820,6 @@ JS::TransitiveCompileOptions::copyPODTransitiveOptions(const TransitiveCompileOp
     introductionLineno = rhs.introductionLineno;
     introductionOffset = rhs.introductionOffset;
     hasIntroductionInfo = rhs.hasIntroductionInfo;
-};
-
-void
-JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions& rhs)
-{
-    copyPODTransitiveOptions(rhs);
-    lineno = rhs.lineno;
-    column = rhs.column;
-    isRunOnce = rhs.isRunOnce;
-    forEval = rhs.forEval;
-    noScriptRval = rhs.noScriptRval;
 }
 
 JS::OwningCompileOptions::OwningCompileOptions(JSContext* cx)
@@ -3868,6 +3844,7 @@ JS::OwningCompileOptions::copy(JSContext* cx, const ReadOnlyCompileOptions& rhs)
 {
     copyPODOptions(rhs);
 
+    setMutedErrors(rhs.mutedErrors());
     setElement(rhs.element());
     setElementAttributeName(rhs.elementAttributeName());
     setIntroductionScript(rhs.introductionScript());
@@ -4257,7 +4234,7 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
             return false;
     }
 
-    AutoNameVector formals(cx);
+    Rooted<PropertyNameVector> formals(cx, PropertyNameVector(cx));
     for (unsigned i = 0; i < nargs; i++) {
         RootedAtom argAtom(cx, Atomize(cx, argnames[i], strlen(argnames[i])));
         if (!argAtom || !formals.append(argAtom->asPropertyName()))
@@ -4275,7 +4252,8 @@ CompileFunction(JSContext* cx, const ReadOnlyCompileOptions& optionsArg,
     MOZ_ASSERT_IF(!enclosingDynamicScope->is<GlobalObject>(),
                   HasNonSyntacticStaticScopeChain(enclosingStaticScope));
 
-    if (!frontend::CompileFunctionBody(cx, fun, optionsArg, formals, srcBuf, enclosingStaticScope))
+    CompileOptions options(cx, optionsArg);
+    if (!frontend::CompileFunctionBody(cx, fun, options, formals, srcBuf, enclosingStaticScope))
         return false;
 
     return true;
@@ -4455,7 +4433,7 @@ Evaluate(JSContext* cx, HandleObject scope, Handle<ScopeObject*> staticScope,
     RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                     scope, staticScope,
                                                     /* evalCaller = */ nullptr, options,
-                                                    srcBuf, /* source = */ nullptr, 0, &sct));
+                                                    srcBuf, /* source = */ nullptr, &sct));
     if (!script)
         return false;
 
@@ -4637,7 +4615,16 @@ JS::Construct(JSContext* cx, HandleValue fval, const JS::HandleValueArray& args,
     assertSameCompartment(cx, fval, args);
     AutoLastFrameCheck lfc(cx);
 
-    return InvokeConstructor(cx, fval, args.length(), args.begin(), false, rval);
+    if (!IsConstructor(fval)) {
+        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, fval, nullptr);
+        return false;
+    }
+
+    ConstructArgs cargs(cx);
+    if (!FillArgumentsFromArraylike(cx, cargs, args))
+        return false;
+
+    return js::Construct(cx, fval, cargs, fval, rval);
 }
 
 JS_PUBLIC_API(bool)
@@ -4649,26 +4636,22 @@ JS::Construct(JSContext* cx, HandleValue fval, HandleObject newTarget, const JS:
     assertSameCompartment(cx, fval, newTarget, args);
     AutoLastFrameCheck lfc(cx);
 
-    // Reflect.construct ensures that the supplied new.target value is a
-    // constructor. Frankly, this makes good sense, so we reproduce the check.
-    if (!newTarget->isConstructor()) {
-        RootedValue val(cx, ObjectValue(*newTarget));
-        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, val, nullptr);
+    if (!IsConstructor(fval)) {
+        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, fval, nullptr);
         return false;
     }
 
-    // This is a littlesilly, but we need to convert from what's useful for our
-    // consumers to what we can actually handle internally.
-    AutoValueVector argv(cx);
-    unsigned argc = args.length();
-    if (!argv.reserve(argc + 1))
+    RootedValue newTargetVal(cx, ObjectValue(*newTarget));
+    if (!IsConstructor(newTargetVal)) {
+        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, newTargetVal, nullptr);
         return false;
-    for (unsigned i = 0; i < argc; i++) {
-        argv.infallibleAppend(args[i]);
     }
-    argv.infallibleAppend(ObjectValue(*newTarget));
 
-    return InvokeConstructor(cx, fval, argc, argv.begin(), true, rval);
+    ConstructArgs cargs(cx);
+    if (!FillArgumentsFromArraylike(cx, cargs, args))
+        return false;
+
+    return js::Construct(cx, fval, cargs, newTargetVal, rval);
 }
 
 static JSObject*
@@ -4678,36 +4661,21 @@ JS_NewHelper(JSContext* cx, HandleObject ctor, const JS::HandleValueArray& input
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, ctor, inputArgs);
 
-    // This is not a simple variation of JS_CallFunctionValue because JSOP_NEW
-    // is not a simple variation of JSOP_CALL. We have to determine what class
-    // of object to create, create it, and clamp the return value to an object,
-    // among other details. InvokeConstructor does the hard work.
-    InvokeArgs args(cx);
-    if (!args.init(inputArgs.length(), true))
-        return nullptr;
-
-    args.setCallee(ObjectValue(*ctor));
-    args.setThis(NullValue());
-    PodCopy(args.array(), inputArgs.begin(), inputArgs.length());
-    args.newTarget().setObject(*ctor);
-
-    if (!InvokeConstructor(cx, args))
-        return nullptr;
-
-    if (!args.rval().isObject()) {
-        /*
-         * Although constructors may return primitives (via proxies), this
-         * API is asking for an object, so we report an error.
-         */
-        JSAutoByteString bytes;
-        if (ValueToPrintable(cx, args.rval(), &bytes)) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_NEW_RESULT,
-                                 bytes.ptr());
-        }
+    RootedValue ctorVal(cx, ObjectValue(*ctor));
+    if (!IsConstructor(ctorVal)) {
+        ReportValueError(cx, JSMSG_NOT_CONSTRUCTOR, JSDVG_IGNORE_STACK, ctorVal, nullptr);
         return nullptr;
     }
 
-    return &args.rval().toObject();
+    ConstructArgs args(cx);
+    if (!FillArgumentsFromArraylike(cx, args, inputArgs))
+        return nullptr;
+
+    RootedValue rval(cx);
+    if (!js::Construct(cx, ctorVal, args, ctorVal, &rval))
+        return nullptr;
+
+    return &rval.toObject();
 }
 
 JS_PUBLIC_API(JSObject*)
@@ -5504,11 +5472,11 @@ JS_NewDateObject(JSContext* cx, int year, int mon, int mday, int hour, int min, 
 }
 
 JS_PUBLIC_API(JSObject*)
-JS_NewDateObjectMsec(JSContext* cx, double msec)
+JS::NewDateObject(JSContext* cx, JS::ClippedTime time)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return NewDateObjectMsec(cx, JS::TimeClip(msec));
+    return NewDateObjectMsec(cx, time);
 }
 
 JS_PUBLIC_API(bool)

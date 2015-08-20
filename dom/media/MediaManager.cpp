@@ -994,7 +994,7 @@ ApplyConstraints(const MediaTrackConstraints &aConstraints,
         }
       }
       if (!aSources.Length()) {
-        aSources.MoveElementsFrom(rejects);
+        aSources.AppendElements(Move(rejects));
         aggregateConstraints.RemoveElementAt(aggregateConstraints.Length() - 1);
       }
     }
@@ -1690,11 +1690,11 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
     }
 
     if (vc.mAdvanced.WasPassed() && videoType != dom::MediaSourceEnum::Camera) {
-      // iterate through advanced, forcing mediaSource to match "root"
-      const char *camera = EnumToASCII(dom::MediaSourceEnumValues::strings,
-                                       dom::MediaSourceEnum::Camera);
+      // iterate through advanced, forcing all unset mediaSources to match "root"
+      const char *unset = EnumToASCII(dom::MediaSourceEnumValues::strings,
+                                      dom::MediaSourceEnum::Camera);
       for (MediaTrackConstraintSet& cs : vc.mAdvanced.Value()) {
-        if (cs.mMediaSource.EqualsASCII(camera)) {
+        if (cs.mMediaSource.EqualsASCII(unset)) {
           cs.mMediaSource = vc.mMediaSource;
         }
       }
@@ -1729,15 +1729,46 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow,
     audioType = StringToEnum(dom::MediaSourceEnumValues::strings,
                              ac.mMediaSource,
                              audioType);
-    // Only enable AudioCapture if the pref is enabled. If it's not, we can deny
-    // right away.
-    if (audioType == dom::MediaSourceEnum::AudioCapture &&
-        !Preferences::GetBool("media.getusermedia.audiocapture.enabled")) {
-      nsRefPtr<MediaStreamError> error =
-        new MediaStreamError(aWindow,
-            NS_LITERAL_STRING("PermissionDeniedError"));
-      onFailure->OnError(error);
-      return NS_OK;
+    // Work around WebIDL default since spec uses same dictionary w/audio & video.
+    if (audioType == dom::MediaSourceEnum::Camera) {
+      audioType = dom::MediaSourceEnum::Microphone;
+      ac.mMediaSource.AssignASCII(EnumToASCII(dom::MediaSourceEnumValues::strings,
+                                              audioType));
+    }
+
+    switch (audioType) {
+      case dom::MediaSourceEnum::Microphone:
+        break;
+
+      case dom::MediaSourceEnum::AudioCapture:
+        // Only enable AudioCapture if the pref is enabled. If it's not, we can
+        // deny right away.
+        if (!Preferences::GetBool("media.getusermedia.audiocapture.enabled")) {
+          nsRefPtr<MediaStreamError> error =
+            new MediaStreamError(aWindow,
+                                 NS_LITERAL_STRING("PermissionDeniedError"));
+          onFailure->OnError(error);
+          return NS_OK;
+        }
+        break;
+
+      case dom::MediaSourceEnum::Other:
+      default: {
+        nsRefPtr<MediaStreamError> error =
+            new MediaStreamError(aWindow, NS_LITERAL_STRING("NotFoundError"));
+        onFailure->OnError(error);
+        return NS_OK;
+      }
+    }
+    if (ac.mAdvanced.WasPassed()) {
+      // iterate through advanced, forcing all unset mediaSources to match "root"
+      const char *unset = EnumToASCII(dom::MediaSourceEnumValues::strings,
+                                      dom::MediaSourceEnum::Camera);
+      for (MediaTrackConstraintSet& cs : ac.mAdvanced.Value()) {
+        if (cs.mMediaSource.EqualsASCII(unset)) {
+          cs.mMediaSource = ac.mMediaSource;
+        }
+      }
     }
   }
   StreamListeners* listeners = AddWindowID(windowID);
@@ -2818,8 +2849,8 @@ GetUserMediaCallbackMediaStreamListener::StopTrack(TrackID aID, bool aIsAudio)
     MediaManager::PostTask(FROM_HERE,
       new MediaOperationTask(MEDIA_STOP_TRACK,
                              this, nullptr, nullptr,
-                             aIsAudio  ? mAudioSource : nullptr,
-                             !aIsAudio ? mVideoSource : nullptr,
+                             aIsAudio  ? mAudioSource.get() : nullptr,
+                             !aIsAudio ? mVideoSource.get() : nullptr,
                              mFinished, mWindowID, nullptr));
   } else {
     LOG(("gUM track %d ended, but we don't have type %s",

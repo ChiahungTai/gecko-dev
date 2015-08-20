@@ -18,6 +18,7 @@ const GRAB_DELAY = 400;
 const DRAG_DROP_AUTOSCROLL_EDGE_DISTANCE = 50;
 const DRAG_DROP_MIN_AUTOSCROLL_SPEED = 5;
 const DRAG_DROP_MAX_AUTOSCROLL_SPEED = 15;
+const AUTOCOMPLETE_POPUP_PANEL_ID = "markupview_autoCompletePopup";
 
 const {UndoStack} = require("devtools/shared/undo");
 const {editableField, InplaceEditor} = require("devtools/shared/inplace-editor");
@@ -85,7 +86,10 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
   // Creating the popup to be used to show CSS suggestions.
   let options = {
     autoSelect: true,
-    theme: "auto"
+    theme: "auto",
+    // panelId option prevents the markupView autocomplete popup from
+    // sharing XUL elements with other views, such as ruleView (see Bug 1191093)
+    panelId: AUTOCOMPLETE_POPUP_PANEL_ID
   };
   this.popup = new AutocompletePopup(this.doc.defaultView.parent.document, options);
 
@@ -2734,11 +2738,10 @@ ElementEditor.prototype = {
     // Create links in the attribute value, and collapse long attributes if
     // needed.
     let collapse = value => {
-      if (value.match(COLLAPSE_DATA_URL_REGEX)) {
+      if (value && value.match(COLLAPSE_DATA_URL_REGEX)) {
         return truncateString(value, COLLAPSE_DATA_URL_LENGTH);
-      } else {
-        return truncateString(value, COLLAPSE_ATTRIBUTE_LENGTH);
       }
+      return truncateString(value, COLLAPSE_ATTRIBUTE_LENGTH);
     };
 
     val.innerHTML = "";
@@ -2916,7 +2919,7 @@ function nodeDocument(node) {
 }
 
 function truncateString(str, maxLength) {
-  if (str.length <= maxLength) {
+  if (!str || str.length <= maxLength) {
     return str;
   }
 

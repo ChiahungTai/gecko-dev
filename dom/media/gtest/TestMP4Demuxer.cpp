@@ -6,12 +6,13 @@
 #include "gtest/gtest.h"
 #include "MP4Demuxer.h"
 #include "MP4Stream.h"
-#include "MozPromise.h"
+#include "mozilla/MozPromise.h"
 #include "MediaDataDemuxer.h"
-#include "SharedThreadPool.h"
-#include "TaskQueue.h"
+#include "mozilla/SharedThreadPool.h"
+#include "mozilla/TaskQueue.h"
 #include "mozilla/ArrayUtils.h"
 #include "MockMediaResource.h"
+#include "VideoUtils.h"
 
 using namespace mozilla;
 using namespace mp4_demuxer;

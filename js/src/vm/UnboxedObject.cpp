@@ -13,6 +13,7 @@
 #include "jsobjinlines.h"
 
 #include "gc/Nursery-inl.h"
+#include "jit/MacroAssembler-inl.h"
 #include "vm/Shape-inl.h"
 
 using mozilla::ArrayLength;
@@ -160,7 +161,7 @@ UnboxedLayout::makeConstructorCode(JSContext* cx, HandleObjectGroup group)
     masm.PushRegsInMask(liveVolatileRegisters);
 
     masm.mov(ImmPtr(cx->runtime()), scratch1);
-    masm.setupUnalignedABICall(2, scratch2);
+    masm.setupUnalignedABICall(scratch2);
     masm.passABIArg(scratch1);
     masm.passABIArg(object);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, PostWriteBarrier));
@@ -496,10 +497,9 @@ UnboxedLayout::makeNativeGroup(JSContext* cx, ObjectGroup* group)
     for (size_t i = 0; i < layout.properties().length(); i++) {
         const UnboxedLayout::Property& property = layout.properties()[i];
 
-        StackShape unrootedChild(shape->base()->unowned(), NameToId(property.name), i,
-                                 JSPROP_ENUMERATE, 0);
-        RootedGeneric<StackShape*> child(cx, &unrootedChild);
-        shape = cx->compartment()->propertyTree.getChild(cx, shape, *child);
+        Rooted<StackShape> child(cx, StackShape(shape->base()->unowned(), NameToId(property.name),
+                                                i, JSPROP_ENUMERATE, 0));
+        shape = cx->compartment()->propertyTree.getChild(cx, shape, child);
         if (!shape)
             return false;
     }
@@ -819,7 +819,7 @@ UnboxedPlainObject::obj_setProperty(JSContext* cx, HandleObject obj, HandleId id
             return SetProperty(cx, obj, id, v, receiver, result);
         }
 
-        return SetPropertyByDefining(cx, obj, id, v, receiver, false, result);
+        return SetPropertyByDefining(cx, obj, id, v, receiver, result);
     }
 
     if (UnboxedExpandoObject* expando = obj->as<UnboxedPlainObject>().maybeExpando()) {
@@ -884,7 +884,8 @@ UnboxedPlainObject::obj_watch(JSContext* cx, HandleObject obj, HandleId id, Hand
 }
 
 /* static */ bool
-UnboxedPlainObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector& properties)
+UnboxedPlainObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector& properties,
+                                  bool enumerableOnly)
 {
     UnboxedExpandoObject* expando = obj->as<UnboxedPlainObject>().maybeExpando();
 
@@ -907,6 +908,8 @@ UnboxedPlainObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector&
     if (expando) {
         Vector<jsid> ids(cx);
         for (Shape::Range<NoGC> r(expando->lastProperty()); !r.empty(); r.popFront()) {
+            if (enumerableOnly && !r.front().enumerable())
+                continue;
             if (!ids.append(r.front().propid()))
                 return false;
         }
@@ -1483,7 +1486,7 @@ UnboxedArrayObject::obj_setProperty(JSContext* cx, HandleObject obj, HandleId id
             return SetProperty(cx, obj, id, v, receiver, result);
         }
 
-        return SetPropertyByDefining(cx, obj, id, v, receiver, false, result);
+        return SetPropertyByDefining(cx, obj, id, v, receiver, result);
     }
 
     return SetPropertyOnProto(cx, obj, id, v, receiver, result);
@@ -1536,13 +1539,18 @@ UnboxedArrayObject::obj_watch(JSContext* cx, HandleObject obj, HandleId id, Hand
 }
 
 /* static */ bool
-UnboxedArrayObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector& properties)
+UnboxedArrayObject::obj_enumerate(JSContext* cx, HandleObject obj, AutoIdVector& properties,
+                                  bool enumerableOnly)
 {
     for (size_t i = 0; i < obj->as<UnboxedArrayObject>().initializedLength(); i++) {
         if (!properties.append(INT_TO_JSID(i)))
             return false;
     }
-    return properties.append(NameToId(cx->names().length));
+
+    if (!enumerableOnly && !properties.append(NameToId(cx->names().length)))
+        return false;
+
+    return true;
 }
 
 const Class UnboxedArrayObject::class_ = {
@@ -1671,9 +1679,11 @@ CombineArrayObjectElements(ExclusiveContext* cx, ArrayObject* obj, JSValueType* 
 {
     if (obj->inDictionaryMode() ||
         obj->lastProperty()->propid() != AtomToId(cx->names().length) ||
-        !obj->lastProperty()->previous()->isEmptyShape())
+        !obj->lastProperty()->previous()->isEmptyShape() ||
+        !obj->getDenseInitializedLength())
     {
-        // Only use an unboxed representation if the object has no properties.
+        // Only use an unboxed representation if the object has at
+        // least one element, and no properties.
         return false;
     }
 
@@ -1828,8 +1838,6 @@ UnboxedArrayObject::fillAfterConvert(ExclusiveContext* cx,
     setLength(cx, NextValue(values, valueCursor).toInt32());
 
     int32_t initlen = NextValue(values, valueCursor).toInt32();
-    if (!initlen)
-        return;
 
     if (!growElements(cx, initlen))
         CrashAtUnhandlableOOM("UnboxedArrayObject::fillAfterConvert");
@@ -2055,15 +2063,15 @@ js::MoveAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj,
     return CallBoxedOrUnboxedSpecialization(functor, obj);
 }
 
-DefineBoxedOrUnboxedFunctorPair6(CopyBoxedOrUnboxedDenseElements,
-                                 JSContext*, JSObject*, JSObject*, uint32_t, uint32_t, uint32_t);
+DefineBoxedOrUnboxedFunctor6(CopyBoxedOrUnboxedDenseElements,
+                             JSContext*, JSObject*, JSObject*, uint32_t, uint32_t, uint32_t);
 
 DenseElementResult
 js::CopyAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* dst, JSObject* src,
                                        uint32_t dstStart, uint32_t srcStart, uint32_t length)
 {
     CopyBoxedOrUnboxedDenseElementsFunctor functor(cx, dst, src, dstStart, srcStart, length);
-    return CallBoxedOrUnboxedSpecialization(functor, dst, src);
+    return CallBoxedOrUnboxedSpecialization(functor, dst);
 }
 
 DefineBoxedOrUnboxedFunctor3(SetBoxedOrUnboxedInitializedLength,
@@ -2074,14 +2082,4 @@ js::SetAnyBoxedOrUnboxedInitializedLength(JSContext* cx, JSObject* obj, size_t i
 {
     SetBoxedOrUnboxedInitializedLengthFunctor functor(cx, obj, initlen);
     JS_ALWAYS_TRUE(CallBoxedOrUnboxedSpecialization(functor, obj) == DenseElementResult::Success);
-}
-
-DefineBoxedOrUnboxedFunctor3(EnsureBoxedOrUnboxedDenseElements,
-                             JSContext*, JSObject*, size_t);
-
-DenseElementResult
-js::EnsureAnyBoxedOrUnboxedDenseElements(JSContext* cx, JSObject* obj, size_t initlen)
-{
-    EnsureBoxedOrUnboxedDenseElementsFunctor functor(cx, obj, initlen);
-    return CallBoxedOrUnboxedSpecialization(functor, obj);
 }

@@ -55,7 +55,7 @@ let CERTIFICATE_ERROR_PAGE_PREF = 'security.alternate_certificate_error_page';
 
 const OBSERVED_EVENTS = [
   'xpcom-shutdown',
-  'media-playback',
+  'audio-playback',
   'activity-done',
   'invalid-widget'
 ];
@@ -288,7 +288,7 @@ BrowserElementChild.prototype = {
     // Ignore notifications not about our document.  (Note that |content| /can/
     // be null; see bug 874900.)
 
-    if (topic !== 'activity-done' && topic !== 'media-playback' &&
+    if (topic !== 'activity-done' && topic !== 'audio-playback' &&
         (!content || subject !== content.document)) {
       return;
     }
@@ -298,9 +298,9 @@ BrowserElementChild.prototype = {
       case 'activity-done':
         sendAsyncMsg('activitydone', { success: (data == 'activity-success') });
         break;
-      case 'media-playback':
+      case 'audio-playback':
         if (subject === content) {
-          sendAsyncMsg('mediaplaybackchange', { _payload_: data });
+          sendAsyncMsg('audioplaybackchange', { _payload_: data });
         }
         break;
       case 'xpcom-shutdown':
@@ -1663,30 +1663,54 @@ BrowserElementChild.prototype = {
         return;
       }
 
-      var stateDesc;
+      var securityStateDesc;
       if (state & Ci.nsIWebProgressListener.STATE_IS_SECURE) {
-        stateDesc = 'secure';
+        securityStateDesc = 'secure';
       }
       else if (state & Ci.nsIWebProgressListener.STATE_IS_BROKEN) {
-        stateDesc = 'broken';
+        securityStateDesc = 'broken';
       }
       else if (state & Ci.nsIWebProgressListener.STATE_IS_INSECURE) {
-        stateDesc = 'insecure';
-      }
-      else if (state & Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT) {
-        stateDesc = 'loaded_tracking_content';
-      }
-      else if (state & Ci.nsIWebProgressListener.STATE_BLOCKED_TRACKING_CONTENT) {
-        stateDesc = 'blocked_tracking_content';
+        securityStateDesc = 'insecure';
       }
       else {
         debug("Unexpected securitychange state!");
-        stateDesc = '???';
+        securityStateDesc = '???';
+      }
+
+      var trackingStateDesc;
+      if (state & Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT) {
+        trackingStateDesc = 'loaded_tracking_content';
+      }
+      else if (state & Ci.nsIWebProgressListener.STATE_BLOCKED_TRACKING_CONTENT) {
+        trackingStateDesc = 'blocked_tracking_content';
+      }
+
+      var mixedStateDesc;
+      if (state & Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT) {
+        mixedStateDesc = 'blocked_mixed_active_content';
+      }
+      else if (state & Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT) {
+        // Note that STATE_LOADED_MIXED_ACTIVE_CONTENT implies STATE_IS_BROKEN
+        mixedStateDesc = 'loaded_mixed_active_content';
       }
 
       var isEV = !!(state & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
+      var isTrackingContent = !!(state &
+        (Ci.nsIWebProgressListener.STATE_BLOCKED_TRACKING_CONTENT |
+        Ci.nsIWebProgressListener.STATE_LOADED_TRACKING_CONTENT));
+      var isMixedContent = !!(state &
+        (Ci.nsIWebProgressListener.STATE_BLOCKED_MIXED_ACTIVE_CONTENT |
+        Ci.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT));
 
-      sendAsyncMsg('securitychange', { state: stateDesc, extendedValidation: isEV });
+      sendAsyncMsg('securitychange', {
+        state: securityStateDesc,
+        trackingState: trackingStateDesc,
+        mixedState: mixedStateDesc,
+        extendedValidation: isEV,
+        trackingContent: isTrackingContent,
+        mixedContent: isMixedContent,
+      });
     },
 
     onStatusChange: function(webProgress, request, status, message) {},
@@ -1708,4 +1732,3 @@ BrowserElementChild.prototype = {
 };
 
 var api = new BrowserElementChild();
-

@@ -852,7 +852,7 @@ class MDefinition : public MNode
 // iteration.
 class MUseDefIterator
 {
-    MDefinition* def_;
+    const MDefinition* def_;
     MUseIterator current_;
 
     MUseIterator search(MUseIterator start) {
@@ -865,7 +865,7 @@ class MUseDefIterator
     }
 
   public:
-    explicit MUseDefIterator(MDefinition* def)
+    explicit MUseDefIterator(const MDefinition* def)
       : def_(def),
         current_(search(def->usesBegin()))
     { }
@@ -2841,6 +2841,10 @@ bool
 EqualTypes(MIRType type1, TemporaryTypeSet* typeset1,
            MIRType type2, TemporaryTypeSet* typeset2);
 
+bool
+CanStoreUnboxedType(TempAllocator& alloc,
+                    JSValueType unboxedType, MIRType input, TypeSet* inputTypes);
+
 #ifdef DEBUG
 bool
 IonCompilationCanUseNurseryPointers();
@@ -4041,34 +4045,6 @@ class MGetDynamicName
     }
     MDefinition* getName() const {
         return getOperand(1);
-    }
-    bool possiblyCalls() const override {
-        return true;
-    }
-};
-
-// Bailout if the input string contains 'arguments' or 'eval'.
-class MFilterArgumentsOrEval
-  : public MAryInstruction<1>,
-    public BoxExceptPolicy<0, MIRType_String>::Data
-{
-  protected:
-    explicit MFilterArgumentsOrEval(MDefinition* string)
-    {
-        initOperand(0, string);
-        setGuard();
-        setResultType(MIRType_None);
-    }
-
-  public:
-    INSTRUCTION_HEADER(FilterArgumentsOrEval)
-
-    static MFilterArgumentsOrEval* New(TempAllocator& alloc, MDefinition* string) {
-        return new(alloc) MFilterArgumentsOrEval(string);
-    }
-
-    MDefinition* getString() const {
-        return getOperand(0);
     }
     bool possiblyCalls() const override {
         return true;
@@ -5590,26 +5566,33 @@ class MBinaryArithInstruction
     // analysis detect a precision loss in the multiplication.
     TruncateKind implicitTruncate_;
 
-    void inferFallback(BaselineInspector* inspector, jsbytecode* pc);
-
   public:
     MBinaryArithInstruction(MDefinition* left, MDefinition* right)
       : MBinaryInstruction(left, right),
         implicitTruncate_(NoTruncate)
     {
+        specialization_ = MIRType_None;
         setMovable();
     }
+
+    static MBinaryArithInstruction* New(TempAllocator& alloc, Opcode op,
+                                        MDefinition* left, MDefinition* right);
+
+    bool constantDoubleResult(TempAllocator& alloc);
 
     MDefinition* foldsTo(TempAllocator& alloc) override;
 
     virtual double getIdentity() = 0;
 
-    void infer(TempAllocator& alloc, BaselineInspector* inspector, jsbytecode* pc);
-
-    void setInt32() {
+    void setSpecialization(MIRType type) {
+        specialization_ = type;
+        setResultType(type);
+    }
+    void setInt32Specialization() {
         specialization_ = MIRType_Int32;
         setResultType(MIRType_Int32);
     }
+    void setNumberSpecialization(TempAllocator& alloc, BaselineInspector* inspector, jsbytecode* pc);
 
     virtual void trySpecializeFloat32(TempAllocator& alloc) override;
 
@@ -5945,7 +5928,8 @@ class MPow
     }
     bool writeRecoverData(CompactBufferWriter& writer) const override;
     bool canRecoverOnBailout() const override {
-        return true;
+        // Temporarily disable recovery to relieve fuzzer pressure. See bug 1188586.
+        return false;
     }
 
     ALLOW_CLONE(MPow)
@@ -9186,16 +9170,14 @@ class MArrayConcat
 {
     CompilerObject templateObj_;
     gc::InitialHeap initialHeap_;
-    bool unboxedThis_, unboxedArg_;
+    JSValueType unboxedType_;
 
     MArrayConcat(CompilerConstraintList* constraints, MDefinition* lhs, MDefinition* rhs,
-                 JSObject* templateObj, gc::InitialHeap initialHeap,
-                 bool unboxedThis, bool unboxedArg)
+                 JSObject* templateObj, gc::InitialHeap initialHeap, JSValueType unboxedType)
       : MBinaryInstruction(lhs, rhs),
         templateObj_(templateObj),
         initialHeap_(initialHeap),
-        unboxedThis_(unboxedThis),
-        unboxedArg_(unboxedArg)
+        unboxedType_(unboxedType)
     {
         setResultType(MIRType_Object);
         setResultTypeSet(MakeSingletonTypeSet(constraints, templateObj));
@@ -9207,10 +9189,10 @@ class MArrayConcat
     static MArrayConcat* New(TempAllocator& alloc, CompilerConstraintList* constraints,
                              MDefinition* lhs, MDefinition* rhs,
                              JSObject* templateObj, gc::InitialHeap initialHeap,
-                             bool unboxedThis, bool unboxedArg)
+                             JSValueType unboxedType)
     {
         return new(alloc) MArrayConcat(constraints, lhs, rhs, templateObj,
-                                       initialHeap, unboxedThis, unboxedArg);
+                                       initialHeap, unboxedType);
     }
 
     JSObject* templateObj() const {
@@ -9221,17 +9203,12 @@ class MArrayConcat
         return initialHeap_;
     }
 
-    bool unboxedThis() const {
-        return unboxedThis_;
-    }
-
-    bool unboxedArg() const {
-        return unboxedArg_;
+    JSValueType unboxedType() const {
+        return unboxedType_;
     }
 
     AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::BoxedOrUnboxedElements(unboxedThis() ? JSVAL_TYPE_INT32 : JSVAL_TYPE_MAGIC) |
-                               AliasSet::BoxedOrUnboxedElements(unboxedArg() ? JSVAL_TYPE_INT32 : JSVAL_TYPE_MAGIC) |
+        return AliasSet::Store(AliasSet::BoxedOrUnboxedElements(unboxedType()) |
                                AliasSet::ObjectFields);
     }
     bool possiblyCalls() const override {
@@ -9635,17 +9612,29 @@ class MStoreUnboxedScalar
     public StoreUnboxedScalarBase,
     public StoreUnboxedScalarPolicy::Data
 {
+  public:
+    enum TruncateInputKind {
+        DontTruncateInput,
+        TruncateInput
+    };
+
+  private:
     Scalar::Type storageType_;
+
+    // Whether this store truncates out of range inputs, for use by range analysis.
+    TruncateInputKind truncateInput_;
+
     bool requiresBarrier_;
     int32_t offsetAdjustment_;
     unsigned numElems_; // used only for SIMD
 
     MStoreUnboxedScalar(MDefinition* elements, MDefinition* index, MDefinition* value,
-                        Scalar::Type storageType, MemoryBarrierRequirement requiresBarrier,
-                        int32_t offsetAdjustment)
+                        Scalar::Type storageType, TruncateInputKind truncateInput,
+                        MemoryBarrierRequirement requiresBarrier, int32_t offsetAdjustment)
       : MTernaryInstruction(elements, index, value),
         StoreUnboxedScalarBase(storageType),
         storageType_(storageType),
+        truncateInput_(truncateInput),
         requiresBarrier_(requiresBarrier == DoesRequireMemoryBarrier),
         offsetAdjustment_(offsetAdjustment),
         numElems_(1)
@@ -9665,12 +9654,13 @@ class MStoreUnboxedScalar
     static MStoreUnboxedScalar* New(TempAllocator& alloc,
                                     MDefinition* elements, MDefinition* index,
                                     MDefinition* value, Scalar::Type storageType,
+                                    TruncateInputKind truncateInput,
                                     MemoryBarrierRequirement requiresBarrier =
                                         DoesNotRequireMemoryBarrier,
                                     int32_t offsetAdjustment = 0)
     {
         return new(alloc) MStoreUnboxedScalar(elements, index, value, storageType,
-                                              requiresBarrier, offsetAdjustment);
+                                              truncateInput, requiresBarrier, offsetAdjustment);
     }
 
     void setSimdWrite(Scalar::Type writeType, unsigned numElems) {
@@ -9695,6 +9685,9 @@ class MStoreUnboxedScalar
     }
     AliasSet getAliasSet() const override {
         return AliasSet::Store(AliasSet::UnboxedElement);
+    }
+    TruncateInputKind truncateInput() const {
+        return truncateInput_;
     }
     bool requiresMemoryBarrier() const {
         return requiresBarrier_;
@@ -12266,6 +12259,11 @@ class MFilterTypeSet
         return resultTypeSet()->empty();
     }
     void computeRange(TempAllocator& alloc) override;
+
+    bool isFloat32Commutative() const override { return true; }
+    bool canProduceFloat32() const override { return input()->canProduceFloat32(); }
+    bool canConsumeFloat32(MUse* operand) const override;
+    void trySpecializeFloat32(TempAllocator& alloc) override;
 };
 
 // Given a value, guard that the value is in a particular TypeSet, then returns

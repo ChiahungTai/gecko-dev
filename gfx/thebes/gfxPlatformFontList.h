@@ -194,6 +194,11 @@ public:
 
     static const gfxFontEntry::ScriptRange sComplexScriptRanges[];
 
+    void GetFontlistInitInfo(uint32_t& aNumInits, uint32_t& aLoaderState) {
+        aNumInits = mFontlistInitCount;
+        aLoaderState = (uint32_t) mState;
+    }
+
 protected:
     class MemoryReporter final : public nsIMemoryReporter
     {
@@ -297,11 +302,15 @@ protected:
     void RebuildLocalFonts();
 
     typedef nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> FontFamilyTable;
+    typedef nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> FontEntryTable;
 
     // used by memory reporter to accumulate sizes of family names in the table
     static size_t
     SizeOfFontFamilyTableExcludingThis(const FontFamilyTable& aTable,
                                        mozilla::MallocSizeOf aMallocSizeOf);
+    static size_t
+    SizeOfFontEntryTableExcludingThis(const FontEntryTable& aTable,
+                                      mozilla::MallocSizeOf aMallocSizeOf);
 
     // canonical family name ==> family entry (unique, one name per family entry)
     FontFamilyTable mFontFamilies;
@@ -323,10 +332,11 @@ protected:
 
     struct ExtraNames {
       ExtraNames() : mFullnames(64), mPostscriptNames(64) {}
+
       // fullname ==> font entry (unique, one name per font entry)
-      nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mFullnames;
+      FontEntryTable mFullnames;
       // Postscript name ==> font entry (unique, one name per font entry)
-      nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mPostscriptNames;
+      FontEntryTable mPostscriptNames;
     };
     nsAutoPtr<ExtraNames> mExtraNames;
 
@@ -358,6 +368,10 @@ protected:
     uint32_t mStartIndex;
     uint32_t mIncrement;
     uint32_t mNumFamilies;
+
+    // xxx - info for diagnosing no default font aborts
+    // see bugs 636957, 1070983, 1189129
+    uint32_t mFontlistInitCount; // num times InitFontList called
 
     nsTHashtable<nsPtrHashKey<gfxUserFontSet> > mUserFontSetList;
 };

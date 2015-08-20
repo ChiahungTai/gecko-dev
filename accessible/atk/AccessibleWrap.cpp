@@ -822,12 +822,20 @@ getParentCB(AtkObject *aAtkObj)
 gint
 getChildCountCB(AtkObject *aAtkObj)
 {
-    AccessibleWrap* accWrap = GetAccessibleWrap(aAtkObj);
-    if (!accWrap || nsAccUtils::MustPrune(accWrap)) {
-        return 0;
+  if (AccessibleWrap* accWrap = GetAccessibleWrap(aAtkObj)) {
+    if (nsAccUtils::MustPrune(accWrap)) {
+      return 0;
     }
 
     return static_cast<gint>(accWrap->EmbeddedChildCount());
+  }
+
+  ProxyAccessible* proxy = GetProxy(aAtkObj);
+  if (proxy && !proxy->MustPruneChildren()) {
+    return proxy->EmbeddedChildCount();
+  }
+
+  return 0;
 }
 
 AtkObject *
@@ -1131,6 +1139,10 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 {
   nsresult rv = Accessible::HandleAccEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (IPCAccessibilityActive()) {
+    return NS_OK;
+  }
 
     Accessible* accessible = aEvent->GetAccessible();
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);

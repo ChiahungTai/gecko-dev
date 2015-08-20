@@ -58,10 +58,10 @@ public:
 
 private:
     Mutex *mLock;
-    static PRThread *sDebugOwningThread;
+    static Atomic<PRThread *, Relaxed> sDebugOwningThread;
 };
 
-PRThread *DebugMutexAutoLock::sDebugOwningThread = nullptr;
+Atomic<PRThread *, Relaxed> DebugMutexAutoLock::sDebugOwningThread;
 
 DebugMutexAutoLock::DebugMutexAutoLock(Mutex& mutex)
     :mLock(&mutex)
@@ -763,14 +763,13 @@ nsSocketTransportService::OnDispatchedEvent(nsIThreadInternal *thread)
 
 NS_IMETHODIMP
 nsSocketTransportService::OnProcessNextEvent(nsIThreadInternal *thread,
-                                             bool mayWait, uint32_t depth)
+                                             bool mayWait)
 {
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsSocketTransportService::AfterProcessNextEvent(nsIThreadInternal* thread,
-                                                uint32_t depth,
                                                 bool eventWasProcessed)
 {
     return NS_OK;

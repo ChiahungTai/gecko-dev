@@ -713,7 +713,7 @@ class MochitestArguments(ArgumentContainer):
 
         options.leakThresholds = {
             "default": options.defaultLeakThreshold,
-            "tab": 10000,  # See dependencies of bug 1051230.
+            "tab": 14000,  # See dependencies of bug 1051230.
             # GMP rarely gets a log, but when it does, it leaks a little.
             "geckomediaplugin": 20000,
         }
@@ -1128,14 +1128,7 @@ container_map = {
 
 
 class MochitestArgumentParser(ArgumentParser):
-    """
-    Usage instructions for Mochitest.
-
-    All arguments are optional.
-    If --chrome is specified, chrome tests will be run instead of web content tests.
-    If --browser-chrome is specified, browser-chrome tests will be run instead of web content tests.
-    See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logging levels.
-    """
+    """%(prog)s [options] [test paths]"""
 
     _containers = None
     context = {}

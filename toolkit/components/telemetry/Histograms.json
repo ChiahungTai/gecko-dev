@@ -718,6 +718,13 @@
     "description": "gfxDWriteFontList::DelayedInitFontList GetSystemFontCollection (ms)",
     "cpp_guard": "XP_WIN"
   },
+  "DWRITEFONT_INIT_PROBLEM": {
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 8,
+    "description": "DirectWrite system fontlist initialization problem (1=GDI interop, 2=system font collection, 3=no fonts)",
+    "cpp_guard": "XP_WIN"
+  },
   "GDI_INITFONTLIST_TOTAL": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -1456,7 +1463,7 @@
     "description": "SPDY: KB read per connection"
   },
   "SPDY_SETTINGS_UL_BW": {
-    "expires_in_version": "never",
+    "expires_in_version": "42",
     "kind": "exponential",
     "high": "10000",
     "n_buckets": 100,
@@ -1464,7 +1471,7 @@
     "description": "SPDY: Settings Upload Bandwidth"
   },
   "SPDY_SETTINGS_DL_BW": {
-    "expires_in_version": "never",
+    "expires_in_version": "42",
     "kind": "exponential",
     "high": "10000",
     "n_buckets": 100,
@@ -1472,7 +1479,7 @@
     "description": "SPDY: Settings Download Bandwidth"
   },
   "SPDY_SETTINGS_RTT": {
-    "expires_in_version": "never",
+    "expires_in_version": "42",
     "kind": "exponential",
     "high": "1000",
     "n_buckets": 100,
@@ -1485,10 +1492,10 @@
     "high": "5000",
     "n_buckets": 100,
     "extended_statistics_ok": true,
-    "description": "SPDY: Settings Max Streams parameter"
+    "description": "H2: Settings Max Streams parameter"
   },
   "SPDY_SETTINGS_CWND": {
-    "expires_in_version": "never",
+    "expires_in_version": "42",
     "kind": "exponential",
     "high": "500",
     "n_buckets": 50,
@@ -1496,7 +1503,7 @@
     "description": "SPDY: Settings CWND (packets)"
   },
   "SPDY_SETTINGS_RETRANS": {
-    "expires_in_version": "never",
+    "expires_in_version": "42",
     "kind": "exponential",
     "high": "100",
     "n_buckets": 50,
@@ -1509,7 +1516,7 @@
     "high": "1000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
-    "description": "SPDY: Settings IW (rounded to KB)"
+    "description": "H2: Settings Initial Window (rounded to KB)"
   },
   "DISK_CACHE_CORRUPT_DETAILS": {
     "expires_in_version": "40",
@@ -1657,7 +1664,12 @@
     "extended_statistics_ok": true,
     "description": "Time from submission to dispatch of SPDY transaction (ms)"
   },
-  "HTTP_DISK_CACHE_OVERHEAD": {
+  "HTTP_SAW_QUIC_ALT_PROTOCOL": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "Fraction of responses with a quic alt-protocol advertisement."
+  },
+ "HTTP_DISK_CACHE_OVERHEAD": {
     "expires_in_version": "default",
     "kind": "exponential",
     "high": "32000000",
@@ -1884,13 +1896,6 @@
     "high": "10 * 1000",
     "n_buckets": 50,
     "description": "Time spent waiting on the cache service lock (ms) on the main thread in NSCACHESERVICE_ONPROFILECHANGED"
-  },
-  "CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_NSCACHESERVICE_LEAVEPRIVATEBROWSING": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": "10 * 1000",
-    "n_buckets": 50,
-    "description": "Time spent waiting on the cache service lock (ms) on the main thread in NSCACHESERVICE_LEAVEPRIVATEBROWSING"
   },
   "CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_NSCACHESERVICE_ISSTORAGEENABLEDFORPOLICY": {
     "expires_in_version": "never",
@@ -6196,28 +6201,28 @@
     "n_buckets": 1000,
     "description": "Data rate deduced from RTCP from remote recipient of outbound audio (kbit/s). Computed every second of a call (for easy comparison)."
   },
-  "WEBRTC_VIDEO_QUALITY_INBOUND_PACKETLOSS": {
+  "WEBRTC_VIDEO_QUALITY_INBOUND_PACKETLOSS_RATE": {
     "expires_in_version": "never",
     "kind": "exponential",
     "high": 1000,
     "n_buckets": 100,
     "description": "Locally measured packet loss on inbound video (permille). Sampled every second of a call."
   },
-  "WEBRTC_AUDIO_QUALITY_INBOUND_PACKETLOSS": {
+  "WEBRTC_AUDIO_QUALITY_INBOUND_PACKETLOSS_RATE": {
     "expires_in_version": "never",
     "kind": "exponential",
     "high": 1000,
     "n_buckets": 100,
     "description": "Locally measured packet loss on inbound audio (permille). Sampled every second of a call."
   },
-  "WEBRTC_VIDEO_QUALITY_OUTBOUND_PACKETLOSS": {
+  "WEBRTC_VIDEO_QUALITY_OUTBOUND_PACKETLOSS_RATE": {
     "expires_in_version": "never",
     "kind": "exponential",
     "high": 1000,
     "n_buckets": 100,
     "description": "RTCP-reported packet loss by remote recipient of outbound video (permille). Sampled every second of a call (for easy comparison)."
   },
-  "WEBRTC_AUDIO_QUALITY_OUTBOUND_PACKETLOSS": {
+  "WEBRTC_AUDIO_QUALITY_OUTBOUND_PACKETLOSS_RATE": {
     "expires_in_version": "never",
     "kind": "exponential",
     "high": 1000,
@@ -6690,6 +6695,26 @@
     "kind": "boolean",
     "description": "How many times has the DevTools WebIDE been opened?"
   },
+  "DEVTOOLS_WEBIDE_PROJECT_EDITOR_OPENED_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has the DevTools WebIDE project editor been opened?"
+  },
+  "DEVTOOLS_WEBIDE_PROJECT_EDITOR_SAVE_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has a file been saved in the DevTools WebIDE project editor?"
+  },
+  "DEVTOOLS_WEBIDE_NEW_PROJECT_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has a new project been created in the DevTools WebIDE?"
+  },
+  "DEVTOOLS_WEBIDE_IMPORT_PROJECT_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has a project been imported into the DevTools WebIDE?"
+  },
   "DEVTOOLS_CUSTOM_OPENED_BOOLEAN": {
     "expires_in_version": "never",
     "kind": "boolean",
@@ -6834,6 +6859,26 @@
     "expires_in_version": "never",
     "kind": "flag",
     "description": "How many users have opened the DevTools WebIDE?"
+  },
+  "DEVTOOLS_WEBIDE_PROJECT_EDITOR_OPENED_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have opened the DevTools WebIDE project editor?"
+  },
+  "DEVTOOLS_WEBIDE_PROJECT_EDITOR_SAVE_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have saved a file in the DevTools WebIDE project editor?"
+  },
+  "DEVTOOLS_WEBIDE_NEW_PROJECT_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have created a new project in the DevTools WebIDE?"
+  },
+  "DEVTOOLS_WEBIDE_IMPORT_PROJECT_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have imported a project into the DevTools WebIDE?"
   },
   "DEVTOOLS_CUSTOM_OPENED_PER_USER_FLAG": {
     "expires_in_version": "never",
@@ -7014,6 +7059,13 @@
     "high": "10000000",
     "n_buckets": 100,
     "description": "How long has WebIDE been active (seconds)"
+  },
+  "DEVTOOLS_WEBIDE_PROJECT_EDITOR_TIME_ACTIVE_SECONDS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "10000000",
+    "n_buckets": 100,
+    "description": "How long has WebIDE's project editor been active (seconds)"
   },
   "DEVTOOLS_CUSTOM_TIME_ACTIVE_SECONDS": {
     "expires_in_version": "never",
@@ -7871,7 +7923,7 @@
     "expires_in_version": "never",
     "kind": "enumerated",
     "n_values": 4,
-    "description": "Tracking protection shield (0 = not shown, 1 = loaded, 2 = blocked, 3 = due to mixed content"
+    "description": "Tracking protection shield (0 = not shown, 1 = loaded, 2 = blocked)"
   },
   "TRACKING_PROTECTION_EVENTS": {
     "expires_in_version": "never",
@@ -7903,7 +7955,7 @@
   },
   "LOOP_TWO_WAY_MEDIA_CONN_LENGTH_1": {
     "alert_emails": ["firefox-dev@mozilla.org", "dmose@mozilla.com"],
-    "expires_in_version": "43",
+    "expires_in_version": "45",
     "kind": "enumerated",
     "n_values": 8,
     "releaseChannelCollection": "opt-out",
@@ -7911,7 +7963,7 @@
   },
   "LOOP_SHARING_STATE_CHANGE_1": {
     "alert_emails": ["firefox-dev@mozilla.org", "mdeboer@mozilla.com"],
-    "expires_in_version": "43",
+    "expires_in_version": "45",
     "kind": "enumerated",
     "n_values": 8,
     "releaseChannelCollection": "opt-out",
@@ -8341,6 +8393,19 @@
     "n_values" : 20,
     "description": "The result of auto-filling a login form. See http://mzl.la/1Mbs6jL for bucket descriptions."
   },
+  "PWMGR_LOGIN_LAST_USED_DAYS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 750,
+    "n_buckets" : 40,
+    "description": "Time in days each saved login was last used"
+  },
+  "PWMGR_LOGIN_PAGE_SAFETY": {
+    "expires_in_version": "55",
+    "kind": "enumerated",
+    "n_values": 8,
+    "description": "The safety of a page where we see a password field. (0=unsafe, 1=safe)"
+  },
   "PWMGR_MANAGE_COPIED_PASSWORD": {
     "expires_in_version": "never",
     "kind": "count",
@@ -8400,13 +8465,6 @@
     "n_buckets" : 50,
     "description": "Number of HTTP Auth logins"
   },
-  "PWMGR_LOGIN_LAST_USED_DAYS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 750,
-    "n_buckets" : 40,
-    "description": "Time in days each saved login was last used"
-  },
   "PWMGR_PASSWORD_INPUT_IN_FORM": {
     "expires_in_version": "never",
     "kind": "boolean",
@@ -8461,6 +8519,26 @@
     "kind": "count",
     "description": "The number of Sync 1.5 migrations completed by Android Sync."
   },
+  "FENNEC_SYNC_NUMBER_OF_SYNCS_STARTED": {
+    "expires_in_version": "45",
+    "kind": "count",
+    "description": "Counts the number of times that a sync has started."
+  },
+  "FENNEC_SYNC_NUMBER_OF_SYNCS_COMPLETED": {
+    "expires_in_version": "45",
+    "kind": "count",
+    "description": "Counts the number of times that a sync has completed with no errors."
+  },
+  "FENNEC_SYNC_NUMBER_OF_SYNCS_FAILED": {
+    "expires_in_version": "45",
+    "kind": "count",
+    "description": "Counts the number of times that a sync has failed with errors."
+  },
+  "FENNEC_SYNC_NUMBER_OF_SYNCS_FAILED_BACKOFF": {
+    "expires_in_version": "45",
+    "kind": "count",
+    "description": "Counts the number of times that a sync has failed because of trying to sync before server backoff interval has passed."
+  },
   "SLOW_SCRIPT_NOTICE_COUNT": {
     "alert_emails": ["perf-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
@@ -8501,6 +8579,11 @@
     "expires_in_version": "50",
     "kind": "count",
     "description": "Tracking whether a ServiceWorker spawn gets queued due to hitting max workers per domain limit. File bugs in Core::DOM in case of a Telemetry regression."
+  },
+  "SHARED_WORKER_SPAWN_GETS_QUEUED": {
+    "expires_in_version": "50",
+    "kind": "count",
+    "description": "Tracking whether a SharedWorker spawn gets queued due to hitting max workers per domain limit. File bugs in Core::DOM in case of a Telemetry regression."
   },
   "SERVICE_WORKER_REGISTRATIONS": {
     "expires_in_version": "50",
@@ -8653,5 +8736,211 @@
     "expires_in_version": "44",
     "kind": "boolean",
     "description": "Was there an error while performing the v7 permissions DB migration?"
+  },
+  "LOOP_ICE_FINAL_CONNECTION_STATE": {
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 7,
+    "description": "The ICE connection state when the PC was closed"
+  },
+  "LOOP_ICE_SUCCESS_TIME": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "20",
+    "description": "The length of time (in milliseconds) it took for ICE to complete, given that ICE succeeded."
+  },
+  "LOOP_ICE_FAILURE_TIME": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "20",
+    "description": "The length of time (in milliseconds) it took for ICE to complete, given that it failed."
+  },
+  "LOOP_ICE_SUCCESS_RATE": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "The number of failed ICE Connections (0) vs. number of successful ICE connections (1)."
+  },
+  "LOOP_CANDIDATE_TYPES_GIVEN_SUCCESS": {
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 128,
+    "description": "A bitpattern indicating what types of candidates were present. Bit 0: Remote server reflexive. Bit 1: Remote relayed. Bit 2: Local server reflexive. Bits 3-6: Local UDP, TCP, TLS, and HTTPS relay respectively."
+  },
+  "LOOP_CANDIDATE_TYPES_GIVEN_FAILURE": {
+    "expires_in_version": "never",
+    "kind": "enumerated",
+    "n_values": 128,
+    "description": "Identical to LOOP_CANDIDATE_TYPES_GIVEN_SUCCEESS, except recorded only when ICE fails on the stream in question."
+  },
+  "LOOP_VIDEO_QUALITY_INBOUND_BANDWIDTH_KBITS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000000,
+    "n_buckets": 1000,
+    "description": "Locally measured data rate of inbound video (kbit/s). Computed every second of a call."
+  },
+  "LOOP_AUDIO_QUALITY_INBOUND_BANDWIDTH_KBITS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000000,
+    "n_buckets": 1000,
+    "description": "Locally measured data rate on inbound audio (kbit/s). Computed every second of a call."
+  },
+  "LOOP_VIDEO_QUALITY_OUTBOUND_BANDWIDTH_KBITS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000000,
+    "n_buckets": 1000,
+    "description": "Data rate deduced from RTCP from remote recipient of outbound video (kbit/s). Computed every second of a call (for easy comparison)."
+  },
+  "LOOP_AUDIO_QUALITY_OUTBOUND_BANDWIDTH_KBITS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000000,
+    "n_buckets": 1000,
+    "description": "Data rate deduced from RTCP from remote recipient of outbound audio (kbit/s). Computed every second of a call (for easy comparison)."
+  },
+  "LOOP_VIDEO_ERROR_RECOVERY_MS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 10000,
+    "n_buckets": 500,
+    "description": "Time to recover from a video error in ms"
+  },
+  "LOOP_VIDEO_RECOVERY_BEFORE_ERROR_PER_MIN": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000,
+    "n_buckets": 200,
+    "description": "Number of losses recovered before error per min"
+  },
+  "LOOP_VIDEO_RECOVERY_AFTER_ERROR_PER_MIN": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000,
+    "n_buckets": 200,
+    "description": "Number of losses recovered after error per min"
+  },
+  "LOOP_VIDEO_DECODE_ERROR_TIME_PERMILLE": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 1000,
+    "n_buckets": 100,
+    "description": "Percentage*10 (permille) of call decoding with errors or frozen due to errors"
+  },
+  "LOOP_VIDEO_QUALITY_OUTBOUND_RTT": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 10000,
+    "n_buckets": 1000,
+    "description": "Roundtrip time of outbound video (ms). Sampled every second of a call."
+  },
+  "LOOP_AUDIO_QUALITY_OUTBOUND_RTT": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 10000,
+    "n_buckets": 1000,
+    "description": "Roundtrip time of outbound audio (ms). Sampled every second of a call."
+  },
+  "LOOP_VIDEO_ENCODER_BITRATE_AVG_PER_CALL_KBPS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 10000,
+    "n_buckets": 100,
+    "description": "Video encoder's average bitrate (in kbits/s) over an entire call"
+  },
+  "LOOP_VIDEO_ENCODER_BITRATE_STD_DEV_PER_CALL_KBPS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 5000,
+    "n_buckets": 100,
+    "description": "Standard deviation from video encoder's average bitrate (in kbits/s) over an entire call"
+  },
+  "LOOP_VIDEO_ENCODER_FRAMERATE_AVG_PER_CALL": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 200,
+    "n_buckets": 50,
+    "description": "Video encoder's average framerate (in fps) over an entire call"
+  },
+  "LOOP_VIDEO_ENCODER_FRAMERATE_10X_STD_DEV_PER_CALL": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 200,
+    "n_buckets": 50,
+    "description": "Standard deviation from video encoder's average framerate (in 1/10 fps) over an entire call"
+  },
+  "LOOP_VIDEO_ENCODER_DROPPED_FRAMES_PER_CALL_FPM": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 50000,
+    "n_buckets": 100,
+    "description": "Video encoder's number of frames dropped (in frames/min) over an entire call"
+  },
+  "LOOP_VIDEO_DECODER_BITRATE_AVG_PER_CALL_KBPS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 10000,
+    "n_buckets": 100,
+    "description": "Video decoder's average bitrate (in kbits/s) over an entire call"
+  },
+  "LOOP_VIDEO_DECODER_BITRATE_STD_DEV_PER_CALL_KBPS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 5000,
+    "n_buckets": 100,
+    "description": "Standard deviation from video decoder's average bitrate (in kbits/s) over an entire call"
+  },
+  "LOOP_VIDEO_DECODER_FRAMERATE_AVG_PER_CALL": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "200",
+    "n_buckets": "50",
+    "description": "Video decoder's average framerate (in fps) over an entire call"
+  },
+  "LOOP_VIDEO_DECODER_FRAMERATE_10X_STD_DEV_PER_CALL": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "200",
+    "n_buckets": "50",
+    "description": "Standard deviation from video decoder's average framerate (in 1/10 fps) over an entire call"
+  },
+  "LOOP_VIDEO_DECODER_DISCARDED_PACKETS_PER_CALL_PPM": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": 50000,
+    "n_buckets": 100,
+    "description": "Video decoder's number of discarded packets (in packets/min) over an entire call"
+  },
+  "LOOP_CALL_DURATION": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "1000",
+    "description": "The length of time (in seconds) that a call lasted."
+  },
+  "LOOP_ICE_ADD_CANDIDATE_ERRORS_GIVEN_SUCCESS": {
+    "expires_in_version": "never",
+    "kind": "linear",
+    "high": "30",
+    "n_buckets": "29",
+    "description": "The number of times AddIceCandidate failed on a given PeerConnection, given that ICE succeeded."
+  },
+  "LOOP_ICE_ADD_CANDIDATE_ERRORS_GIVEN_FAILURE": {
+    "expires_in_version": "never",
+    "kind": "linear",
+    "high": "30",
+    "n_buckets": "29",
+    "description": "The number of times AddIceCandidate failed on a given PeerConnection, given that ICE failed."
+  },
+  "PERF_MONITORING_TEST_CPU_RESCHEDULING_PROPORTION_MOVED": {
+    "alert_emails": ["dteller@mozilla.com"],
+    "expires_in_version": "44",
+    "kind": "linear",
+    "high": "100",
+    "n_buckets": "20",
+    "description": "Proportion (%) of reschedulings of the main process to another CPU during the execution of code inside a JS compartment. Updated while we are measuring jank."
   }
 }

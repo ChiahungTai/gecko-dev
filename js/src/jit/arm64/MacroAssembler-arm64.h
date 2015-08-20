@@ -59,29 +59,10 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
     bool enoughMemory_;
     uint32_t framePushed_;
 
-    // TODO: Can this be moved out of the MacroAssembler and into some shared code?
-    // TODO: All the code seems to be arch-independent, and it's weird to have this here.
-    bool inCall_;
-    bool usedOutParam_;
-    uint32_t args_;
-    uint32_t passedIntArgs_;
-    uint32_t passedFloatArgs_;
-    uint32_t passedArgTypes_;
-    uint32_t stackForCall_;
-    bool dynamicAlignment_;
-
     MacroAssemblerCompat()
       : vixl::MacroAssembler(),
         enoughMemory_(true),
-        framePushed_(0),
-        inCall_(false),
-        usedOutParam_(false),
-        args_(0),
-        passedIntArgs_(0),
-        passedFloatArgs_(0),
-        passedArgTypes_(0),
-        stackForCall_(0),
-        dynamicAlignment_(false)
+        framePushed_(0)
     { }
 
   protected:
@@ -1557,15 +1538,12 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
         Ret(vixl::ip0);
     }
 
-    void j(Condition code, Label* dest) {
-        b(dest, code);
-    }
-    void j(Label* dest) {
-        b(dest, Always);
+    void j(Condition cond, Label* dest) {
+        B(dest, cond);
     }
 
     void branch(Condition cond, Label* label) {
-        b(label, cond);
+        B(label, cond);
     }
     void branch(JitCode* target) {
         syncStackPtr();
@@ -1576,20 +1554,20 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
     void branch32(Condition cond, const Operand& lhs, Register rhs, Label* label) {
         // since rhs is an operand, do the compare backwards
         Cmp(ARMRegister(rhs, 32), lhs);
-        b(label, Assembler::InvertCmpCondition(cond));
+        B(label, Assembler::InvertCmpCondition(cond));
     }
     void branch32(Condition cond, const Operand& lhs, Imm32 rhs, Label* label) {
         ARMRegister l = lhs.reg();
         Cmp(l, Operand(rhs.value));
-        b(label, cond);
+        B(label, cond);
     }
     void branch32(Condition cond, Register lhs, Register rhs, Label* label) {
         cmp32(lhs, rhs);
-        b(label, cond);
+        B(label, cond);
     }
     void branch32(Condition cond, Register lhs, Imm32 imm, Label* label) {
         cmp32(lhs, imm);
-        b(label, cond);
+        B(label, cond);
     }
     void branch32(Condition cond, const Address& lhs, Register rhs, Label* label) {
         vixl::UseScratchRegisterScope temps(this);
@@ -1676,7 +1654,7 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
         MOZ_ASSERT(!label->bound());
         if (cond != Always) {
             Label notTaken;
-            b(&notTaken, Assembler::InvertCondition(cond));
+            B(&notTaken, Assembler::InvertCondition(cond));
             branch_bo = b(-1);
             bind(&notTaken);
         } else {
@@ -2536,7 +2514,7 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
             Label onFalse;
             branch(Zero, &onFalse);
             branch(Overflow, &onFalse);
-            b(label);
+            B(label);
             bind(&onFalse);
         }
     }
@@ -2653,47 +2631,7 @@ class MacroAssemblerCompat : public vixl::MacroAssembler
             Add(dest64, dest64, Operand(address.offset));
     }
 
-  private:
-    void setupABICall(uint32_t args);
-
   public:
-    // Setup a call to C/C++ code, given the number of general arguments it
-    // takes. Note that this only supports cdecl.
-    //
-    // In order for alignment to work correctly, the MacroAssembler must have a
-    // consistent view of the stack displacement. It is okay to call "push"
-    // manually, however, if the stack alignment were to change, the macro
-    // assembler should be notified before starting a call.
-    void setupAlignedABICall(uint32_t args) {
-        MOZ_CRASH("setupAlignedABICall");
-    }
-
-    // Sets up an ABI call for when the alignment is not known. This may need a
-    // scratch register.
-    void setupUnalignedABICall(uint32_t args, Register scratch);
-
-    // Arguments must be assigned to a C/C++ call in order. They are moved
-    // in parallel immediately before performing the call. This process may
-    // temporarily use more stack, in which case sp-relative addresses will be
-    // automatically adjusted. It is extremely important that sp-relative
-    // addresses are computed *after* setupABICall(). Furthermore, no
-    // operations should be emitted while setting arguments.
-    void passABIArg(const MoveOperand& from, MoveOp::Type type);
-    void passABIArg(Register reg);
-    void passABIArg(FloatRegister reg, MoveOp::Type type);
-    void passABIOutParam(Register reg);
-
-  private:
-    void callWithABIPre(uint32_t* stackAdjust);
-    void callWithABIPost(uint32_t stackAdjust, MoveOp::Type result);
-
-  public:
-    // Emits a call to a C/C++ function, resolving all argument moves.
-    void callWithABI(void* fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(Register fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(AsmJSImmPtr imm, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(Address fun, MoveOp::Type result = MoveOp::GENERAL);
-
     CodeOffsetLabel labelForPatch() {
         return CodeOffsetLabel(nextOffset().getOffset());
     }

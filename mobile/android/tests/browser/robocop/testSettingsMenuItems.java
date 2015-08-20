@@ -32,7 +32,6 @@ public class testSettingsMenuItems extends PixelTest {
 
     // Privacy menu items.
     String[] PATH_PRIVACY;
-    String[] MANAGE_LOGINS_ARR;
     String[][] OPTIONS_PRIVACY;
 
     // Mozilla/vendor menu items.
@@ -95,13 +94,12 @@ public class testSettingsMenuItems extends PixelTest {
         };
 
         PATH_PRIVACY = new String[] { mStringHelper.PRIVACY_SECTION_LABEL };
-        MANAGE_LOGINS_ARR = new String[] { mStringHelper.MANAGE_LOGINS_LABEL };
         OPTIONS_PRIVACY = new String[][] {
                 { mStringHelper.TRACKING_PROTECTION_LABEL },
                 { mStringHelper.DNT_LABEL },
                 { mStringHelper.COOKIES_LABEL, "Enabled", "Enabled, excluding 3rd party", "Disabled" },
                 { mStringHelper.REMEMBER_LOGINS_LABEL },
-                MANAGE_LOGINS_ARR,
+                { mStringHelper.MANAGE_LOGINS_LABEL },
                 { mStringHelper.MASTER_PASSWORD_LABEL },
                 { mStringHelper.CLEAR_PRIVATE_DATA_LABEL, "", "Browsing history", "Search history", "Downloads", "Form history", "Cookies & active logins", mStringHelper.CLEAR_PRIVATE_DATA_LABEL, "Cache", "Offline website data", "Site settings", "Clear data" },
         };
@@ -194,11 +192,6 @@ public class testSettingsMenuItems extends PixelTest {
             }
         }
 
-        if (!AppConstants.NIGHTLY_BUILD) {
-            final List<String[]> privacy = settingsMap.get(PATH_PRIVACY);
-            privacy.remove(MANAGE_LOGINS_ARR);
-        }
-
         // Automatic updates
         if (AppConstants.MOZ_UPDATER) {
             String[] autoUpdateUi = { "Download updates automatically", "Only over Wi-Fi", "Always", "Only over Wi-Fi", "Never" };
@@ -206,7 +199,7 @@ public class testSettingsMenuItems extends PixelTest {
         }
 
         // Tab Queue
-        if (AppConstants.NIGHTLY_BUILD && AppConstants.MOZ_ANDROID_TAB_QUEUE) {
+        if (AppConstants.MOZ_ANDROID_TAB_QUEUE) {
             final String[] tabQueue = { mStringHelper.TAB_QUEUE_LABEL, mStringHelper.TAB_QUEUE_SUMMARY };
             settingsMap.get(PATH_CUSTOMIZE).add(tabQueue);
         }
@@ -299,8 +292,9 @@ public class testSettingsMenuItems extends PixelTest {
                 }
             }
 
-            // Navigate back if on a phone. Tablets shouldn't do this because they use headers and fragments.
-            if (mDevice.type.equals("phone")) {
+            // Navigate back if on a phone or small tablets. Large tablets
+            // shouldn't do this because they use headers and fragments.
+            if (mDevice.type.equals("phone") || HardwareUtils.isSmallTablet()) {
                 int menuDepth = menuPath.length;
                 while (menuDepth > 0) {
                     mSolo.goBack();

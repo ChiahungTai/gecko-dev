@@ -10,12 +10,12 @@
 
 #include "jsnativestack.h"
 #include "jsnum.h" // For FIX_FPU()
-#include "prmjtime.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "gc/GCInternals.h"
 #include "jit/IonBuilder.h"
 #include "vm/Debugger.h"
+#include "vm/Time.h"
 #include "vm/TraceLogging.h"
 
 #include "jscntxtinlines.h"
@@ -181,7 +181,7 @@ js::CancelOffThreadIonCompile(JSCompartment* compartment, JSScript* script)
     while (builder) {
         jit::IonBuilder* next = builder->getNext();
         if (CompiledScriptMatches(compartment, script, builder->script())) {
-            builder->script()->setPendingIonBuilder(nullptr, nullptr);
+            builder->script()->baselineScript()->removePendingIonBuilder(builder->script());
             jit::FinishOffThreadBuilder(nullptr, builder);
         }
         builder = next;

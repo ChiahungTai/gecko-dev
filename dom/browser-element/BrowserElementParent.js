@@ -205,7 +205,7 @@ BrowserElementParent.prototype = {
     };
 
     let mmSecuritySensitiveCalls = {
-      "mediaplaybackchange": this._fireEventFromMsg,
+      "audioplaybackchange": this._fireEventFromMsg,
       "showmodalprompt": this._handleShowModalPrompt,
       "contextmenu": this._fireCtxMenuEvent,
       "securitychange": this._fireEventFromMsg,
@@ -234,6 +234,8 @@ BrowserElementParent.prototype = {
                  .apply(self, arguments);
       }
     });
+
+    this._mm.loadFrameScript("chrome://global/content/extensions.js", true);
   },
 
   /**
@@ -452,6 +454,7 @@ BrowserElementParent.prototype = {
   //  - collapsed: Indicate current selection is collapsed or not.
   //  - caretVisible: Indicate the caret visiibility.
   //  - selectionVisible: Indicate current selection is visible or not.
+  //  - selectionEditable: Indicate current selection is editable or not.
   _handleCaretStateChanged: function(data) {
     let evt = this._createEvent('caretstatechanged', data.json,
                                 /* cancelable = */ false);

@@ -12,6 +12,7 @@
 #include "nsTArray.h"
 
 namespace mozilla {
+class ErrorResult;
 namespace layers {
 class Image;
 }
@@ -232,11 +233,6 @@ private:
   // This raw pointer is set and unset into the ::Read(). It's always null
   // outside that method. For this reason it's a raw pointer.
   nsISupports* MOZ_NON_OWNING_REF mParent;
-
-  // This hashtable contains the ports while doing write (transferring and
-  // mapping transferred objects to the objects in the clone). It's an empty
-  // array outside the 'Write()' method.
-  nsTArray<nsRefPtr<MessagePortBase>> mTransferringPort;
 
   // This array contains the ports once we've finished the reading. It's
   // generated from the mPortIdentifiers array.

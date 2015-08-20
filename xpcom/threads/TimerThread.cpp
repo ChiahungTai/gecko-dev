@@ -393,7 +393,6 @@ struct IntervalComparator
 
 } // namespace
 
-/* void Run(); */
 NS_IMETHODIMP
 TimerThread::Run()
 {
@@ -710,16 +709,9 @@ TimerThread::PostTimerEvent(already_AddRefed<nsTimerImpl> aTimerRef)
   }
 
   // If this is a repeating precise timer, we need to calculate the time for
-  // the next timer to fire before we make the callback.
+  // the next timer to fire before we make the callback. But don't re-arm.
   if (timer->IsRepeatingPrecisely()) {
     timer->SetDelayInternal(timer->mDelay);
-
-    // But only re-arm REPEATING_PRECISE timers.
-    if (timer->mType == nsTimerImpl::TYPE_REPEATING_PRECISE) {
-      if (AddTimerInternal(timer) == -1) {
-        return timer.forget();
-      }
-    }
   }
 
 #ifdef MOZ_TASK_TRACER
@@ -790,7 +782,6 @@ TimerThread::DoAfterSleep()
 }
 
 
-/* void observe (in nsISupports aSubject, in string aTopic, in wstring aData); */
 NS_IMETHODIMP
 TimerThread::Observe(nsISupports* /* aSubject */, const char* aTopic,
                      const char16_t* /* aData */)

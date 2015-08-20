@@ -64,10 +64,6 @@ const kEventConstructors = {
                                                           return new BluetoothDeviceEvent(aName, aProps);
                                                        },
                                              },
-  BluetoothDiscoveryStateChangedEvent:       { create: function (aName, aProps) {
-                                                          return new BluetoothDiscoveryStateChangedEvent(aName, aProps);
-                                                       },
-                                             },
   BluetoothGattCharacteristicEvent:          { create: function (aName, aProps) {
                                                           return new BluetoothGattCharacteristicEvent(aName, aProps);
                                                        },
@@ -132,10 +128,6 @@ const kEventConstructors = {
                                                          e.initCompositionEvent(aName, aProps.bubbles, aProps.cancelable,
                                                                                 aProps.view, aProps.data, aProps.locale);
                                                          return e;
-                                                       },
-                                             },
-  CSSFontFaceLoadEvent:                      { create: function (aName, aProps) {
-                                                         return new CSSFontFaceLoadEvent(aName, aProps);
                                                        },
                                              },
   CustomEvent:                               { create: function (aName, aProps) {
@@ -209,6 +201,10 @@ const kEventConstructors = {
   },
   FocusEvent:                                { create: function (aName, aProps) {
                                                          return new FocusEvent(aName, aProps);
+                                                       },
+                                             },
+  FontFaceSetLoadEvent:                      { create: function (aName, aProps) {
+                                                         return new FontFaceSetLoadEvent(aName, aProps);
                                                        },
                                              },
   GamepadEvent:                              { create: function (aName, aProps) {

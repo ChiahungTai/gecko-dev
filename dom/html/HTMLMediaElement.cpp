@@ -89,6 +89,7 @@
 #include "ImageContainer.h"
 #include "nsRange.h"
 #include <algorithm>
+#include <cmath>
 
 static PRLogModuleInfo* gMediaElementLog;
 static PRLogModuleInfo* gMediaElementEventsLog;
@@ -102,6 +103,7 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 
 #include "nsIPermissionManager.h"
 #include "nsContentTypeParser.h"
+#include "nsDocShell.h"
 
 #include "mozilla/EventStateManager.h"
 
@@ -573,7 +575,6 @@ HTMLMediaElement::SetMozSrcObject(DOMMediaStream* aValue)
   DoLoad();
 }
 
-/* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
 NS_IMETHODIMP HTMLMediaElement::GetMozAutoplayEnabled(bool *aAutoplayEnabled)
 {
   *aAutoplayEnabled = mAutoplayEnabled;
@@ -581,7 +582,6 @@ NS_IMETHODIMP HTMLMediaElement::GetMozAutoplayEnabled(bool *aAutoplayEnabled)
   return NS_OK;
 }
 
-/* readonly attribute nsIDOMMediaError error; */
 NS_IMETHODIMP HTMLMediaElement::GetError(nsIDOMMediaError * *aError)
 {
   NS_IF_ADDREF(*aError = mError);
@@ -589,7 +589,6 @@ NS_IMETHODIMP HTMLMediaElement::GetError(nsIDOMMediaError * *aError)
   return NS_OK;
 }
 
-/* readonly attribute boolean ended; */
 bool
 HTMLMediaElement::Ended()
 {
@@ -610,7 +609,6 @@ NS_IMETHODIMP HTMLMediaElement::GetEnded(bool* aEnded)
   return NS_OK;
 }
 
-/* readonly attribute DOMString currentSrc; */
 NS_IMETHODIMP HTMLMediaElement::GetCurrentSrc(nsAString & aCurrentSrc)
 {
   nsAutoCString src;
@@ -619,7 +617,6 @@ NS_IMETHODIMP HTMLMediaElement::GetCurrentSrc(nsAString & aCurrentSrc)
   return NS_OK;
 }
 
-/* readonly attribute unsigned short networkState; */
 NS_IMETHODIMP HTMLMediaElement::GetNetworkState(uint16_t* aNetworkState)
 {
   *aNetworkState = NetworkState();
@@ -811,7 +808,6 @@ void HTMLMediaElement::QueueSelectResourceTask()
     NS_NewRunnableMethod(this, &HTMLMediaElement::SelectResourceWrapper));
 }
 
-/* void load (); */
 NS_IMETHODIMP HTMLMediaElement::Load()
 {
   if (mIsRunningLoadMethod) {
@@ -1347,7 +1343,6 @@ nsresult HTMLMediaElement::LoadWithChannel(nsIChannel* aChannel,
   return NS_OK;
 }
 
-/* readonly attribute unsigned short readyState; */
 NS_IMETHODIMP HTMLMediaElement::GetReadyState(uint16_t* aReadyState)
 {
   *aReadyState = ReadyState();
@@ -1355,7 +1350,6 @@ NS_IMETHODIMP HTMLMediaElement::GetReadyState(uint16_t* aReadyState)
   return NS_OK;
 }
 
-/* readonly attribute boolean seeking; */
 bool
 HTMLMediaElement::Seeking() const
 {
@@ -1368,7 +1362,6 @@ NS_IMETHODIMP HTMLMediaElement::GetSeeking(bool* aSeeking)
   return NS_OK;
 }
 
-/* attribute double currentTime; */
 double
 HTMLMediaElement::CurrentTime() const
 {
@@ -1590,7 +1583,6 @@ NS_IMETHODIMP HTMLMediaElement::SetCurrentTime(double aCurrentTime)
   return rv.StealNSResult();
 }
 
-/* readonly attribute double duration; */
 double
 HTMLMediaElement::Duration() const
 {
@@ -1621,7 +1613,6 @@ HTMLMediaElement::Seekable() const
   return ranges.forget();
 }
 
-/* readonly attribute nsIDOMHTMLTimeRanges seekable; */
 NS_IMETHODIMP HTMLMediaElement::GetSeekable(nsIDOMTimeRanges** aSeekable)
 {
   nsRefPtr<TimeRanges> ranges = Seekable();
@@ -1629,7 +1620,6 @@ NS_IMETHODIMP HTMLMediaElement::GetSeekable(nsIDOMTimeRanges** aSeekable)
   return NS_OK;
 }
 
-/* readonly attribute boolean paused; */
 NS_IMETHODIMP HTMLMediaElement::GetPaused(bool* aPaused)
 {
   *aPaused = Paused();
@@ -1665,7 +1655,6 @@ HTMLMediaElement::Played()
   return ranges.forget();
 }
 
-/* readonly attribute nsIDOMHTMLTimeRanges played; */
 NS_IMETHODIMP HTMLMediaElement::GetPlayed(nsIDOMTimeRanges** aPlayed)
 {
   nsRefPtr<TimeRanges> ranges = Played();
@@ -1673,7 +1662,6 @@ NS_IMETHODIMP HTMLMediaElement::GetPlayed(nsIDOMTimeRanges** aPlayed)
   return NS_OK;
 }
 
-/* void pause (); */
 void
 HTMLMediaElement::Pause(ErrorResult& aRv)
 {
@@ -1709,7 +1697,6 @@ NS_IMETHODIMP HTMLMediaElement::Pause()
   return rv.StealNSResult();
 }
 
-/* attribute double volume; */
 NS_IMETHODIMP HTMLMediaElement::GetVolume(double* aVolume)
 {
   *aVolume = Volume();
@@ -1788,7 +1775,6 @@ HTMLMediaElement::MozGetMetadata(JSContext* cx, JS::MutableHandle<JS::Value> aVa
   return rv.StealNSResult();
 }
 
-/* attribute boolean muted; */
 NS_IMETHODIMP HTMLMediaElement::GetMuted(bool* aMuted)
 {
   *aMuted = Muted();
@@ -1816,6 +1802,8 @@ void HTMLMediaElement::SetVolumeInternal()
   } else if (mSrcStream) {
     GetSrcMediaStream()->SetAudioOutputVolume(this, effectiveVolume);
   }
+
+  UpdateAudioChannelPlayingState();
 }
 
 NS_IMETHODIMP HTMLMediaElement::SetMuted(bool aMuted)
@@ -2883,6 +2871,10 @@ public:
     if (mElement) {
       nsRefPtr<HTMLMediaElement> deathGrip = mElement;
       mElement->PlaybackEnded();
+      // Update NextFrameStatus() to move to NEXT_FRAME_UNAVAILABLE and
+      // HAVE_CURRENT_DATA.
+      mElement = nullptr;
+      NotifyWatchers();
     }
   }
 
@@ -3108,7 +3100,11 @@ void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)
   GetSrcMediaStream()->AddAudioOutput(this);
   SetVolumeInternal();
 
+#ifdef MOZ_WIDGET_GONK
   bool bUseOverlayImage = mSrcStream->AsDOMHwMediaStream() != nullptr;
+#else
+  bool bUseOverlayImage = false;
+#endif
   VideoFrameContainer* container;
 
   if (bUseOverlayImage) {
@@ -3728,12 +3724,14 @@ bool HTMLMediaElement::CanActivateAutoplay()
 {
   // For stream inputs, we activate autoplay on HAVE_NOTHING because
   // this element itself might be blocking the stream from making progress by
-  // being paused.
+  // being paused. We also activate autopaly when playing a media source since
+  // the data download is controlled by the script and there is no way to
+  // evaluate MediaDecoder::CanPlayThrough().
   return !mPausedForInactiveDocumentOrChannel &&
          mAutoplaying &&
          mPaused &&
          ((mDecoder && mReadyState >= nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA) ||
-          mSrcStream) &&
+          mSrcStream || mMediaSource) &&
          HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
          mAutoplayEnabled &&
          !IsEditable();
@@ -4020,7 +4018,14 @@ void HTMLMediaElement::NotifyOwnerDocumentActivityChanged()
   if (pauseElement && mAudioChannelAgent) {
     // If the element is being paused since we are navigating away from the
     // document, notify the audio channel agent.
-    NotifyAudioChannelAgent(false);
+    // Be careful to ignore this event during a docshell frame swap.
+    auto docShell = static_cast<nsDocShell*>(OwnerDoc()->GetDocShell());
+    if (!docShell) {
+      return;
+    }
+    if (!docShell->InFrameSwap()) {
+      NotifyAudioChannelAgent(false);
+    }
   }
 }
 
@@ -4335,7 +4340,6 @@ void HTMLMediaElement::GetCurrentSpec(nsCString& aString)
   }
 }
 
-/* attribute double mozFragmentEnd; */
 double
 HTMLMediaElement::MozFragmentEnd()
 {
@@ -4366,7 +4370,6 @@ static double ClampPlaybackRate(double aPlaybackRate)
   return aPlaybackRate;
 }
 
-/* attribute double defaultPlaybackRate; */
 NS_IMETHODIMP HTMLMediaElement::GetDefaultPlaybackRate(double* aDefaultPlaybackRate)
 {
   *aDefaultPlaybackRate = DefaultPlaybackRate();
@@ -4392,7 +4395,6 @@ NS_IMETHODIMP HTMLMediaElement::SetDefaultPlaybackRate(double aDefaultPlaybackRa
   return rv.StealNSResult();
 }
 
-/* attribute double playbackRate; */
 NS_IMETHODIMP HTMLMediaElement::GetPlaybackRate(double* aPlaybackRate)
 {
   *aPlaybackRate = PlaybackRate();
@@ -4432,7 +4434,6 @@ NS_IMETHODIMP HTMLMediaElement::SetPlaybackRate(double aPlaybackRate)
   return rv.StealNSResult();
 }
 
-/* attribute bool mozPreservesPitch; */
 NS_IMETHODIMP HTMLMediaElement::GetMozPreservesPitch(bool* aPreservesPitch)
 {
   *aPreservesPitch = MozPreservesPitch();
@@ -4492,6 +4493,8 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
 
   bool playingThroughTheAudioChannel =
      (!mPaused &&
+      !Muted() &&
+      std::fabs(Volume()) > 1e-7 &&
       (HasAttr(kNameSpaceID_None, nsGkAtoms::loop) ||
        (mReadyState >= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA &&
         !IsPlaybackEnded()) ||
@@ -4531,13 +4534,17 @@ HTMLMediaElement::NotifyAudioChannelAgent(bool aPlaying)
   // this method has some content JS in its stack.
   AutoNoJSAPI nojsapi;
 
+  // Don't notify playback if this element doesn't have any audio tracks.
+  uint32_t notify = HasAudio() ? nsIAudioChannelAgent::AUDIO_AGENT_NOTIFY :
+                                 nsIAudioChannelAgent::AUDIO_AGENT_DONT_NOTIFY;
+
   if (aPlaying) {
     float volume = 0.0;
     bool muted = true;
-    mAudioChannelAgent->NotifyStartedPlaying(&volume, &muted);
+    mAudioChannelAgent->NotifyStartedPlaying(notify, &volume, &muted);
     WindowVolumeChanged(volume, muted);
   } else {
-    mAudioChannelAgent->NotifyStoppedPlaying();
+    mAudioChannelAgent->NotifyStoppedPlaying(notify);
     mAudioChannelAgent = nullptr;
   }
 }
@@ -4764,7 +4771,6 @@ HTMLMediaElement::VideoTracks()
   return mVideoTrackList;
 }
 
-/* readonly attribute TextTrackList? textTracks; */
 TextTrackList*
 HTMLMediaElement::GetTextTracks()
 {

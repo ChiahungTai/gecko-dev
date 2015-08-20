@@ -25,6 +25,7 @@
 #include "mozilla/net/ReferrerPolicy.h"  // for member
 #include "nsWeakReference.h"
 #include "mozilla/dom/DocumentBinding.h"
+#include "mozilla/UseCounter.h"
 #include "mozilla/WeakPtr.h"
 #include "Units.h"
 #include "nsExpirationTracker.h"
@@ -94,6 +95,7 @@ class ErrorResult;
 class EventStates;
 class PendingAnimationTracker;
 class SVGAttrAnimationRuleProcessor;
+template<typename> class OwningNonNull;
 
 namespace css {
 class Loader;
@@ -131,7 +133,9 @@ class MediaQueryList;
 class GlobalObject;
 class NodeFilter;
 class NodeIterator;
+enum class OrientationType : uint32_t;
 class ProcessingInstruction;
+class Promise;
 class StyleSheetList;
 class SVGDocument;
 class Touch;
@@ -142,7 +146,6 @@ class XPathEvaluator;
 class XPathExpression;
 class XPathNSResolver;
 class XPathResult;
-template<typename> class OwningNonNull;
 template<typename> class Sequence;
 
 template<typename, typename> class CallbackObjectHolder;
@@ -152,8 +155,8 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0xbbce44c8, 0x22fe, 0x404f, \
-  { 0x9e, 0x71, 0x23, 0x1d, 0xf4, 0xcc, 0x8e, 0x34 } }
+{ 0x292450a1, 0x285e, 0x4a09, \
+  { 0x9a, 0xf9, 0x61, 0xf9, 0xb1, 0xbd, 0x27, 0xcc } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1201,6 +1204,14 @@ public:
 
   static void UnlockPointer(nsIDocument* aDoc = nullptr);
 
+  // ScreenOrientation related APIs
+
+  virtual void SetCurrentOrientation(mozilla::dom::OrientationType aType,
+                                     uint16_t aAngle) = 0;
+  virtual uint16_t CurrentOrientationAngle() const = 0;
+  virtual mozilla::dom::OrientationType CurrentOrientationType() const = 0;
+  virtual void SetOrientationPendingPromise(mozilla::dom::Promise* aPromise) = 0;
+  virtual mozilla::dom::Promise* GetOrientationPendingPromise() const = 0;
 
   //----------------------------------------------------------------------
 
@@ -1372,10 +1383,11 @@ public:
 
   /**
    * Create an element with the specified name, prefix and namespace ID.
+   * Returns null if element name parsing failed.
    */
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
-                              int32_t aNamespaceID,
-                              nsIContent** aResult) = 0;
+  virtual already_AddRefed<Element> CreateElem(const nsAString& aName,
+                                               nsIAtom* aPrefix,
+                                               int32_t aNamespaceID) = 0;
 
   /**
    * Get the security info (i.e. SSL state etc) that the document got
@@ -1713,7 +1725,7 @@ public:
 
   bool IsResourceDoc() const {
     return IsBeingUsedAsImage() || // Are we a helper-doc for an SVG image?
-      !!mDisplayDocument;          // Are we an external resource doc?
+      mHasDisplayDocument;         // Are we an external resource doc?
   }
 
   /**
@@ -1742,6 +1754,7 @@ public:
     NS_PRECONDITION(!aDisplayDocument->GetDisplayDocument(),
                     "Display documents should not nest");
     mDisplayDocument = aDisplayDocument;
+    mHasDisplayDocument = !!aDisplayDocument;
   }
 
   /**
@@ -2023,7 +2036,8 @@ public:
    */
   virtual void PreloadStyle(nsIURI* aURI, const nsAString& aCharset,
                             const nsAString& aCrossOriginAttr,
-                            ReferrerPolicyEnum aReferrerPolicy) = 0;
+                            ReferrerPolicyEnum aReferrerPolicy,
+                            const nsAString& aIntegrity) = 0;
 
   /**
    * Called by the chrome registry to load style sheets.  Can be put
@@ -2314,6 +2328,8 @@ public:
     eAttributeChanged
   };
 
+  nsIDocument* GetTopLevelContentDocument();
+
   /**
    * Registers an unresolved custom element that is a candidate for
    * upgrade when the definition is registered via registerElement.
@@ -2512,9 +2528,9 @@ public:
   already_AddRefed<mozilla::dom::TouchList> CreateTouchList();
   already_AddRefed<mozilla::dom::TouchList>
     CreateTouchList(mozilla::dom::Touch& aTouch,
-                    const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
+                    const mozilla::dom::Sequence<mozilla::OwningNonNull<mozilla::dom::Touch> >& aTouches);
   already_AddRefed<mozilla::dom::TouchList>
-    CreateTouchList(const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
+    CreateTouchList(const mozilla::dom::Sequence<mozilla::OwningNonNull<mozilla::dom::Touch> >& aTouches);
 
   void SetStyleSheetChangeEventsEnabled(bool aValue)
   {
@@ -2576,6 +2592,41 @@ public:
   mozilla::dom::FontFaceSet* Fonts();
 
   bool DidFireDOMContentLoaded() const { return mDidFireDOMContentLoaded; }
+
+  void SetDocumentUseCounter(mozilla::UseCounter aUseCounter)
+  {
+    if (!mUseCounters[aUseCounter]) {
+      mUseCounters[aUseCounter] = true;
+    }
+  }
+
+  void SetPageUseCounter(mozilla::UseCounter aUseCounter);
+
+  void SetDocumentAndPageUseCounter(mozilla::UseCounter aUseCounter)
+  {
+    SetDocumentUseCounter(aUseCounter);
+    SetPageUseCounter(aUseCounter);
+  }
+
+  void PropagateUseCounters(nsIDocument* aParentDocument);
+
+protected:
+  bool GetUseCounter(mozilla::UseCounter aUseCounter)
+  {
+    return mUseCounters[aUseCounter];
+  }
+
+  void SetChildDocumentUseCounter(mozilla::UseCounter aUseCounter)
+  {
+    if (!mChildDocumentUseCounters[aUseCounter]) {
+      mChildDocumentUseCounters[aUseCounter] = true;
+    }
+  }
+
+  bool GetChildDocumentUseCounter(mozilla::UseCounter aUseCounter)
+  {
+    return mChildDocumentUseCounters[aUseCounter];
+  }
 
 private:
   mutable std::bitset<eDeprecatedOperationCount> mDeprecationWarnedAbout;
@@ -2808,6 +2859,12 @@ protected:
   // caches.
   bool mDidDocumentOpen : 1;
 
+  // Whether this document has a display document and thus is considered to
+  // be a resource document.  Normally this is the same as !!mDisplayDocument,
+  // but mDisplayDocument is cleared during Unlink.  mHasDisplayDocument is
+  // valid in the document's destructor.
+  bool mHasDisplayDocument : 1;
+
   // Is the current mFontFaceSet valid?
   bool mFontFaceSetDirty : 1;
 
@@ -2954,6 +3011,14 @@ protected:
 
   // Our live MediaQueryLists
   PRCList mDOMMediaQueryLists;
+
+  // Flags for use counters used directly by this document.
+  std::bitset<mozilla::eUseCounter_Count> mUseCounters;
+  // Flags for use counters used by any child documents of this document.
+  std::bitset<mozilla::eUseCounter_Count> mChildDocumentUseCounters;
+  // Flags for whether we've notified our top-level "page" of a use counter
+  // for this child document.
+  std::bitset<mozilla::eUseCounter_Count> mNotifiedPageForUseCounter;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

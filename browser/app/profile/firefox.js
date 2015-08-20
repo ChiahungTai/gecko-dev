@@ -271,8 +271,13 @@ pref("browser.urlbar.doubleClickSelectsAll", false);
 pref("browser.urlbar.autoFill", true);
 pref("browser.urlbar.autoFill.typed", true);
 
+#ifdef NIGHTLY_BUILD
 // Use the new unifiedComplete component
 pref("browser.urlbar.unifiedcomplete", true);
+#else
+// Don't use the new unifiedComplete component
+pref("browser.urlbar.unifiedcomplete", false);
+#endif
 
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
@@ -305,11 +310,8 @@ pref("browser.urlbar.match.url", "@");
 pref("browser.urlbar.suggest.history",              true);
 pref("browser.urlbar.suggest.bookmark",             true);
 pref("browser.urlbar.suggest.openpage",             true);
-#ifdef NIGHTLY_BUILD
-pref("browser.urlbar.suggest.searches",             true);
-#else
 pref("browser.urlbar.suggest.searches",             false);
-#endif
+pref("browser.urlbar.userMadeSearchSuggestionsChoice", false);
 
 // Limit the number of characters sent to the current search engine to fetch
 // suggestions.
@@ -452,11 +454,7 @@ pref("browser.tabs.drawInTitlebar", true);
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
 
-#ifdef RELEASE_BUILD
-pref("browser.tabs.showAudioPlayingIcon", false);
-#else
 pref("browser.tabs.showAudioPlayingIcon", true);
-#endif
 
 pref("browser.ctrlTab.previews", false);
 
@@ -1162,14 +1160,6 @@ pref("browser.flash-protected-mode-flip.enable", false);
 // Whether we've already flipped protected mode automatically
 pref("browser.flash-protected-mode-flip.done", false);
 
-#ifdef XP_MACOSX
-// On mac, the default pref is per-architecture
-pref("dom.ipc.plugins.enabled.i386", true);
-pref("dom.ipc.plugins.enabled.x86_64", true);
-#else
-pref("dom.ipc.plugins.enabled", true);
-#endif
-
 pref("dom.ipc.shims.enabledWarnings", false);
 
 // Start the browser in e10s mode
@@ -1564,6 +1554,10 @@ pref("devtools.webconsole.filter.secwarn", true);
 pref("devtools.webconsole.filter.serviceworkers", false);
 pref("devtools.webconsole.filter.sharedworkers", false);
 pref("devtools.webconsole.filter.windowlessworkers", false);
+pref("devtools.webconsole.filter.servererror", false);
+pref("devtools.webconsole.filter.serverwarn", false);
+pref("devtools.webconsole.filter.serverinfo", false);
+pref("devtools.webconsole.filter.serverlog", false);
 
 // Remember the Browser Console filters
 pref("devtools.browserconsole.filter.network", true);
@@ -1585,6 +1579,10 @@ pref("devtools.browserconsole.filter.secwarn", true);
 pref("devtools.browserconsole.filter.serviceworkers", true);
 pref("devtools.browserconsole.filter.sharedworkers", true);
 pref("devtools.browserconsole.filter.windowlessworkers", true);
+pref("devtools.browserconsole.filter.servererror", false);
+pref("devtools.browserconsole.filter.serverwarn", false);
+pref("devtools.browserconsole.filter.serverinfo", false);
+pref("devtools.browserconsole.filter.serverlog", false);
 
 // Text size in the Web Console. Use 0 for the system default size.
 pref("devtools.webconsole.fontSize", 0);
@@ -1603,11 +1601,12 @@ pref("devtools.webconsole.persistlog", false);
 pref("devtools.webconsole.timestampMessages", false);
 
 // The number of lines that are displayed in the web console for the Net,
-// CSS, JS and Web Developer categories.
-pref("devtools.hud.loglimit.network", 200);
-pref("devtools.hud.loglimit.cssparser", 200);
-pref("devtools.hud.loglimit.exception", 200);
-pref("devtools.hud.loglimit.console", 200);
+// CSS, JS and Web Developer categories. These defaults should be kept in sync
+// with DEFAULT_LOG_LIMIT in the webconsole frontend.
+pref("devtools.hud.loglimit.network", 1000);
+pref("devtools.hud.loglimit.cssparser", 1000);
+pref("devtools.hud.loglimit.exception", 1000);
+pref("devtools.hud.loglimit.console", 1000);
 
 // By how many times eyedropper will magnify pixels
 pref("devtools.eyedropper.zoom", 6);
@@ -1707,8 +1706,6 @@ pref("image.mem.max_decoded_image_kb", 256000);
 pref("loop.enabled", true);
 pref("loop.textChat.enabled", true);
 pref("loop.server", "https://loop.services.mozilla.com/v0");
-pref("loop.seenToS", "unseen");
-pref("loop.showPartnerLogo", true);
 pref("loop.gettingStarted.seen", false);
 pref("loop.gettingStarted.url", "https://www.mozilla.org/%LOCALE%/firefox/%VERSION%/hello/start/");
 pref("loop.gettingStarted.resumeOnFirstJoin", false);
@@ -1868,6 +1865,8 @@ pref("browser.translation.engine", "bing");
 // Telemetry settings.
 // Determines if Telemetry pings can be archived locally.
 pref("toolkit.telemetry.archive.enabled", true);
+// Whether we enable opt-out Telemetry for a sample of the release population.
+pref("toolkit.telemetry.optoutSample", true);
 
 // Telemetry experiments settings.
 pref("experiments.enabled", true);
@@ -1931,6 +1930,10 @@ pref("browser.reader.detectedFirstArticle", false);
 // Don't limit how many nodes we care about on desktop:
 pref("reader.parse-node-limit", 0);
 
+// On desktop, we want the URLs to be included here for ease of debugging,
+// and because (normally) these errors are not persisted anywhere.
+pref("reader.errors.includeURLs", true);
+
 pref("browser.pocket.enabled", true);
 pref("browser.pocket.api", "api.getpocket.com");
 pref("browser.pocket.site", "getpocket.com");
@@ -1940,8 +1943,13 @@ pref("browser.pocket.enabledLocales", "cs de en-GB en-US en-ZA es-ES es-MX fr hu
 
 pref("view_source.tab", true);
 
-// Enable Service Workers for desktop on non-release builds
-#ifndef RELEASE_BUILD
+// Enable ServiceWorkers for Push API consumers.
+// Interception is still disabled.
 pref("dom.serviceWorkers.enabled", true);
+
+#ifdef NIGHTLY_BUILD
 pref("dom.serviceWorkers.interception.enabled", true);
 #endif
+
+// Enable Push API.
+pref("dom.push.enabled", true);

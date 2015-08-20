@@ -309,13 +309,11 @@ struct nsTArray_SafeElementAtHelper<nsRefPtr<E>, Derived>
 };
 
 namespace mozilla {
-namespace dom {
 template<class T> class OwningNonNull;
-} // namespace dom
 } // namespace mozilla
 
 template<class E, class Derived>
-struct nsTArray_SafeElementAtHelper<mozilla::dom::OwningNonNull<E>, Derived>
+struct nsTArray_SafeElementAtHelper<mozilla::OwningNonNull<E>, Derived>
 {
   typedef E*     elem_type;
   typedef size_t index_type;
@@ -1540,6 +1538,31 @@ public:
     return AppendElements<Item, Allocator, FallibleAlloc>(aArray);
   }
 
+  // Move all elements from another array to the end of this array.
+  // @return A pointer to the newly appended elements, or null on OOM.
+  template<class Item, class Allocator>
+  elem_type* AppendElements(nsTArray_Impl<Item, Allocator>&& aArray)
+  {
+    MOZ_ASSERT(&aArray != this, "argument must be different aArray");
+    if (Length() == 0) {
+      SwapElements(aArray);
+      return Elements();
+    }
+
+    index_type len = Length();
+    index_type otherLen = aArray.Length();
+    if (!Alloc::Successful(this->template EnsureCapacity<Alloc>(
+          len + otherLen, sizeof(elem_type)))) {
+      return nullptr;
+    }
+    copy_type::CopyElements(Elements() + len, aArray.Elements(), otherLen,
+                            sizeof(elem_type));
+    this->IncrementLength(otherLen);
+    aArray.template ShiftData<Alloc>(0, otherLen, 0, sizeof(elem_type),
+                                     MOZ_ALIGNOF(elem_type));
+    return Elements() + len;
+  }
+
   // Append a new element, move constructing if possible.
 protected:
   template<class Item, typename ActualAlloc = Alloc>
@@ -1606,32 +1629,6 @@ public:
   elem_type* AppendElement(const mozilla::fallible_t&)
   {
     return AppendElement<FallibleAlloc>();
-  }
-
-  // Move all elements from another array to the end of this array without
-  // calling copy constructors or destructors.
-  // @return A pointer to the newly appended elements, or null on OOM.
-  template<class Item, class Allocator>
-  elem_type* MoveElementsFrom(nsTArray_Impl<Item, Allocator>& aArray)
-  {
-    MOZ_ASSERT(&aArray != this, "argument must be different aArray");
-    index_type len = Length();
-    index_type otherLen = aArray.Length();
-    if (!Alloc::Successful(this->template EnsureCapacity<Alloc>(
-          len + otherLen, sizeof(elem_type)))) {
-      return nullptr;
-    }
-    copy_type::CopyElements(Elements() + len, aArray.Elements(), otherLen,
-                            sizeof(elem_type));
-    this->IncrementLength(otherLen);
-    aArray.template ShiftData<Alloc>(0, otherLen, 0, sizeof(elem_type),
-                                     MOZ_ALIGNOF(elem_type));
-    return Elements() + len;
-  }
-  template<class Item, class Allocator>
-  elem_type* MoveElementsFrom(nsTArray_Impl<Item, Allocator>&& aArray)
-  {
-    return MoveElementsFrom<Item, Allocator>(aArray);
   }
 
   // This method removes a range of elements from this array.
@@ -2127,7 +2124,6 @@ public:
   using base_type::InsertElementAt;
   using base_type::InsertElementsAt;
   using base_type::InsertElementSorted;
-  using base_type::MoveElementsFrom;
   using base_type::ReplaceElementsAt;
   using base_type::SetCapacity;
   using base_type::SetLength;

@@ -1772,13 +1772,19 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
         gRollupListener = aListener;
         // real grab is only done when there is no dragging
         if (!nsWindow::DragInProgress()) {
-            // This widget grab ensures that a Gecko GtkWidget receives mouse
-            // events even when embedded in non-Gecko-owned GtkWidgets.
-            // The grab is placed on the toplevel GtkWindow instead of the
-            // MozContainer to avoid double dispatch of keyboard events
-            // (bug 707623).
-            gtk_grab_add(mShell);
-            GrabPointer(GetLastUserInputTime());
+            // Maybe the dnd flag is not yet set at this point, but dnd has already started
+            // so let's be extra careful and skip this operation for dnd popup panels always
+            // (panels with type="drag").
+            GdkWindowTypeHint gdkTypeHint = gtk_window_get_type_hint(GTK_WINDOW(mShell));
+            if (gdkTypeHint != GDK_WINDOW_TYPE_HINT_DND) {
+              // This widget grab ensures that a Gecko GtkWidget receives mouse
+              // events even when embedded in non-Gecko-owned GtkWidgets.
+              // The grab is placed on the toplevel GtkWindow instead of the
+              // MozContainer to avoid double dispatch of keyboard events
+              // (bug 707623).
+              gtk_grab_add(mShell);
+              GrabPointer(GetLastUserInputTime());
+            }
         }
     }
     else {
@@ -4635,12 +4641,14 @@ FullscreenTransitionWindow::FullscreenTransitionWindow(GtkWidget* aWidget)
     gtk_window_set_transient_for(gtkWin, GTK_WINDOW(aWidget));
     gtk_window_set_decorated(gtkWin, false);
 
+    GdkWindow* gdkWin = gtk_widget_get_window(aWidget);
     GdkScreen* screen = gtk_widget_get_screen(aWidget);
-    gint width = gdk_screen_get_width(screen);
-    gint height = gdk_screen_get_height(screen);
+    gint monitorNum = gdk_screen_get_monitor_at_window(screen, gdkWin);
+    GdkRectangle monitorRect;
+    gdk_screen_get_monitor_geometry(screen, monitorNum, &monitorRect);
     gtk_window_set_screen(gtkWin, screen);
-    gtk_window_move(gtkWin, 0, 0);
-    gtk_window_resize(gtkWin, width, height);
+    gtk_window_move(gtkWin, monitorRect.x, monitorRect.y);
+    gtk_window_resize(gtkWin, monitorRect.width, monitorRect.height);
 
     GdkColor bgColor;
     bgColor.red = bgColor.green = bgColor.blue = 0;
@@ -6028,14 +6036,10 @@ nsWindow::GetInputContext()
 nsIMEUpdatePreference
 nsWindow::GetIMEUpdatePreference()
 {
-    nsIMEUpdatePreference updatePreference(
-        nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE |
-        nsIMEUpdatePreference::NOTIFY_POSITION_CHANGE);
-    // We shouldn't notify IME of selection change caused by changes of
-    // composition string.  Therefore, we don't need to be notified selection
-    // changes which are caused by compositionchange events handled.
-    updatePreference.DontNotifyChangesCausedByComposition();
-    return updatePreference;
+    if (!mIMContext) {
+        return nsIMEUpdatePreference();
+    }
+    return mIMContext->GetIMEUpdatePreference();
 }
 
 bool
@@ -6208,9 +6212,9 @@ nsWindow::EndRemoteDrawingInRegion(DrawTarget* aDrawTarget, nsIntRegion& aInvali
 {
 #ifdef MOZ_X11
 #  ifdef MOZ_HAVE_SHMIMAGE
-  if (!mGdkWindow || mIsFullyObscured || !mHasMappedToplevel || mIsDestroyed ||
-      !mShmImage)
+  if (!mGdkWindow || !mShmImage) {
     return;
+  }
 
   if (mThebesSurface) {
     aInvalidRegion.AndWith(nsIntRect(nsIntPoint(0, 0), mThebesSurface->GetSize()));

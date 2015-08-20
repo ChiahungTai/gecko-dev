@@ -4,13 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothadapter_h__
-#define mozilla_dom_bluetooth_bluetoothadapter_h__
+#ifndef mozilla_dom_bluetooth_BluetoothAdapter_h
+#define mozilla_dom_bluetooth_BluetoothAdapter_h
 
 #include "BluetoothCommon.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/dom/BluetoothAdapter2Binding.h"
+#include "mozilla/dom/BluetoothAdapterBinding.h"
 #include "mozilla/dom/BluetoothDeviceEvent.h"
 #include "mozilla/dom/Promise.h"
 #include "nsCOMPtr.h"
@@ -314,6 +314,8 @@ private:
    * Convert string to BluetoothAdapterAttribute.
    *
    * @param aString [in] String to convert
+   *
+   * @return the adapter attribute converted from |aString|
    */
   BluetoothAdapterAttribute
     ConvertStringToAdapterAttribute(const nsAString& aString);
@@ -323,14 +325,16 @@ private:
    *
    * @param aType  [in] Adapter property to check
    * @param aValue [in] New value of the adapter property
+   *
+   * @return true if the adapter property has changed; false otherwise
    */
   bool IsAdapterAttributeChanged(BluetoothAdapterAttribute aType,
                                  const BluetoothValue& aValue);
 
   /**
-   * Check whether this adapter is owned by Bluetooth certified app.
+   * Check whether this adapter belongs to Bluetooth certified app.
    *
-   * @return a boolean value to indicate whether it's owned by Bluetooth app.
+   * @return true if this adapter belongs to Bluetooth app; false otherwise
    */
   bool IsBluetoothCertifiedApp();
 
@@ -417,4 +421,4 @@ private:
 
 END_BLUETOOTH_NAMESPACE
 
-#endif
+#endif // mozilla_dom_bluetooth_BluetoothAdapter_h

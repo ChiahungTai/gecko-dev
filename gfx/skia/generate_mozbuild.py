@@ -139,8 +139,15 @@ if CONFIG['GNU_CXX']:
     CXXFLAGS += [
         '-Wno-overloaded-virtual',
         '-Wno-unused-function',
+        '-Wno-deprecated-declarations',
     ]
-    if not CONFIG['CLANG_CXX']:
+    if CONFIG['CLANG_CXX']:
+        CXXFLAGS += [
+            '-Wno-inconsistent-missing-override',
+            '-Wno-macro-redefined',
+            '-Wno-unused-private-field',
+        ]
+    else:
         CXXFLAGS += ['-Wno-logical-op']
     if CONFIG['CPU_ARCH'] == 'arm':
         SOURCES['skia/src/opts/SkBlitRow_opts_arm.cpp'].flags += ['-fomit-frame-pointer']

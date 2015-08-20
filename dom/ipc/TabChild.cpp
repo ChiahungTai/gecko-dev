@@ -8,7 +8,6 @@
 
 #include "TabChild.h"
 
-#include "AudioChannelService.h"
 #include "gfxPrefs.h"
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/DocAccessibleChild.h"
@@ -35,6 +34,7 @@
 #include "mozilla/layout/RenderFrameChild.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/MouseEvents.h"
+#include "mozilla/PWebBrowserPersistDocumentChild.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/TextEvents.h"
@@ -98,6 +98,7 @@
 #include "nsIScriptError.h"
 #include "mozilla/EventForwards.h"
 #include "nsDeviceContext.h"
+#include "mozilla/WebBrowserPersistDocumentChild.h"
 
 #define BROWSER_ELEMENT_CHILD_SCRIPT \
     NS_LITERAL_STRING("chrome://global/content/BrowserElementChild.js")
@@ -571,7 +572,6 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mDefaultScale(0)
   , mIPCOpen(true)
   , mParentIsActive(false)
-  , mAudioChannelActive(false)
 {
   // In the general case having the TabParent tell us if APZ is enabled or not
   // doesn't really work because the TabParent itself may not have a reference
@@ -600,6 +600,10 @@ TabChild::TabChild(nsIContentChild* aManager,
 
       observerService->AddObserver(this, topic.get(), false);
     }
+  }
+
+  for (uint32_t idx = 0; idx < NUMBER_OF_AUDIO_CHANNELS; idx++) {
+    mAudioChannelsActive.AppendElement(false);
   }
 }
 
@@ -668,8 +672,8 @@ TabChild::Observe(nsISupports *aSubject,
 
     nsAutoString activeStr(aData);
     bool active = activeStr.EqualsLiteral("active");
-    if (active != mAudioChannelActive) {
-      mAudioChannelActive = active;
+    if (active != mAudioChannelsActive[audioChannel]) {
+      mAudioChannelsActive[audioChannel] = active;
       unused << SendAudioChannelActivityNotification(audioChannel, active);
     }
   }
@@ -709,7 +713,7 @@ TabChild::Init()
 
   nsCOMPtr<nsIDocShellTreeItem> docShellItem(do_QueryInterface(WebNavigation()));
   docShellItem->SetItemType(nsIDocShellTreeItem::typeContentWrapper);
-  
+
   nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(WebNavigation());
   if (!baseWindow) {
     NS_ERROR("mWebNav doesn't QI to nsIBaseWindow");
@@ -1650,7 +1654,7 @@ TabChild::RecvShow(const ScreenIntSize& aSize,
 
 bool
 TabChild::RecvUpdateDimensions(const CSSRect& rect, const CSSSize& size,
-                               const ScreenOrientation& orientation,
+                               const ScreenOrientationInternal& orientation,
                                const LayoutDeviceIntPoint& chromeDisp)
 {
     if (!mRemoteFrame) {
@@ -2388,11 +2392,18 @@ TabChild::RecvSwappedWithOtherRemoteLoader()
     return true;
   }
 
+  nsRefPtr<nsDocShell> docShell = static_cast<nsDocShell*>(ourDocShell.get());
+
   nsCOMPtr<EventTarget> ourEventTarget = ourWindow->GetParentTarget();
+
+  docShell->SetInFrameSwap(true);
 
   nsContentUtils::FirePageShowEvent(ourDocShell, ourEventTarget, false);
   nsContentUtils::FirePageHideEvent(ourDocShell, ourEventTarget);
   nsContentUtils::FirePageShowEvent(ourDocShell, ourEventTarget, true);
+
+  docShell->SetInFrameSwap(false);
+
   return true;
 }
 
@@ -2893,12 +2904,12 @@ TabChild::RecvRequestNotifyAfterRemotePaint()
 }
 
 bool
-TabChild::RecvUIResolutionChanged()
+TabChild::RecvUIResolutionChanged(const float& aDpi, const double& aScale)
 {
   ScreenIntSize oldScreenSize = GetInnerSize();
   mDPI = 0;
   mDefaultScale = 0;
-  static_cast<PuppetWidget*>(mPuppetWidget.get())->ClearBackingScaleCache();
+  static_cast<PuppetWidget*>(mPuppetWidget.get())->UpdateBackingScaleCache(aDpi, aScale);
   nsCOMPtr<nsIDocument> document(GetDocument());
   nsCOMPtr<nsIPresShell> presShell = document->GetShell();
   if (presShell) {
@@ -3046,7 +3057,6 @@ NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(TabChildGlobal, DOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(TabChildGlobal, DOMEventTargetHelper)
 
-/* [notxpcom] boolean markForCC (); */
 // This method isn't automatically forwarded safely because it's notxpcom, so
 // the IDL binding doesn't know what value to return.
 NS_IMETHODIMP_(bool)
@@ -3107,3 +3117,35 @@ TabChildGlobal::GetGlobalJSObject()
   return ref->GetJSObject();
 }
 
+PWebBrowserPersistDocumentChild*
+TabChild::AllocPWebBrowserPersistDocumentChild(const uint64_t& aOuterWindowID)
+{
+  return new WebBrowserPersistDocumentChild();
+}
+
+bool
+TabChild::RecvPWebBrowserPersistDocumentConstructor(PWebBrowserPersistDocumentChild *aActor,
+                                                    const uint64_t& aOuterWindowID)
+{
+  nsCOMPtr<nsIDocument> rootDoc = GetDocument();
+  nsCOMPtr<nsIDocument> foundDoc;
+  if (aOuterWindowID) {
+    foundDoc = nsContentUtils::GetSubdocumentWithOuterWindowId(rootDoc, aOuterWindowID);
+  } else {
+    foundDoc = rootDoc;
+  }
+
+  if (!foundDoc) {
+    aActor->SendInitFailure(NS_ERROR_NO_CONTENT);
+  } else {
+    static_cast<WebBrowserPersistDocumentChild*>(aActor)->Start(foundDoc);
+  }
+  return true;
+}
+
+bool
+TabChild::DeallocPWebBrowserPersistDocumentChild(PWebBrowserPersistDocumentChild* aActor)
+{
+  delete aActor;
+  return true;
+}

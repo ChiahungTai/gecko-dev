@@ -673,7 +673,7 @@ StartGC(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    SliceBudget budget;
+    auto budget = SliceBudget::unlimited();
     if (args.length() >= 1) {
         uint32_t work = 0;
         if (!ToUint32(cx, args[0], &work))
@@ -715,7 +715,7 @@ GCSlice(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    SliceBudget budget;
+    auto budget = SliceBudget::unlimited();
     if (args.length() == 1) {
         uint32_t work = 0;
         if (!ToUint32(cx, args[0], &work))
@@ -915,6 +915,25 @@ SaveStack(JSContext* cx, unsigned argc, Value* vp)
 
     args.rval().setObjectOrNull(stack);
     return true;
+}
+
+static bool
+CallFunctionFromNativeFrame(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (args.length() != 1) {
+        JS_ReportError(cx, "The function takes exactly one argument.");
+        return false;
+    }
+    if (!args[0].isObject() || !IsCallable(args[0])) {
+        JS_ReportError(cx, "The first argument should be a function.");
+        return false;
+    }
+
+    RootedObject function(cx, &args[0].toObject());
+    return Call(cx, UndefinedHandleValue, function,
+                JS::HandleValueArray::empty(), args.rval());
 }
 
 static bool
@@ -1377,12 +1396,11 @@ ShellObjectMetadataCallback(JSContext* cx, JSObject*)
 }
 
 static bool
-SetObjectMetadataCallback(JSContext* cx, unsigned argc, Value* vp)
+EnableShellObjectMetadataCallback(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    bool enabled = args.length() ? ToBoolean(args[0]) : false;
-    SetObjectMetadataCallback(cx, enabled ? ShellObjectMetadataCallback : nullptr);
+    SetObjectMetadataCallback(cx, ShellObjectMetadataCallback);
 
     args.rval().setUndefined();
     return true;
@@ -2005,6 +2023,9 @@ GetBacktrace(JSContext* cx, unsigned argc, Value* vp)
     }
 
     char* buf = JS::FormatStackDump(cx, nullptr, showArgs, showLocals, showThisProps);
+    if (!buf)
+        return false;
+
     RootedString str(cx);
     if (!(str = JS_NewStringCopyZ(cx, buf)))
         return false;
@@ -2726,6 +2747,11 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "  of frames. If 'compartment' is given, allocate the js::SavedFrame instances\n"
 "  with the given object's compartment."),
 
+    JS_FN_HELP("callFunctionFromNativeFrame", CallFunctionFromNativeFrame, 1, 0,
+"callFunctionFromNativeFrame(function)",
+"  Call 'function' with a (C++-)native frame on stack.\n"
+"  Required for testing that SaveStack properly handles native frames."),
+
     JS_FN_HELP("callFunctionWithAsyncStack", CallFunctionWithAsyncStack, 0, 0,
 "callFunctionWithAsyncStack(function, stack, asyncCause)",
 "  Call 'function', using the provided stack as the async stack responsible\n"
@@ -2931,9 +2957,9 @@ gc::ZealModeHelpText),
 "isRelazifiableFunction(fun)",
 "  Ture if fun is a JSFunction with a relazifiable JSScript."),
 
-    JS_FN_HELP("setObjectMetadataCallback", SetObjectMetadataCallback, 1, 0,
-"setObjectMetadataCallback(fn)",
-"  Specify function to supply metadata for all newly created objects."),
+    JS_FN_HELP("enableShellObjectMetadataCallback", EnableShellObjectMetadataCallback, 0, 0,
+"enableShellObjectMetadataCallback()",
+"  Use ShellObjectMetadataCallback to supply metadata for all newly created objects."),
 
     JS_FN_HELP("getObjectMetadata", GetObjectMetadata, 1, 0,
 "getObjectMetadata(obj)",

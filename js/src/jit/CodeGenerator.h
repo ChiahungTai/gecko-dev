@@ -20,8 +20,8 @@
 # include "jit/arm/CodeGenerator-arm.h"
 #elif defined(JS_CODEGEN_ARM64)
 # include "jit/arm64/CodeGenerator-arm64.h"
-#elif defined(JS_CODEGEN_MIPS)
-# include "jit/mips/CodeGenerator-mips.h"
+#elif defined(JS_CODEGEN_MIPS32)
+# include "jit/mips32/CodeGenerator-mips32.h"
 #elif defined(JS_CODEGEN_NONE)
 # include "jit/none/CodeGenerator-none.h"
 #else
@@ -149,8 +149,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     void visitUnreachable(LUnreachable* unreachable);
     void visitEncodeSnapshot(LEncodeSnapshot* lir);
     void visitGetDynamicName(LGetDynamicName* lir);
-    void visitFilterArgumentsOrEvalS(LFilterArgumentsOrEvalS* lir);
-    void visitFilterArgumentsOrEvalV(LFilterArgumentsOrEvalV* lir);
     void visitCallDirectEval(LCallDirectEval* lir);
     void visitDoubleToInt32(LDoubleToInt32* lir);
     void visitFloat32ToInt32(LFloat32ToInt32* lir);

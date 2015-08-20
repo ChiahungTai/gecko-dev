@@ -90,6 +90,29 @@ loop.standaloneRoomViews = (function(mozL10n) {
       roomUsed: React.PropTypes.bool.isRequired
     },
 
+    componentDidMount: function() {
+      // Watch for messages from the waiting-tile iframe
+      window.addEventListener("message", this.recordTileClick);
+    },
+
+    componentWillUnmount: function() {
+      window.removeEventListener("message", this.recordTileClick);
+    },
+
+    recordTileClick: function(event) {
+      if (event.data === "tile-click") {
+        this.props.dispatcher.dispatch(new sharedActions.RecordClick({
+          linkInfo: "Tiles iframe click"
+        }));
+      }
+    },
+
+    recordTilesSupport: function() {
+      this.props.dispatcher.dispatch(new sharedActions.RecordClick({
+        linkInfo: "Tiles support link click"
+      }));
+    },
+
     _renderCallToActionLink: function() {
       if (this.props.isFirefox) {
         return (
@@ -151,7 +174,17 @@ loop.standaloneRoomViews = (function(mozL10n) {
             React.createElement("div", {className: "room-inner-info-area"}, 
               React.createElement("p", {className: "empty-room-message"}, 
                 mozL10n.get("rooms_only_occupant_label")
-              )
+              ), 
+              React.createElement("p", {className: "room-waiting-area"}, 
+                mozL10n.get("rooms_read_while_wait_offer"), 
+                React.createElement("a", {href: loop.config.tilesSupportUrl, 
+                  onClick: this.recordTilesSupport, 
+                  rel: "noreferrer", 
+                  target: "_blank"}, 
+                  React.createElement("i", {className: "room-waiting-help"})
+                )
+              ), 
+              React.createElement("iframe", {className: "room-waiting-tile", src: loop.config.tilesIframeUrl})
             )
           );
         }
@@ -404,6 +437,8 @@ loop.standaloneRoomViews = (function(mozL10n) {
 
         case ROOM_STATES.FAILED:
         case ROOM_STATES.CLOSING:
+        case ROOM_STATES.FULL:
+        case ROOM_STATES.ENDED:
           // the other person has shown up, so we don't want to show an avatar
           return true;
 
@@ -461,13 +496,6 @@ loop.standaloneRoomViews = (function(mozL10n) {
         React.createElement("div", {className: "room-conversation-wrapper standalone-room-wrapper"}, 
           React.createElement("div", {className: "beta-logo"}), 
           React.createElement(StandaloneRoomHeader, {dispatcher: this.props.dispatcher}), 
-          React.createElement(StandaloneRoomInfoArea, {activeRoomStore: this.props.activeRoomStore, 
-                                  dispatcher: this.props.dispatcher, 
-                                  failureReason: this.state.failureReason, 
-                                  isFirefox: this.props.isFirefox, 
-                                  joinRoom: this.joinRoom, 
-                                  roomState: this.state.roomState, 
-                                  roomUsed: this.state.used}), 
           React.createElement(sharedViews.MediaLayoutView, {
             dispatcher: this.props.dispatcher, 
             displayScreenShare: displayScreenShare, 
@@ -484,7 +512,15 @@ loop.standaloneRoomViews = (function(mozL10n) {
             screenSharePosterUrl: this.props.screenSharePosterUrl, 
             screenShareVideoObject: this.state.screenShareVideoObject, 
             showContextRoomName: true, 
-            useDesktopPaths: false}), 
+            useDesktopPaths: false}, 
+            React.createElement(StandaloneRoomInfoArea, {activeRoomStore: this.props.activeRoomStore, 
+              dispatcher: this.props.dispatcher, 
+              failureReason: this.state.failureReason, 
+              isFirefox: this.props.isFirefox, 
+              joinRoom: this.joinRoom, 
+              roomState: this.state.roomState, 
+              roomUsed: this.state.used})
+          ), 
           React.createElement(sharedViews.ConversationToolbar, {
             audio: {enabled: !this.state.audioMuted,
                     visible: this._roomIsActive()}, 
@@ -508,6 +544,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
   return {
     StandaloneRoomFooter: StandaloneRoomFooter,
     StandaloneRoomHeader: StandaloneRoomHeader,
+    StandaloneRoomInfoArea: StandaloneRoomInfoArea,
     StandaloneRoomView: StandaloneRoomView
   };
 })(navigator.mozL10n);

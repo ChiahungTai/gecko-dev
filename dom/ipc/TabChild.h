@@ -34,6 +34,7 @@
 #include "mozilla/layers/CompositorTypes.h"
 #include "nsIWebBrowserChrome3.h"
 #include "mozilla/dom/ipc/IdType.h"
+#include "AudioChannelService.h"
 #include "PuppetWidget.h"
 
 class nsICachedFileDescriptorListener;
@@ -241,7 +242,7 @@ public:
     static already_AddRefed<TabChild> FindTabChild(const TabId& aTabId);
 
 public:
-    /** 
+    /**
      * This is expected to be called off the critical path to content
      * startup.  This is an opportunity to load things that are slow
      * on the critical path.
@@ -302,7 +303,7 @@ public:
                           const bool& aParentIsActive) override;
     virtual bool RecvUpdateDimensions(const CSSRect& rect,
                                       const CSSSize& size,
-                                      const ScreenOrientation& orientation,
+                                      const ScreenOrientationInternal& orientation,
                                       const LayoutDeviceIntPoint& chromeDisp) override;
     virtual bool RecvUpdateFrame(const layers::FrameMetrics& aFrameMetrics) override;
     virtual bool RecvRequestFlingSnap(const ViewID& aScrollId,
@@ -418,7 +419,7 @@ public:
 
     void GetMaxTouchPoints(uint32_t* aTouchPoints);
 
-    ScreenOrientation GetOrientation() { return mOrientation; }
+    ScreenOrientationInternal GetOrientation() const { return mOrientation; }
 
     void SetBackgroundColor(const nscolor& aColor);
 
@@ -471,7 +472,7 @@ public:
       return GetFrom(docShell);
     }
 
-    virtual bool RecvUIResolutionChanged() override;
+    virtual bool RecvUIResolutionChanged(const float& aDpi, const double& aScale) override;
 
     virtual bool RecvThemeChanged(nsTArray<LookAndFeelInt>&& aLookAndFeelIntCache) override;
 
@@ -493,6 +494,11 @@ public:
     bool AsyncPanZoomEnabled() { return mAsyncPanZoomEnabled; }
 
     virtual ScreenIntSize GetInnerSize() override;
+
+    virtual PWebBrowserPersistDocumentChild* AllocPWebBrowserPersistDocumentChild(const uint64_t& aOuterWindowID) override;
+    virtual bool RecvPWebBrowserPersistDocumentConstructor(PWebBrowserPersistDocumentChild *aActor,
+                                                           const uint64_t& aOuterWindowID) override;
+    virtual bool DeallocPWebBrowserPersistDocumentChild(PWebBrowserPersistDocumentChild* aActor) override;
 
 protected:
     virtual ~TabChild();
@@ -622,7 +628,7 @@ private:
     bool mDidFakeShow;
     bool mNotified;
     bool mTriedBrowserInit;
-    ScreenOrientation mOrientation;
+    ScreenOrientationInternal mOrientation;
     bool mUpdateHitRegion;
 
     bool mIgnoreKeyPressEvent;
@@ -637,9 +643,10 @@ private:
     double mDefaultScale;
     bool mIPCOpen;
     bool mParentIsActive;
-    bool mAudioChannelActive;
     bool mAsyncPanZoomEnabled;
     CSSSize mUnscaledInnerSize;
+
+    nsAutoTArray<bool, NUMBER_OF_AUDIO_CHANNELS> mAudioChannelsActive;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

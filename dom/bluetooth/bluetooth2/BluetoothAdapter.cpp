@@ -9,13 +9,16 @@
 #include "BluetoothUtils.h"
 #include "DOMRequest.h"
 #include "nsIDocument.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsIPrincipal.h"
 #include "nsTArrayHelpers.h"
 
-#include "mozilla/dom/BluetoothAdapter2Binding.h"
+#include "mozilla/dom/BluetoothAdapterBinding.h"
 #include "mozilla/dom/BluetoothAttributeEvent.h"
 #include "mozilla/dom/BluetoothStatusChangedEvent.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/Event.h"
 #include "mozilla/dom/File.h"
 
 #include "mozilla/dom/bluetooth/BluetoothAdapter.h"
@@ -791,7 +794,8 @@ BluetoothAdapter::GetConnectedDevices(uint16_t aServiceUuid, ErrorResult& aRv)
 }
 
 void
-BluetoothAdapter::GetPairedDevices(nsTArray<nsRefPtr<BluetoothDevice> >& aDevices)
+BluetoothAdapter::GetPairedDevices(
+  nsTArray<nsRefPtr<BluetoothDevice> >& aDevices)
 {
   for (uint32_t i = 0; i < mDevices.Length(); ++i) {
     if (mDevices[i]->Paired()) {
@@ -982,13 +986,30 @@ BluetoothAdapter::IsBluetoothCertifiedApp()
   NS_ENSURE_TRUE(doc, false);
 
   uint16_t appStatus = nsIPrincipal::APP_STATUS_NOT_INSTALLED;
-  nsAutoCString appOrigin;
-
   doc->NodePrincipal()->GetAppStatus(&appStatus);
+  if (appStatus != nsIPrincipal::APP_STATUS_CERTIFIED) {
+   return false;
+  }
+
+  // Get the app origin of Bluetooth app from PrefService.
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (!prefs) {
+    BT_WARNING("Failed to get preference service");
+    return false;
+  }
+
+  nsAutoCString prefOrigin;
+  nsresult rv = prefs->GetCharPref(PREF_BLUETOOTH_APP_ORIGIN,
+                                   getter_Copies(prefOrigin));
+  if (NS_FAILED(rv)) {
+    BT_WARNING("Failed to get the pref value '" PREF_BLUETOOTH_APP_ORIGIN "'");
+    return false;
+  }
+
+  nsAutoCString appOrigin;
   doc->NodePrincipal()->GetOriginNoSuffix(appOrigin);
 
-  return appStatus == nsIPrincipal::APP_STATUS_CERTIFIED &&
-         appOrigin.EqualsLiteral(BLUETOOTH_APP_ORIGIN);
+  return appOrigin.Equals(prefOrigin);
 }
 
 void
@@ -1196,11 +1217,9 @@ BluetoothAdapter::DispatchDeviceEvent(const nsAString& aType,
 void
 BluetoothAdapter::DispatchEmptyEvent(const nsAString& aType)
 {
-  nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  nsRefPtr<Event> event = NS_NewDOMEvent(this, nullptr, nullptr);
 
-  rv = event->InitEvent(aType, false, false);
+  nsresult rv = event->InitEvent(aType, false, false);
   NS_ENSURE_SUCCESS_VOID(rv);
 
   DispatchTrustedEvent(event);
@@ -1314,7 +1333,8 @@ BluetoothAdapter::SendFile(const nsAString& aDeviceAddress,
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::StopSendingFile(const nsAString& aDeviceAddress, ErrorResult& aRv)
+BluetoothAdapter::StopSendingFile(
+  const nsAString& aDeviceAddress, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -1514,7 +1534,8 @@ BluetoothAdapter::ToggleCalls(ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::SendMediaMetaData(const MediaMetaData& aMediaMetaData, ErrorResult& aRv)
+BluetoothAdapter::SendMediaMetaData(
+  const MediaMetaData& aMediaMetaData, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -1543,7 +1564,8 @@ BluetoothAdapter::SendMediaMetaData(const MediaMetaData& aMediaMetaData, ErrorRe
 }
 
 already_AddRefed<DOMRequest>
-BluetoothAdapter::SendMediaPlayStatus(const MediaPlayStatus& aMediaPlayStatus, ErrorResult& aRv)
+BluetoothAdapter::SendMediaPlayStatus(
+  const MediaPlayStatus& aMediaPlayStatus, ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {

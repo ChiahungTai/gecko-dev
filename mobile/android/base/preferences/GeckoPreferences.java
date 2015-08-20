@@ -117,7 +117,7 @@ OnSharedPreferenceChangeListener
     private static final String PREFS_CRASHREPORTER_ENABLED = "datareporting.crashreporter.submitEnabled";
     private static final String PREFS_MENU_CHAR_ENCODING = "browser.menu.showCharacterEncoding";
     private static final String PREFS_MP_ENABLED = "privacy.masterpassword.enabled";
-    private static final String PREFS_LOGIN_MANAGE = NON_PREF_PREFIX + "signon.manage";
+    private static final String PREFS_DISABLE_ZOOMED_VIEW = "ui.zoomedview.disabled";
     private static final String PREFS_UPDATER_AUTODOWNLOAD = "app.update.autodownload";
     private static final String PREFS_UPDATER_URL = "app.update.url.android";
     private static final String PREFS_GEO_REPORTING = NON_PREF_PREFIX + "app.geo.reportdata";
@@ -692,7 +692,7 @@ OnSharedPreferenceChangeListener
                 } else if (pref instanceof PanelsPreferenceCategory) {
                     mPanelsPreferenceCategory = (PanelsPreferenceCategory) pref;
                 }
-                if((AppConstants.MOZ_ANDROID_TAB_QUEUE && AppConstants.NIGHTLY_BUILD) && (PREFS_CUSTOMIZE_SCREEN.equals(key))) {
+                if(AppConstants.MOZ_ANDROID_TAB_QUEUE && PREFS_CUSTOMIZE_SCREEN.equals(key)) {
                     // Only change the customize pref screen summary on nightly builds with the tab queue build flag.
                     pref.setSummary(getString(R.string.pref_category_customize_alt_summary));
                 }
@@ -735,7 +735,8 @@ OnSharedPreferenceChangeListener
                         i--;
                         continue;
                     }
-                } else if (PREFS_LOGIN_MANAGE.equals(key)) {
+                } else if (PREFS_DISABLE_ZOOMED_VIEW.equals(key)) {
+                    // Only enable the ZoomedView / magnifying pref on Nightly.
                     if (!AppConstants.NIGHTLY_BUILD) {
                         preferences.removePreference(pref);
                         i--;
@@ -841,7 +842,7 @@ OnSharedPreferenceChangeListener
                     }
                 } else if (PREFS_TAB_QUEUE.equals(key)) {
                     // Only show tab queue pref on nightly builds with the tab queue build flag.
-                    if (!(AppConstants.MOZ_ANDROID_TAB_QUEUE && AppConstants.NIGHTLY_BUILD)) {
+                    if (!AppConstants.MOZ_ANDROID_TAB_QUEUE) {
                         preferences.removePreference(pref);
                         i--;
                         continue;

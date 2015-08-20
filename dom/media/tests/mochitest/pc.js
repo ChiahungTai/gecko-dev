@@ -1189,18 +1189,15 @@ PeerConnectionWrapper.prototype = {
    *          resolves when connected, rejects on failure
    */
   waitForIceConnected : function() {
-    return new Promise((resolve, reject) => {
-      var iceConnectedChanged = () => {
-        if (this.isIceConnected()) {
-          delete this.ice_connection_callbacks.waitForIceConnected;
-          resolve();
-        } else if (! this.isIceConnectionPending()) {
-          delete this.ice_connection_callbacks.waitForIceConnected;
-          resolve();
-        }
+    return new Promise((resolve, reject) =>
+        this.ice_connection_callbacks.waitForIceConnected = () => {
+      if (this.isIceConnected()) {
+        delete this.ice_connection_callbacks.waitForIceConnected;
+        resolve();
+      } else if (!this.isIceConnectionPending()) {
+        delete this.ice_connection_callbacks.waitForIceConnected;
+        reject(new Error('ICE failed'));
       }
-
-      this.ice_connection_callbacks.waitForIceConnected = iceConnectedChanged;
     });
   },
 
@@ -1712,13 +1709,18 @@ PeerConnectionWrapper.prototype = {
         rId = stats[name].remoteCandidateId;
       }
     });
-    info("checkStatsIceConnectionType verifying: local=" +
-         JSON.stringify(stats[lId]) + " remote=" + JSON.stringify(stats[rId]));
+    ok(typeof lId !== 'undefined', "Got local candidate ID " +
+       JSON.stringify(lId) + " for selected pair");
+    ok(typeof rId !== 'undefined', "Got remote candidate ID " +
+       JSON.stringify(rId) + " for selected pair");
     if ((typeof stats[lId] === 'undefined') ||
         (typeof stats[rId] === 'undefined')) {
-      info("checkStatsIceConnectionType failed to find candidatepair IDs");
+      ok(false, "failed to find candidatepair IDs or stats for local: " +
+         JSON.stringify(lId) + " remote: " + JSON.stringify(rId));
       return;
     }
+    info("checkStatsIceConnectionType verifying: local=" +
+         JSON.stringify(stats[lId]) + " remote=" + JSON.stringify(stats[rId]));
     var lType = stats[lId].candidateType;
     var rType = stats[rId].candidateType;
     var lIp = stats[lId].ipAddress;
@@ -1757,6 +1759,7 @@ PeerConnectionWrapper.prototype = {
       }
     });
     info("ICE connections according to stats: " + numIceConnections);
+    isnot(numIceConnections, 0, "Number of ICE connections according to stats is not zero");
     if (answer.sdp.includes('a=group:BUNDLE')) {
       is(numIceConnections, 1, "stats reports exactly 1 ICE connection");
     } else {

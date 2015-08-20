@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothinterface_h__
-#define mozilla_dom_bluetooth_bluetoothinterface_h__
+#ifndef mozilla_dom_bluetooth_BluetoothInterface_h
+#define mozilla_dom_bluetooth_BluetoothInterface_h
 
 #include "BluetoothCommon.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
@@ -481,7 +481,8 @@ public:
     const BluetoothAvrcpNotificationParam& aParam,
     BluetoothAvrcpResultHandler* aRes) = 0;
 
-  virtual void SetVolume(uint8_t aVolume, BluetoothAvrcpResultHandler* aRes) = 0;
+  virtual void SetVolume(uint8_t aVolume,
+                         BluetoothAvrcpResultHandler* aRes) = 0;
 
 protected:
   BluetoothAvrcpInterface();
@@ -1073,7 +1074,8 @@ public:
   virtual void DiscoveryStateChangedNotification(bool aState) { }
 
   virtual void PinRequestNotification(const nsAString& aRemoteBdAddr,
-                                      const nsAString& aBdName, uint32_t aCod) { }
+                                      const nsAString& aBdName,
+                                      uint32_t aCod) { }
   virtual void SspRequestNotification(const nsAString& aRemoteBdAddr,
                                       const nsAString& aBdName,
                                       uint32_t aCod,
@@ -1254,4 +1256,4 @@ protected:
 
 END_BLUETOOTH_NAMESPACE
 
-#endif
+#endif // mozilla_dom_bluetooth_BluetoothInterface_h

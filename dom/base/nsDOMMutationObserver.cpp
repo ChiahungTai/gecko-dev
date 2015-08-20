@@ -6,16 +6,18 @@
 
 #include "nsDOMMutationObserver.h"
 
-#include "mozilla/dom/OwningNonNull.h"
-#include "nsError.h"
-#include "nsIScriptGlobalObject.h"
-#include "nsContentUtils.h"
-#include "nsThreadUtils.h"
-#include "nsIDOMMutationEvent.h"
-#include "nsTextFragment.h"
-#include "nsServiceManagerUtils.h"
+#include "mozilla/OwningNonNull.h"
+
 #include "mozilla/dom/Animation.h"
 #include "mozilla/dom/KeyframeEffect.h"
+
+#include "nsContentUtils.h"
+#include "nsError.h"
+#include "nsIDOMMutationEvent.h"
+#include "nsIScriptGlobalObject.h"
+#include "nsServiceManagerUtils.h"
+#include "nsTextFragment.h"
+#include "nsThreadUtils.h"
 
 using mozilla::dom::Animation;
 
@@ -786,7 +788,7 @@ nsDOMMutationObserver::HandleMutation()
     return;
   }
 
-  mozilla::dom::Sequence<mozilla::dom::OwningNonNull<nsDOMMutationRecord> >
+  mozilla::dom::Sequence<mozilla::OwningNonNull<nsDOMMutationRecord> >
     mutations;
   if (mutations.SetCapacity(mPendingMutationCount, mozilla::fallible)) {
     // We can't use TakeRecords easily here, because it deals with a

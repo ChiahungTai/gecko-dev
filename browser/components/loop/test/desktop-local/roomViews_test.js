@@ -259,8 +259,8 @@ describe("loop.roomViews", function () {
       it("should show the 'Add some context' link", function() {
         view = mountTestComponent();
 
-        expect(view.getDOMNode().querySelector(".room-invitation-addcontext")).
-          to.not.eql(null);
+        expect(view.getDOMNode().querySelector(
+          ".room-invitation-addcontext")).to.not.eql(null);
       });
 
       it("should call a callback when the link is clicked", function() {
@@ -295,7 +295,7 @@ describe("loop.roomViews", function () {
     beforeEach(function() {
       sandbox.stub(dispatcher, "dispatch");
       fakeMozLoop.getLoopPref = function(prefName) {
-        if (prefName == "contextInConversations.enabled") {
+        if (prefName === "contextInConversations.enabled") {
           return true;
         }
         return "test";

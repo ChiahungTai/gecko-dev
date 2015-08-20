@@ -22,4 +22,5 @@
 # changes to stick? As of bug 928195, this shouldn't be necessary! Please
 # don't change CLOBBER for WebIDL changes any more.
 
-Bug 1186748 needed a CLOBBER again
+Bug 1179909 - Android's build system apparently doesn't pick up the removal of
+a Cpptest from the moz.build file and errors out trying to run it anyway.

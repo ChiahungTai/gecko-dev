@@ -2991,6 +2991,13 @@ NS_IMPL_ISUPPORTS0(FullscreenTransitionData)
 /* virtual */ bool
 nsWindow::PrepareForFullscreenTransition(nsISupports** aData)
 {
+  // We don't support fullscreen transition when composition is not
+  // enabled, which could make the transition broken and annoying.
+  // See bug 1184201.
+  if (!nsUXThemeData::CheckForCompositor()) {
+    return false;
+  }
+
   FullscreenTransitionInitData initData;
   nsCOMPtr<nsIScreen> screen = GetWidgetScreen();
   int32_t x, y, width, height;
@@ -3146,24 +3153,31 @@ void* nsWindow::GetNativeData(uint32_t aDataType)
   return nullptr;
 }
 
+static void
+SetChildStyleAndParent(HWND aChildWindow, HWND aParentWindow)
+{
+    // Make sure the window is styled to be a child window.
+    LONG_PTR style = GetWindowLongPtr(aChildWindow, GWL_STYLE);
+    style |= WS_CHILD;
+    style &= ~WS_POPUP;
+    SetWindowLongPtr(aChildWindow, GWL_STYLE, style);
+
+    // Do the reparenting. Note that this call will probably cause a sync native
+    // message to the process that owns the child window.
+    ::SetParent(aChildWindow, aParentWindow);
+}
+
 void
 nsWindow::SetNativeData(uint32_t aDataType, uintptr_t aVal)
 {
   switch (aDataType) {
     case NS_NATIVE_CHILD_WINDOW:
-      {
-        HWND childWindow = reinterpret_cast<HWND>(aVal);
-
-        // Make sure the window is styled to be a child window.
-        LONG_PTR style = GetWindowLongPtr(childWindow, GWL_STYLE);
-        style |= WS_CHILD;
-        style &= ~WS_POPUP;
-        SetWindowLongPtr(childWindow, GWL_STYLE, style);
-
-        // Do the reparenting.
-        ::SetParent(childWindow, mWnd);
-        break;
-      }
+      SetChildStyleAndParent(reinterpret_cast<HWND>(aVal), mWnd);
+      break;
+    case NS_NATIVE_CHILD_OF_SHAREABLE_WINDOW:
+      SetChildStyleAndParent(reinterpret_cast<HWND>(aVal),
+                             WinUtils::GetTopLevelHWND(mWnd));
+      break;
     default:
       NS_ERROR("SetNativeData called with unsupported data type.");
   }

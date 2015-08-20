@@ -41,52 +41,6 @@ CodeGeneratorARM::CodeGeneratorARM(MIRGenerator* gen, LIRGraph* graph, MacroAsse
 {
 }
 
-bool
-CodeGeneratorARM::generatePrologue()
-{
-    MOZ_ASSERT(masm.framePushed() == 0);
-    MOZ_ASSERT(!gen->compilingAsmJS());
-#ifdef JS_USE_LINK_REGISTER
-    masm.pushReturnAddress();
-#endif
-
-    // If profiling, save the current frame pointer to a per-thread global field.
-    if (isProfilerInstrumentationEnabled())
-        masm.profilerEnterFrame(StackPointer, CallTempReg0);
-
-    // Ensure that the Ion frames is properly aligned.
-    masm.assertStackAlignment(JitStackAlignment, 0);
-
-    // Note that this automatically sets MacroAssembler::framePushed().
-    masm.reserveStack(frameSize());
-    masm.checkStackAlignment();
-
-    emitTracelogIonStart();
-
-    return true;
-}
-
-bool
-CodeGeneratorARM::generateEpilogue()
-{
-    MOZ_ASSERT(!gen->compilingAsmJS());
-    masm.bind(&returnLabel_);
-
-    emitTracelogIonStop();
-
-    masm.freeStack(frameSize());
-    MOZ_ASSERT(masm.framePushed() == 0);
-
-    // If profiling, reset the per-thread global lastJitFrame to point to
-    // the previous frame.
-    if (isProfilerInstrumentationEnabled())
-        masm.profilerExitFrame();
-
-    masm.pop(pc);
-    masm.flushBuffer();
-    return true;
-}
-
 void
 CodeGeneratorARM::emitBranch(Assembler::Condition cond, MBasicBlock* mirTrue, MBasicBlock* mirFalse)
 {
@@ -619,7 +573,7 @@ CodeGeneratorARM::visitSoftDivI(LSoftDivI* ins)
     Label done;
     divICommon(mir, lhs, rhs, output, ins->snapshot(), done);
 
-    masm.setupAlignedABICall(2);
+    masm.setupAlignedABICall();
     masm.passABIArg(lhs);
     masm.passABIArg(rhs);
     if (gen->compilingAsmJS())
@@ -780,7 +734,7 @@ CodeGeneratorARM::visitSoftModI(LSoftModI* ins)
 
     modICommon(mir, lhs, rhs, output, ins->snapshot(), done);
 
-    masm.setupAlignedABICall(2);
+    masm.setupAlignedABICall();
     masm.passABIArg(lhs);
     masm.passABIArg(rhs);
     if (gen->compilingAsmJS())
@@ -1962,7 +1916,7 @@ CodeGeneratorARM::visitAsmJSCompareExchangeCallout(LAsmJSCompareExchangeCallout*
 
     MOZ_ASSERT(ToRegister(ins->output()) == ReturnReg);
 
-    masm.setupAlignedABICall(4);
+    masm.setupAlignedABICall();
     masm.ma_mov(Imm32(viewType), ScratchRegister);
     masm.passABIArg(ScratchRegister);
     masm.passABIArg(ptr);
@@ -2015,7 +1969,7 @@ CodeGeneratorARM::visitAsmJSAtomicExchangeCallout(LAsmJSAtomicExchangeCallout* i
 
     MOZ_ASSERT(ToRegister(ins->output()) == ReturnReg);
 
-    masm.setupAlignedABICall(3);
+    masm.setupAlignedABICall();
     masm.ma_mov(Imm32(viewType), ScratchRegister);
     masm.passABIArg(ScratchRegister);
     masm.passABIArg(ptr);
@@ -2112,7 +2066,7 @@ CodeGeneratorARM::visitAsmJSAtomicBinopCallout(LAsmJSAtomicBinopCallout* ins)
     Register ptr = ToRegister(ins->ptr());
     Register value = ToRegister(ins->value());
 
-    masm.setupAlignedABICall(3);
+    masm.setupAlignedABICall();
     masm.ma_mov(Imm32(viewType), ScratchRegister);
     masm.passABIArg(ScratchRegister);
     masm.passABIArg(ptr);
@@ -2239,7 +2193,7 @@ CodeGeneratorARM::visitSoftUDivOrMod(LSoftUDivOrMod* ins)
     generateUDivModZeroCheck(rhs, output, &done, ins->snapshot(), div);
     generateUDivModZeroCheck(rhs, output, &done, ins->snapshot(), mod);
 
-    masm.setupAlignedABICall(2);
+    masm.setupAlignedABICall();
     masm.passABIArg(lhs);
     masm.passABIArg(rhs);
     if (gen->compilingAsmJS())
@@ -2382,7 +2336,7 @@ CodeGeneratorARM::visitRandom(LRandom* ins)
 
     masm.loadJSContext(temp);
 
-    masm.setupUnalignedABICall(1, temp2);
+    masm.setupUnalignedABICall(temp2);
     masm.passABIArg(temp);
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void*, math_random_no_outparam), MoveOp::DOUBLE);
 

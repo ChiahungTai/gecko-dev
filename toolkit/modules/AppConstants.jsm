@@ -101,6 +101,14 @@ this.AppConstants = Object.freeze({
   false,
 #endif
 
+# MOZ_B2G covers both device and desktop b2g
+  MOZ_B2G:
+#ifdef MOZ_B2G
+  true,
+#else
+  false,
+#endif
+
 # NOTE! XP_LINUX has to go after MOZ_WIDGET_ANDROID otherwise Android
 # builds will be misidentified as linux.
   platform:
@@ -166,4 +174,11 @@ this.AppConstants = Object.freeze({
   MOZ_UPDATE_CHANNEL: "@MOZ_UPDATE_CHANNEL@",
   MOZ_WIDGET_TOOLKIT: "@MOZ_WIDGET_TOOLKIT@",
   ANDROID_PACKAGE_NAME: "@ANDROID_PACKAGE_NAME@",
+  MOZ_ANDROID_APZ:
+#ifdef MOZ_ANDROID_APZ
+    true,
+#else
+    false,
+#endif
+  DEBUG_JS_MODULES: "@DEBUG_JS_MODULES@"
 });

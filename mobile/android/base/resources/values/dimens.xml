@@ -11,6 +11,11 @@
     <dimen name="autocomplete_row_height">32dp</dimen>
 
     <dimen name="browser_toolbar_height">48dp</dimen>
+    <!-- This value is the height of the Tabs Panel header view
+         (browser_toolbar_height) minus the height of the indicator
+         (6dp). This value should change when the height of the view changes. -->
+    <dimen name="tabs_panel_indicator_selected_padding_top">42dp</dimen>
+
     <!-- We use two different values for browser_toolbar_height on tablet
          which is inconsistent. Temporary value until bug 1150730 is fixed. -->
     <dimen name="browser_toolbar_height_flipper">48dp</dimen>
@@ -55,6 +60,7 @@
 
     <dimen name="firstrun_content_width">300dp</dimen>
     <dimen name="firstrun_min_height">180dp</dimen>
+    <dimen name="firstrun_brand_size">48dp</dimen>
 
     <dimen name="overlay_prompt_content_width">260dp</dimen>
     <dimen name="overlay_prompt_button_width">148dp</dimen>
@@ -80,7 +86,6 @@
 
     <!-- Reading list row on about:home -->
     <dimen name="reading_list_row_height">128dp</dimen>
-    <dimen name="reading_list_row_padding_left">15dp</dimen>
     <dimen name="reading_list_row_padding_right">10dp</dimen>
 
     <!-- Remote Tabs static view top padding. Less in landscape on phones. -->

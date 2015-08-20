@@ -29,7 +29,7 @@ using class mozilla::TimeDuration from "mozilla/TimeStamp.h";
 using class mozilla::TimeStamp from "mozilla/TimeStamp.h";
 using mozilla::ScreenRotation from "mozilla/WidgetUtils.h";
 using nsCSSProperty from "nsCSSProperty.h";
-using mozilla::dom::ScreenOrientation from "mozilla/dom/ScreenOrientation.h";
+using mozilla::dom::ScreenOrientationInternal from "mozilla/dom/ScreenOrientation.h";
 using struct mozilla::layers::TextureInfo from "mozilla/layers/CompositorTypes.h";
 using mozilla::LayerMargin from "Units.h";
 using mozilla::LayerPoint from "Units.h";
@@ -50,7 +50,7 @@ namespace layers {
 struct TargetConfig {
   IntRect naturalBounds;
   ScreenRotation rotation;
-  ScreenOrientation orientation;
+  ScreenOrientationInternal orientation;
   nsIntRegion clearRegion;
 };
 
@@ -215,8 +215,8 @@ struct CommonLayerAttributes {
   bool useClipRect;
   ParentLayerIntRect clipRect;
   bool isFixedPosition;
+  uint64_t fixedPositionScrollContainerId;
   LayerPoint fixedPositionAnchor;
-  LayerMargin fixedPositionMargin;
   bool isStickyPosition;
   uint64_t stickyScrollContainerId;
   LayerRect stickyScrollRangeOuter;
@@ -392,8 +392,8 @@ struct TimedTexture {
   MaybeFence fence;
   TimeStamp timeStamp;
   IntRect picture;
-  int32_t frameID;
-  int32_t producerID;
+  uint32_t frameID;
+  uint32_t producerID;
 };
 
 /**
@@ -487,8 +487,8 @@ struct ImageCompositeNotification {
   PImageContainer imageContainer;
   TimeStamp imageTimeStamp;
   TimeStamp firstCompositeTimeStamp;
-  int32_t frameID;
-  int32_t producerID;
+  uint32_t frameID;
+  uint32_t producerID;
 };
 
 // Unit of a "changeset reply".  This is a weird abstraction, probably

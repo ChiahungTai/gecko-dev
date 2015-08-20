@@ -40,7 +40,8 @@ browser.jar:
         skin/classic/browser/content-contextmenu.svg
         skin/classic/browser/drm-icon.svg                            (../shared/drm-icon.svg)
 *       skin/classic/browser/engineManager.css
-        skin/classic/browser/fullscreen-darknoise.png
+        skin/classic/browser/fullscreen/insecure.svg                 (../shared/fullscreen/insecure.svg)
+        skin/classic/browser/fullscreen/secure.svg                   (../shared/fullscreen/secure.svg)
         skin/classic/browser/Geolocation-16.png
         skin/classic/browser/Geolocation-64.png
         skin/classic/browser/Push-16.png
@@ -63,9 +64,6 @@ browser.jar:
         skin/classic/browser/livemark-folder-XP.png
         skin/classic/browser/magnifier.png                          (../shared/magnifier.png)
         skin/classic/browser/magnifier@2x.png                       (../shared/magnifier@2x.png)
-        skin/classic/browser/mask.png                               (../shared/mask.png)
-        skin/classic/browser/mask@2x.png                            (../shared/mask@2x.png)
-        skin/classic/browser/mask-and-shield.svg                    (../shared/mask-and-shield.svg)
         skin/classic/browser/menu-back.png
         skin/classic/browser/menu-back-XP.png
         skin/classic/browser/menu-forward.png
@@ -84,11 +82,6 @@ browser.jar:
         skin/classic/browser/menuPanel-small@2x.png
         skin/classic/browser/menuPanel-small-aero.png
         skin/classic/browser/menuPanel-small-aero@2x.png
-        skin/classic/browser/bad-content-blocked-16.png             (../shared/bad-content-blocked-16.png)
-        skin/classic/browser/bad-content-blocked-16@2x.png          (../shared/bad-content-blocked-16@2x.png)
-        skin/classic/browser/bad-content-blocked-64.png             (../shared/bad-content-blocked-64.png)
-        skin/classic/browser/bad-content-unblocked-16.png           (../shared/bad-content-unblocked-16.png)
-        skin/classic/browser/bad-content-unblocked-64.png           (../shared/bad-content-unblocked-64.png)
         skin/classic/browser/monitor.png
         skin/classic/browser/monitor_16-10.png
         skin/classic/browser/notification-16.png
@@ -124,6 +117,7 @@ browser.jar:
         skin/classic/browser/search-history-icon.svg                 (../shared/search/history-icon.svg)
         skin/classic/browser/search-indicator-magnifying-glass.svg   (../shared/search/search-indicator-magnifying-glass.svg)
         skin/classic/browser/search-arrow-go.svg                     (../shared/search/search-arrow-go.svg)
+        skin/classic/browser/info.svg                                (../shared/info.svg)
         skin/classic/browser/setDesktopBackground.css
         skin/classic/browser/slowStartup-16.png
         skin/classic/browser/theme-switcher-icon.png                 (../shared/theme-switcher-icon.png)
@@ -143,6 +137,7 @@ browser.jar:
         skin/classic/browser/undoCloseTab.png                        (../shared/undoCloseTab.png)
         skin/classic/browser/undoCloseTab@2x.png                     (../shared/undoCloseTab@2x.png)
         skin/classic/browser/update-badge.svg                        (../shared/update-badge.svg)
+        skin/classic/browser/update-badge-failed.svg                 (../shared/update-badge-failed.svg)
         skin/classic/browser/urlbar-arrow.png                        (../shared/urlbar-arrow.png)
         skin/classic/browser/urlbar-arrow@2x.png                     (../shared/urlbar-arrow@2x.png)
         skin/classic/browser/urlbar-popup-blocked.png
@@ -205,8 +200,10 @@ browser.jar:
         skin/classic/browser/controlcenter/conn-secure.svg  (../shared/controlcenter/conn-secure.svg)
         skin/classic/browser/controlcenter/mcb-disabled.svg  (../shared/controlcenter/mcb-disabled.svg)
         skin/classic/browser/controlcenter/permissions.svg  (../shared/controlcenter/permissions.svg)
-        skin/classic/browser/controlcenter/tracking-protection.svg                 (../shared/controlcenter/tracking-protection.svg)
-        skin/classic/browser/controlcenter/tracking-protection-disabled.svg        (../shared/controlcenter/tracking-protection-disabled.svg)
+        skin/classic/browser/controlcenter/tracking-protection.svg  (../shared/controlcenter/tracking-protection.svg)
+        skin/classic/browser/controlcenter/tracking-protection-disabled.svg  (../shared/controlcenter/tracking-protection-disabled.svg)
+        skin/classic/browser/controlcenter/warning-gray.svg  (../shared/controlcenter/warning-gray.svg)
+        skin/classic/browser/controlcenter/warning-yellow.svg  (../shared/controlcenter/warning-yellow.svg)
         skin/classic/browser/customizableui/background-noise-toolbar.png  (customizableui/background-noise-toolbar.png)
         skin/classic/browser/customizableui/customizeFavicon.ico  (../shared/customizableui/customizeFavicon.ico)
         skin/classic/browser/customizableui/customize-illustration.png  (../shared/customizableui/customize-illustration.png)
@@ -225,6 +222,18 @@ browser.jar:
         skin/classic/browser/customizableui/subView-arrow-back-inverted.png  (../shared/customizableui/subView-arrow-back-inverted.png)
         skin/classic/browser/customizableui/subView-arrow-back-inverted@2x.png  (../shared/customizableui/subView-arrow-back-inverted@2x.png)
         skin/classic/browser/customizableui/subView-arrow-back-inverted-rtl.png  (../shared/customizableui/subView-arrow-back-inverted-rtl.png)
+        skin/classic/browser/customizableui/thumburger-XP.png             (customizableui/thumburger-XP.png)
+        skin/classic/browser/customizableui/thumburger-XP@2x.png          (customizableui/thumburger-XP@2x.png)
+        skin/classic/browser/customizableui/thumburger-aero.png           (customizableui/thumburger-aero.png)
+        skin/classic/browser/customizableui/thumburger-aero@2x.png        (customizableui/thumburger-aero@2x.png)
+        skin/classic/browser/customizableui/thumburger-inverted.png       (customizableui/thumburger-inverted.png)
+        skin/classic/browser/customizableui/thumburger-inverted@2x.png    (customizableui/thumburger-inverted@2x.png)
+        skin/classic/browser/customizableui/thumburger-lunaSilver.png     (customizableui/thumburger-lunaSilver.png)
+        skin/classic/browser/customizableui/thumburger-lunaSilver@2x.png  (customizableui/thumburger-lunaSilver@2x.png)
+        skin/classic/browser/customizableui/thumburger-win8.png           (customizableui/thumburger-win8.png)
+        skin/classic/browser/customizableui/thumburger-win8@2x.png        (customizableui/thumburger-win8@2x.png)
+        skin/classic/browser/customizableui/thumburger.png                (customizableui/thumburger.png)
+        skin/classic/browser/customizableui/thumburger@2x.png             (customizableui/thumburger@2x.png)
         skin/classic/browser/customizableui/whimsy.png  (../shared/customizableui/whimsy.png)
         skin/classic/browser/customizableui/whimsy@2x.png  (../shared/customizableui/whimsy@2x.png)
         skin/classic/browser/customizableui/whimsy-bw.png  (../shared/customizableui/whimsy-bw.png)
@@ -307,7 +316,14 @@ browser.jar:
         skin/classic/browser/preferences/in-content/favicon.ico      (../shared/incontentprefs/favicon.ico)
         skin/classic/browser/preferences/in-content/icons.svg        (../shared/incontentprefs/icons.svg)
         skin/classic/browser/preferences/in-content/search.css       (../shared/incontentprefs/search.css)
-        skin/classic/browser/fxa/default-profile-image.svg   (../shared/fxa/default-profile-image.svg)
+        skin/classic/browser/fxa/default-avatar.png                  (../shared/fxa/default-avatar.png)
+        skin/classic/browser/fxa/default-avatar@2x.png               (../shared/fxa/default-avatar@2x.png)
+        skin/classic/browser/fxa/logo.png                            (../shared/fxa/logo.png)
+        skin/classic/browser/fxa/logo@2x.png                         (../shared/fxa/logo@2x.png)
+        skin/classic/browser/fxa/sync-illustration.png               (../shared/fxa/sync-illustration.png)
+        skin/classic/browser/fxa/sync-illustration@2x.png            (../shared/fxa/sync-illustration@2x.png)
+        skin/classic/browser/fxa/android.png                         (../shared/fxa/android.png)
+        skin/classic/browser/fxa/android@2x.png                      (../shared/fxa/android@2x.png)
         skin/classic/browser/preferences/applications.css            (preferences/applications.css)
         skin/classic/browser/preferences/aboutPermissions.css        (preferences/aboutPermissions.css)
         skin/classic/browser/preferences/search.css                  (preferences/search.css)
@@ -315,6 +331,13 @@ browser.jar:
         skin/classic/browser/preferences/checkbox-aero.png           (preferences/checkbox-aero.png)
         skin/classic/browser/preferences/checkbox-classic.png        (preferences/checkbox-classic.png)
         skin/classic/browser/preferences/checkbox-xp.png             (preferences/checkbox-xp.png)
+        skin/classic/browser/privatebrowsing/attention.png           (../shared/privatebrowsing/attention.png)
+        skin/classic/browser/privatebrowsing/attention@2x.png        (../shared/privatebrowsing/attention@2x.png)
+        skin/classic/browser/privatebrowsing/check.png               (../shared/privatebrowsing/check.png)
+        skin/classic/browser/privatebrowsing/check@2x.png            (../shared/privatebrowsing/check@2x.png)
+        skin/classic/browser/privatebrowsing/mask.svg                (../shared/privatebrowsing/mask.svg)
+        skin/classic/browser/privatebrowsing/shield-page.png         (../shared/privatebrowsing/shield-page.png)
+        skin/classic/browser/privatebrowsing/shield-page@2x.png      (../shared/privatebrowsing/shield-page@2x.png)
         skin/classic/browser/social/services-16.png                  (social/services-16.png)
         skin/classic/browser/social/services-64.png                  (social/services-64.png)
         skin/classic/browser/social/chat-icons.svg                   (../shared/social/chat-icons.svg)
@@ -402,7 +425,7 @@ browser.jar:
         skin/classic/browser/devtools/newtab@2x.png                 (../shared/devtools/images/newtab@2x.png)
         skin/classic/browser/devtools/newtab-inverted.png           (../shared/devtools/images/newtab-inverted.png)
         skin/classic/browser/devtools/newtab-inverted@2x.png        (../shared/devtools/images/newtab-inverted@2x.png)
-*       skin/classic/browser/devtools/widgets.css                   (devtools/widgets.css)
+*       skin/classic/browser/devtools/widgets.css                   (../shared/devtools/widgets.css)
         skin/classic/browser/devtools/power.svg                     (../shared/devtools/images/power.svg)
         skin/classic/browser/devtools/filetype-dir-close.svg        (../shared/devtools/images/filetypes/dir-close.svg)
         skin/classic/browser/devtools/filetype-dir-open.svg         (../shared/devtools/images/filetypes/dir-open.svg)
@@ -440,8 +463,8 @@ browser.jar:
         skin/classic/browser/devtools/editor-breakpoint@2x.png         (../shared/devtools/images/editor-breakpoint@2x.png)
         skin/classic/browser/devtools/editor-debug-location.png     (../shared/devtools/images/editor-debug-location.png)
         skin/classic/browser/devtools/editor-debug-location@2x.png     (../shared/devtools/images/editor-debug-location@2x.png)
-*       skin/classic/browser/devtools/webconsole.css                (devtools/webconsole.css)
-        skin/classic/browser/devtools/webconsole_networkpanel.css   (devtools/webconsole_networkpanel.css)
+*       skin/classic/browser/devtools/webconsole.css                (../shared/devtools/webconsole.css)
+        skin/classic/browser/devtools/webconsole_networkpanel.css   (../shared/devtools/webconsole_networkpanel.css)
         skin/classic/browser/devtools/webconsole.svg                (../shared/devtools/images/webconsole.svg)
         skin/classic/browser/devtools/breadcrumbs-divider@2x.png    (../shared/devtools/images/breadcrumbs-divider@2x.png)
         skin/classic/browser/devtools/breadcrumbs-scrollbutton.png  (../shared/devtools/images/breadcrumbs-scrollbutton.png)
@@ -450,7 +473,7 @@ browser.jar:
         skin/classic/browser/devtools/eyedropper.css                (../shared/devtools/eyedropper.css)
 *       skin/classic/browser/devtools/canvasdebugger.css            (../shared/devtools/canvasdebugger.css)
         skin/classic/browser/devtools/debugger.css                  (../shared/devtools/debugger.css)
-*       skin/classic/browser/devtools/netmonitor.css                (devtools/netmonitor.css)
+*       skin/classic/browser/devtools/netmonitor.css                (../shared/devtools/netmonitor.css)
         skin/classic/browser/devtools/performance.css               (../shared/devtools/performance.css)
         skin/classic/browser/devtools/promisedebugger.css           (../shared/devtools/promisedebugger.css)
         skin/classic/browser/devtools/timeline-filter.svg           (../shared/devtools/images/timeline-filter.svg)
@@ -495,12 +518,6 @@ browser.jar:
         skin/classic/browser/devtools/debugger-blackbox@2x.png      (../shared/devtools/images/debugger-blackbox@2x.png)
         skin/classic/browser/devtools/debugger-prettyprint.png      (../shared/devtools/images/debugger-prettyprint.png)
         skin/classic/browser/devtools/debugger-prettyprint@2x.png   (../shared/devtools/images/debugger-prettyprint@2x.png)
-        skin/classic/browser/devtools/debugger-no-pause-exceptions.png  (../shared/devtools/images/debugger-no-pause-exceptions.png)
-        skin/classic/browser/devtools/debugger-no-pause-exceptions@2x.png (../shared/devtools/images/debugger-no-pause-exceptions@2x.png)
-        skin/classic/browser/devtools/debugger-pause-all-exceptions.png  (../shared/devtools/images/debugger-pause-all-exceptions.png)
-        skin/classic/browser/devtools/debugger-pause-all-exceptions@2x.png (../shared/devtools/images/debugger-pause-all-exceptions@2x.png)
-        skin/classic/browser/devtools/debugger-pause-uncaught-exceptions.png  (../shared/devtools/images/debugger-pause-uncaught-exceptions.png)
-        skin/classic/browser/devtools/debugger-pause-uncaught-exceptions@2x.png (../shared/devtools/images/debugger-pause-uncaught-exceptions@2x.png)
         skin/classic/browser/devtools/debugger-toggleBreakpoints.png  (../shared/devtools/images/debugger-toggleBreakpoints.png)
         skin/classic/browser/devtools/debugger-toggleBreakpoints@2x.png  (../shared/devtools/images/debugger-toggleBreakpoints@2x.png)
         skin/classic/browser/devtools/tracer-icon.png               (../shared/devtools/images/tracer-icon.png)
@@ -523,8 +540,8 @@ browser.jar:
         skin/classic/browser/devtools/dock-bottom-minimize@2x.png   (../shared/devtools/images/dock-bottom-minimize@2x.png)
         skin/classic/browser/devtools/dock-bottom-maximize@2x.png   (../shared/devtools/images/dock-bottom-maximize@2x.png)
         skin/classic/browser/devtools/dock-side@2x.png              (../shared/devtools/images/dock-side@2x.png)
-        skin/classic/browser/devtools/floating-scrollbars.css       (devtools/floating-scrollbars.css)
-        skin/classic/browser/devtools/floating-scrollbars-light.css (devtools/floating-scrollbars-light.css)
+*       skin/classic/browser/devtools/floating-scrollbars.css       (../shared/devtools/floating-scrollbars.css)
+        skin/classic/browser/devtools/floating-scrollbars-light.css (../shared/devtools/floating-scrollbars-light.css)
 *       skin/classic/browser/devtools/inspector.css                 (../shared/devtools/inspector.css)
         skin/classic/browser/devtools/profiler-stopwatch.svg        (../shared/devtools/images/profiler-stopwatch.svg)
         skin/classic/browser/devtools/profiler-stopwatch-checked.svg  (../shared/devtools/images/profiler-stopwatch-checked.svg)
@@ -695,6 +712,16 @@ browser.jar:
 % override chrome://browser/skin/Toolbar.png                          chrome://browser/skin/Toolbar-aero.png                            os=WINNT osversion=6.1
 % override chrome://browser/skin/Toolbar.png                          chrome://browser/skin/Toolbar-win8.png                            os=WINNT osversion=6.2
 % override chrome://browser/skin/Toolbar.png                          chrome://browser/skin/Toolbar-win8.png                            os=WINNT osversion=6.3
+% override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-XP.png            os=WINNT osversion<6
+% override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-aero.png          os=WINNT osversion=6
+% override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-aero.png          os=WINNT osversion=6.1
+% override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-win8.png          os=WINNT osversion=6.2
+% override chrome://browser/skin/customizableui/thumburger.png        chrome://browser/skin/customizableui/thumburger-win8.png          os=WINNT osversion=6.3
+% override chrome://browser/skin/customizableui/thumburger@2x.png     chrome://browser/skin/customizableui/thumburger-XP@2x.png         os=WINNT osversion<6
+% override chrome://browser/skin/customizableui/thumburger@2x.png     chrome://browser/skin/customizableui/thumburger-aero@2x.png       os=WINNT osversion=6
+% override chrome://browser/skin/customizableui/thumburger@2x.png     chrome://browser/skin/customizableui/thumburger-aero@2x.png       os=WINNT osversion=6.1
+% override chrome://browser/skin/customizableui/thumburger@2x.png     chrome://browser/skin/customizableui/thumburger-win8@2x.png       os=WINNT osversion=6.2
+% override chrome://browser/skin/customizableui/thumburger@2x.png     chrome://browser/skin/customizableui/thumburger-win8@2x.png       os=WINNT osversion=6.3
 % override chrome://browser/skin/loop/toolbar.png                     chrome://browser/skin/loop/toolbar-XP.png                         os=WINNT osversion<6
 % override chrome://browser/skin/loop/toolbar.png                     chrome://browser/skin/loop/toolbar-aero.png                       os=WINNT osversion=6
 % override chrome://browser/skin/loop/toolbar.png                     chrome://browser/skin/loop/toolbar-aero.png                       os=WINNT osversion=6.1

@@ -1841,6 +1841,7 @@ const KTableValue nsCSSProps::kUserSelectKTable[] = {
   eCSSKeyword_tri_state,  NS_STYLE_USER_SELECT_TRI_STATE,
   eCSSKeyword__moz_all,   NS_STYLE_USER_SELECT_MOZ_ALL,
   eCSSKeyword__moz_none,  NS_STYLE_USER_SELECT_NONE,
+  eCSSKeyword__moz_text,  NS_STYLE_USER_SELECT_MOZ_TEXT,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -2933,6 +2934,21 @@ nsCSSProps::gPropertyEnabled[eCSSProperty_COUNT_with_aliases] = {
     true,
   #include "nsCSSPropAliasList.h"
   #undef CSS_PROP_ALIAS
+};
+
+#include "../../dom/base/PropertyUseCounterMap.inc"
+
+/* static */ const UseCounter
+nsCSSProps::gPropertyUseCounter[eCSSProperty_COUNT_no_shorthands] = {
+  #define CSS_PROP_PUBLIC_OR_PRIVATE(publicname_, privatename_) privatename_
+  #define CSS_PROP_LIST_INCLUDE_LOGICAL
+  #define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_,     \
+                   kwtable_, stylestruct_, stylestructoffset_, animtype_) \
+    static_cast<UseCounter>(USE_COUNTER_FOR_CSS_PROPERTY_##method_),
+  #include "nsCSSPropList.h"
+  #undef CSS_PROP
+  #undef CSS_PROP_LIST_INCLUDE_LOGICAL
+  #undef CSS_PROP_PUBLIC_OR_PRIVATE
 };
 
 // Check that all logical property flags are used appropriately.

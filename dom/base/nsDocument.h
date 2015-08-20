@@ -972,6 +972,8 @@ public:
    */
   void OnAppThemeChanged();
 
+  void ReportUseCounters();
+
 private:
   void AddOnDemandBuiltInUASheet(mozilla::CSSStyleSheet* aSheet);
   nsRadioGroupStruct* GetRadioGroupInternal(const nsAString& aName) const;
@@ -1011,9 +1013,9 @@ public:
 
   virtual nsresult Init();
 
-  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
-                              int32_t aNamespaceID,
-                              nsIContent **aResult) override;
+  virtual already_AddRefed<Element> CreateElem(const nsAString& aName,
+                                               nsIAtom* aPrefix,
+                                               int32_t aNamespaceID) override;
 
   virtual void Sanitize() override;
 
@@ -1147,7 +1149,8 @@ public:
 
   virtual void PreloadStyle(nsIURI* uri, const nsAString& charset,
                             const nsAString& aCrossOriginAttr,
-                            ReferrerPolicy aReferrerPolicy) override;
+                            ReferrerPolicy aReferrerPolicy,
+                            const nsAString& aIntegrity) override;
 
   virtual nsresult LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
                                        mozilla::CSSStyleSheet** sheet) override;
@@ -1275,6 +1278,13 @@ public:
                          bool aNoFocusCheck = false);
   bool SetPointerLock(Element* aElement, int aCursorStyle);
   static void UnlockPointer(nsIDocument* aDoc = nullptr);
+
+  void SetCurrentOrientation(mozilla::dom::OrientationType aType,
+                             uint16_t aAngle) override;
+  uint16_t CurrentOrientationAngle() const override;
+  mozilla::dom::OrientationType CurrentOrientationType() const override;
+  void SetOrientationPendingPromise(mozilla::dom::Promise* aPromise) override;
+  mozilla::dom::Promise* GetOrientationPendingPromise() const override;
 
   // This method may fire a DOM event; if it does so it will happen
   // synchronously.
@@ -1477,11 +1487,14 @@ public:
 
   static void XPCOMShutdown();
 
-  bool mIsTopLevelContentDocument:1;
+  bool mIsTopLevelContentDocument: 1;
+  bool mIsContentDocument: 1;
 
   bool IsTopLevelContentDocument();
-
   void SetIsTopLevelContentDocument(bool aIsTopLevelContentDocument);
+
+  bool IsContentDocument() const;
+  void SetIsContentDocument(bool aIsContentDocument);
 
   js::ExpandoAndGeneration mExpandoAndGeneration;
 
@@ -1514,6 +1527,8 @@ protected:
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const override;
   virtual bool InternalAllowXULXBL() override;
 
+  void UpdateScreenOrientation();
+
 #define NS_DOCUMENT_NOTIFY_OBSERVERS(func_, params_)                        \
   NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mObservers, nsIDocumentObserver, \
                                            func_, params_);
@@ -1529,8 +1544,10 @@ protected:
 
   void NotifyStyleSheetApplicableStateChanged();
 
-  // Apply the fullscreen state to the document, and trigger related events.
-  void ApplyFullscreen(const FullscreenRequest& aRequest);
+  // Apply the fullscreen state to the document, and trigger related
+  // events. It returns false if the fullscreen element ready check
+  // fails and nothing gets changed.
+  bool ApplyFullscreen(const FullscreenRequest& aRequest);
 
   nsTArray<nsIObserver*> mCharSetObservers;
 
@@ -1659,6 +1676,13 @@ public:
   // user.
   bool mAllowRelocking:1;
 
+  // ScreenOrientation "pending promise" as described by
+  // http://www.w3.org/TR/screen-orientation/
+  nsRefPtr<mozilla::dom::Promise> mOrientationPendingPromise;
+
+  uint16_t mCurrentOrientationAngle;
+  mozilla::dom::OrientationType mCurrentOrientationType;
+
   // Whether we're observing the "app-theme-changed" observer service
   // notification.  We need to keep track of this because we might get multiple
   // OnPageShow notifications in a row without an OnPageHide in between, if
@@ -1672,6 +1696,14 @@ public:
   // The number of pointer lock requests which are cancelled by the user.
   // The value is saturated to kPointerLockRequestLimit+1 = 3.
   uint8_t mCancelledPointerLockRequests:2;
+
+  // Whether we have reported use counters for this document with Telemetry yet.
+  // Normally this is only done at document destruction time, but for image
+  // documents (SVG documents) that are not guaranteed to be destroyed, we
+  // report use counters when the image cache no longer has any imgRequestProxys
+  // pointing to them.  We track whether we ever reported use counters so
+  // that we only report them once for the document.
+  bool mReportedUseCounters:1;
 
   uint8_t mPendingFullscreenRequests;
 

@@ -9,8 +9,8 @@ let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let {console} = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 let {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let {require, TargetFactory} = devtools;
+let {require} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
+let {TargetFactory} = require("devtools/framework/target");
 let {Utils: WebConsoleUtils} = require("devtools/toolkit/webconsole/utils");
 let {Messages} = require("devtools/webconsole/console-output");
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
@@ -28,6 +28,7 @@ const CATEGORY_WEBDEV = 3;
 const CATEGORY_INPUT = 4;
 const CATEGORY_OUTPUT = 5;
 const CATEGORY_SECURITY = 6;
+const CATEGORY_SERVER = 7;
 
 // The possible message severities.
 const SEVERITY_ERROR = 0;

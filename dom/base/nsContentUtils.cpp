@@ -94,7 +94,6 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "nsHtml5Module.h"
 #include "nsHtml5StringParser.h"
-#include "nsIAppShell.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsICategoryManager.h"
 #include "nsIChannelEventSink.h"
@@ -262,6 +261,7 @@ bool nsContentUtils::sIsExperimentalAutocompleteEnabled = false;
 bool nsContentUtils::sEncodeDecodeURLHash = false;
 bool nsContentUtils::sGettersDecodeURLHash = false;
 bool nsContentUtils::sPrivacyResistFingerprinting = false;
+bool nsContentUtils::sSendPerformanceTimingNotifications = false;
 
 uint32_t nsContentUtils::sHandlingInputTimeout = 1000;
 
@@ -345,7 +345,6 @@ namespace {
 
 static NS_DEFINE_CID(kParserServiceCID, NS_PARSERSERVICE_CID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
-static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 static PLDHashTable* sEventListenerManagersHash;
 
@@ -552,6 +551,9 @@ nsContentUtils::Init()
   Preferences::AddUintVarCache(&sHandlingInputTimeout,
                                "dom.event.handling-user-input-time-limit",
                                1000);
+
+  Preferences::AddBoolVarCache(&sSendPerformanceTimingNotifications,
+                               "dom.performance.enable_notify_performance_timing", false);
 
 #if !(defined(DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
   Preferences::AddBoolVarCache(&sDOMWindowDumpEnabled,
@@ -1334,6 +1336,7 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAttrValue* sandboxAttr)
                | SANDBOXED_SCRIPTS
                | SANDBOXED_AUTOMATIC_FEATURES
                | SANDBOXED_POINTER_LOCK
+               | SANDBOXED_ORIENTATION_LOCK
                | SANDBOXED_DOMAIN;
 
 // Macro for updating the flag according to the keywords
@@ -1345,6 +1348,7 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAttrValue* sandboxAttr)
   IF_KEYWORD(allowscripts, SANDBOXED_SCRIPTS | SANDBOXED_AUTOMATIC_FEATURES)
   IF_KEYWORD(allowtopnavigation, SANDBOXED_TOPLEVEL_NAVIGATION)
   IF_KEYWORD(allowpointerlock, SANDBOXED_POINTER_LOCK)
+  IF_KEYWORD(alloworientationlock, SANDBOXED_ORIENTATION_LOCK)
   IF_KEYWORD(allowpopups, SANDBOXED_AUXILIARY_NAVIGATION)
 
   return out;
@@ -1727,7 +1731,7 @@ nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
 
   // Manifest URIs can't have fragment identifiers.
   if (manifestSpec.IsEmpty() ||
-      manifestSpec.FindChar('#') != kNotFound) {
+      manifestSpec.Contains('#')) {
     return;
   }
 
@@ -3847,6 +3851,30 @@ nsContentUtils::MatchElementId(nsIContent *aContent, const nsAString& aId)
   return MatchElementId(aContent, id);
 }
 
+/* static */
+nsIDocument*
+nsContentUtils::GetSubdocumentWithOuterWindowId(nsIDocument *aDocument,
+                                                uint64_t aOuterWindowId)
+{
+  if (!aDocument || !aOuterWindowId) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsPIDOMWindow> window = nsGlobalWindow::GetOuterWindowWithId(aOuterWindowId);
+  if (!window) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIDocument> foundDoc = window->GetDoc();
+  if (nsContentUtils::ContentIsCrossDocDescendantOf(foundDoc, aDocument)) {
+    // Note that ContentIsCrossDocDescendantOf will return true if
+    // foundDoc == aDocument.
+    return foundDoc;
+  }
+
+  return nullptr;
+}
+
 // Convert the string from the given encoding to Unicode.
 /* static */
 nsresult
@@ -5203,16 +5231,18 @@ nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
 
 /* static */
 void
-nsContentUtils::RunInStableState(already_AddRefed<nsIRunnable> aRunnable,
-                                 DispatchFailureHandling aHandling)
+nsContentUtils::RunInStableState(already_AddRefed<nsIRunnable> aRunnable)
 {
-  nsCOMPtr<nsIRunnable> runnable = aRunnable;
-  nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
-  if (!appShell) {
-    MOZ_ASSERT(aHandling == DispatchFailureHandling::IgnoreFailure);
-    return;
-  }
-  appShell->RunInStableState(runnable.forget());
+  MOZ_ASSERT(CycleCollectedJSRuntime::Get(), "Must be on a script thread!");
+  CycleCollectedJSRuntime::Get()->RunInStableState(Move(aRunnable));
+}
+
+/* static */
+void
+nsContentUtils::RunInMetastableState(already_AddRefed<nsIRunnable> aRunnable)
+{
+  MOZ_ASSERT(CycleCollectedJSRuntime::Get(), "Must be on a script thread!");
+  CycleCollectedJSRuntime::Get()->RunInMetastableState(Move(aRunnable));
 }
 
 void
@@ -7918,6 +7948,10 @@ nsContentUtils::InternalContentPolicyTypeToExternal(nsContentPolicyType aType)
   case nsIContentPolicy::TYPE_INTERNAL_VIDEO:
   case nsIContentPolicy::TYPE_INTERNAL_TRACK:
     return nsIContentPolicy::TYPE_MEDIA;
+
+  case nsIContentPolicy::TYPE_INTERNAL_XMLHTTPREQUEST:
+  case nsIContentPolicy::TYPE_INTERNAL_EVENTSOURCE:
+    return nsIContentPolicy::TYPE_XMLHTTPREQUEST;
 
   default:
     return aType;

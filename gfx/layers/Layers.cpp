@@ -219,7 +219,7 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mContentFlags(0),
   mUseTileSourceRect(false),
   mIsFixedPosition(false),
-  mMargins(0, 0, 0, 0),
+  mFixedPositionData(nullptr),
   mStickyPositionData(nullptr),
   mScrollbarTargetId(FrameMetrics::NULL_SCROLL_ID),
   mScrollbarDirection(ScrollDirection::NONE),
@@ -1188,14 +1188,14 @@ ContainerLayer::SortChildrenBy3DZOrder(nsTArray<Layer*>& aArray)
     } else {
       if (toSort.Length() > 0) {
         SortLayersBy3DZOrder(toSort);
-        aArray.MoveElementsFrom(toSort);
+        aArray.AppendElements(Move(toSort));
       }
       aArray.AppendElement(l);
     }
   }
   if (toSort.Length() > 0) {
     SortLayersBy3DZOrder(toSort);
-    aArray.MoveElementsFrom(toSort);
+    aArray.AppendElements(Move(toSort));
   }
 }
 
@@ -1701,9 +1701,10 @@ Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
     aStream << nsPrintfCString(" [hscrollbar=%lld]", GetScrollbarTargetContainerId()).get();
   }
   if (GetIsFixedPosition()) {
-    aStream << nsPrintfCString(" [isFixedPosition anchor=%s margin=%f,%f,%f,%f]",
-                     ToString(mAnchor).c_str(),
-                     mMargins.top, mMargins.right, mMargins.bottom, mMargins.left).get();
+    LayerPoint anchor = GetFixedPositionAnchor();
+    aStream << nsPrintfCString(" [isFixedPosition scrollId=%d anchor=%s]",
+                     GetFixedPositionScrollContainerId(),
+                     ToString(anchor).c_str()).get();
   }
   if (GetIsStickyPosition()) {
     aStream << nsPrintfCString(" [isStickyPosition scrollId=%d outer=%f,%f %fx%f "

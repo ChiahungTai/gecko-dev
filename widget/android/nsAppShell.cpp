@@ -56,6 +56,8 @@
 #include "mozilla/Logging.h"
 #endif
 
+#include "ANRReporter.h"
+
 #ifdef DEBUG_ANDROID_EVENTS
 #define EVLOG(args...)  ALOG(args)
 #else
@@ -116,7 +118,7 @@ private:
 public:
   NS_DECL_ISUPPORTS;
 
-  nsresult Callback(const nsAString& topic, const nsAString& state) {
+  nsresult Callback(const nsAString& topic, const nsAString& state) override {
     widget::GeckoAppShell::NotifyWakeLockChanged(topic, state);
     return NS_OK;
   }
@@ -138,6 +140,14 @@ nsAppShell::nsAppShell()
         return;
     }
 
+    if (jni::IsAvailable()) {
+        // Initialize JNI and Set the corresponding state in GeckoThread.
+        AndroidBridge::ConstructBridge();
+        mozilla::ANRReporter::Init();
+
+        widget::GeckoThread::SetState(widget::GeckoThread::State::JNI_READY());
+    }
+
     sPowerManagerService = do_GetService(POWERMANAGERSERVICE_CONTRACTID);
 
     if (sPowerManagerService) {
@@ -145,7 +155,6 @@ nsAppShell::nsAppShell()
     } else {
         NS_WARNING("Failed to retrieve PowerManagerService, wakelocks will be broken!");
     }
-
 }
 
 nsAppShell::~nsAppShell()
@@ -157,6 +166,10 @@ nsAppShell::~nsAppShell()
 
         sPowerManagerService = nullptr;
         sWakeLockListener = nullptr;
+    }
+
+    if (jni::IsAvailable()) {
+        AndroidBridge::DeconstructBridge();
     }
 }
 
@@ -245,7 +258,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             // (bug 750713). Looper messages effectively have the lowest
             // priority because we only process them before we're about to
             // wait for new events.
-            if (AndroidBridge::HasEnv() &&
+            if (jni::IsAvailable() &&
                     AndroidBridge::Bridge()->PumpMessageLoop()) {
                 return true;
             }
@@ -575,7 +588,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
         nsIntRect rect;
         int32_t colorDepth, pixelDepth;
-        dom::ScreenOrientation orientation;
+        int16_t angle;
+        dom::ScreenOrientationInternal orientation;
         nsCOMPtr<nsIScreen> screen;
 
         screenMgr->GetPrimaryScreen(getter_AddRefs(screen));
@@ -583,10 +597,11 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         screen->GetColorDepth(&colorDepth);
         screen->GetPixelDepth(&pixelDepth);
         orientation =
-            static_cast<dom::ScreenOrientation>(curEvent->ScreenOrientation());
+            static_cast<dom::ScreenOrientationInternal>(curEvent->ScreenOrientation());
+        angle = curEvent->ScreenAngle();
 
         hal::NotifyScreenConfigurationChange(
-            hal::ScreenConfiguration(rect, orientation, colorDepth, pixelDepth));
+            hal::ScreenConfiguration(rect, orientation, angle, colorDepth, pixelDepth));
         break;
     }
 

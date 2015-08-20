@@ -163,7 +163,7 @@ gfxPlatformFontList::MemoryReporter::CollectReports(
 gfxPlatformFontList::gfxPlatformFontList(bool aNeedFullnamePostscriptNames)
     : mFontFamilies(64), mOtherFamilyNames(16),
       mPrefFonts(8), mBadUnderlineFamilyNames(8), mSharedCmaps(8),
-      mStartIndex(0), mIncrement(1), mNumFamilies(0)
+      mStartIndex(0), mIncrement(1), mNumFamilies(0), mFontlistInitCount(0)
 {
     mOtherFamilyNamesInitialized = false;
 
@@ -195,6 +195,8 @@ gfxPlatformFontList::~gfxPlatformFontList()
 nsresult
 gfxPlatformFontList::InitFontList()
 {
+    mFontlistInitCount++;
+
     if (LOG_FONTINIT_ENABLED()) {
         LOG_FONTINIT(("(fontinit) system fontlist initialization\n"));
     }
@@ -1058,6 +1060,20 @@ gfxPlatformFontList::SizeOfFontFamilyTableExcludingThis(
     return n;
 }
 
+/*static*/ size_t
+gfxPlatformFontList::SizeOfFontEntryTableExcludingThis(
+    const FontEntryTable& aTable,
+    MallocSizeOf aMallocSizeOf)
+{
+    size_t n = aTable.ShallowSizeOfExcludingThis(aMallocSizeOf);
+    for (auto iter = aTable.ConstIter(); !iter.Done(); iter.Next()) {
+        // The font itself is counted by its owning family; here we only care
+        // about the names stored in the hashtable keys.
+        n += iter.Key().SizeOfExcludingThisIfUnshared(aMallocSizeOf);
+    }
+    return n;
+}
+
 void
 gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
                                             FontListSizes* aSizes) const
@@ -1074,25 +1090,12 @@ gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
         SizeOfFontFamilyTableExcludingThis(mOtherFamilyNames, aMallocSizeOf);
 
     if (mExtraNames) {
-        // For these two tables, the font itself is counted by its owning
-        // family; here we only care about the names stored in the hashtable
-        // keys.
         aSizes->mFontListSize +=
-            mExtraNames->mFullnames.ShallowSizeOfExcludingThis(aMallocSizeOf);
-        for (auto iter = mExtraNames->mFullnames.ConstIter();
-             !iter.Done();
-             iter.Next()) {
-            aSizes->mFontListSize +=
-                iter.Key().SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-        }
+            SizeOfFontEntryTableExcludingThis(mExtraNames->mFullnames,
+                                              aMallocSizeOf);
         aSizes->mFontListSize +=
-            mExtraNames->mPostscriptNames.ShallowSizeOfExcludingThis(aMallocSizeOf);
-        for (auto iter = mExtraNames->mPostscriptNames.ConstIter();
-             !iter.Done();
-             iter.Next()) {
-            aSizes->mFontListSize +=
-                iter.Key().SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-        }
+            SizeOfFontEntryTableExcludingThis(mExtraNames->mPostscriptNames,
+                                              aMallocSizeOf);
     }
 
     aSizes->mFontListSize +=

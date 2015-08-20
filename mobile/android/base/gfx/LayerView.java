@@ -10,6 +10,8 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 
 import org.mozilla.gecko.AndroidGamepadManager;
+import org.mozilla.gecko.annotation.RobocopTarget;
+import org.mozilla.gecko.annotation.WrapForJNI;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAccessibility;
@@ -19,8 +21,6 @@ import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.mozglue.RobocopTarget;
-import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -54,7 +54,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
 
     private GeckoLayerClient mLayerClient;
     private PanZoomController mPanZoomController;
-    private LayerMarginsAnimator mMarginsAnimator;
+    private DynamicToolbarAnimator mToolbarAnimator;
     private final GLController mGLController;
     private InputConnectionHandler mInputConnectionHandler;
     private LayerRenderer mRenderer;
@@ -129,7 +129,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         }
 
         mPanZoomController = mLayerClient.getPanZoomController();
-        mMarginsAnimator = mLayerClient.getLayerMarginsAnimator();
+        mToolbarAnimator = mLayerClient.getDynamicToolbarAnimator();
 
         mRenderer = new LayerRenderer(this);
         mInputConnectionHandler = null;
@@ -233,7 +233,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
             requestFocus();
         }
 
-        if (mMarginsAnimator != null && mMarginsAnimator.onInterceptTouchEvent(event)) {
+        if (mToolbarAnimator != null && mToolbarAnimator.onInterceptTouchEvent(event)) {
             return true;
         }
         if (mPanZoomController != null && mPanZoomController.onTouchEvent(event)) {
@@ -300,7 +300,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     public Object getLayerClientObject() { return mLayerClient; }
 
     public PanZoomController getPanZoomController() { return mPanZoomController; }
-    public LayerMarginsAnimator getLayerMarginsAnimator() { return mMarginsAnimator; }
+    public DynamicToolbarAnimator getDynamicToolbarAnimator() { return mToolbarAnimator; }
 
     public ImmutableViewportMetrics getViewportMetrics() {
         return mLayerClient.getViewportMetrics();
@@ -515,7 +515,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         return mTextureView.getSurfaceTexture();
     }
 
-    @WrapElementForJNI(allowMultithread = true, stubName = "RegisterCompositorWrapper")
+    @WrapForJNI(allowMultithread = true, stubName = "RegisterCompositorWrapper")
     public static GLController registerCxxCompositor() {
         try {
             LayerView layerView = GeckoAppShell.getLayerView();
@@ -529,7 +529,7 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
     }
 
     //This method is called on the Gecko main thread.
-    @WrapElementForJNI(allowMultithread = true, stubName = "updateZoomedView")
+    @WrapForJNI(allowMultithread = true, stubName = "updateZoomedView")
     public static void updateZoomedView(ByteBuffer data) {
         LayerView layerView = GeckoAppShell.getLayerView();
         if (layerView != null) {
@@ -665,19 +665,12 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         }
     }
 
-    // Public hooks for listening to metrics changing
+    // Public hooks for dynamic toolbar translation
 
-    public interface OnMetricsChangedListener {
-        public void onMetricsChanged(ImmutableViewportMetrics viewport);
+    public interface DynamicToolbarListener {
+        public void onTranslationChanged(float aToolbarTranslation, float aLayerViewTranslation);
         public void onPanZoomStopped();
-    }
-
-    public void setOnMetricsChangedDynamicToolbarViewportListener(OnMetricsChangedListener listener) {
-        mLayerClient.setOnMetricsChangedDynamicToolbarViewportListener(listener);
-    }
-
-    public void setOnMetricsChangedZoomedViewportListener(OnMetricsChangedListener listener) {
-        mLayerClient.setOnMetricsChangedZoomedViewportListener(listener);
+        public void onMetricsChanged(ImmutableViewportMetrics viewport);
     }
 
     // Public hooks for zoomed view

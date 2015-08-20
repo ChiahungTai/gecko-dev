@@ -255,7 +255,11 @@ public:
     static bool IsOptimus();
 
     bool IsWARP() { return mIsWARP; }
-    bool DoesD3D11TextureSharingWork() { return mDoesD3D11TextureSharingWork; }
+
+    // Returns whether the compositor's D3D11 device supports texture sharing.
+    bool CompositorD3D11TextureSharingWorks() const {
+      return mCompositorD3D11TextureSharingWorks;
+    }
 
     bool SupportsApzWheelInput() const override {
       return true;
@@ -280,7 +284,6 @@ public:
     virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() override;
     static mozilla::Atomic<size_t> sD3D11MemoryUsed;
     static mozilla::Atomic<size_t> sD3D9MemoryUsed;
-    static mozilla::Atomic<size_t> sD3D9SurfaceImageUsed;
     static mozilla::Atomic<size_t> sD3D9SharedTextureUsed;
 
     void GetDeviceInitData(mozilla::gfx::DeviceInitData* aOut) override;
@@ -319,6 +322,7 @@ private:
     void AttemptD3D11ImageBridgeDeviceCreation();
     bool AttemptD3D11ContentDeviceCreation();
     bool CanUseD3D11ImageBridge();
+    bool ContentAdapterIsParentAdapter(ID3D11Device* device);
 
     IDXGIAdapter1 *GetDXGIAdapter();
     bool IsDeviceReset(HRESULT hr, DeviceResetReason* aReason);
@@ -338,7 +342,7 @@ private:
     bool mIsWARP;
     bool mHasDeviceReset;
     bool mHasFakeDeviceReset;
-    bool mDoesD3D11TextureSharingWork;
+    bool mCompositorD3D11TextureSharingWorks;
     DeviceResetReason mDeviceResetReason;
 
     // These should not be accessed directly. Use the Get[Feature]Status
