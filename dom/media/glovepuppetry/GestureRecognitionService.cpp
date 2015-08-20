@@ -172,42 +172,6 @@ public:
       mSenseManager = NULL;
     }
   }
-  void BasicGestureControl() {
-  
-  }
-
-  //
-  // Routines for selection and clipboard
-  //
-  nsresult
-    GetControllerForCommand(const char* aCommand,
-    nsIController** aResult)
-  {
-    NS_ENSURE_ARG_POINTER(aResult);
-    *aResult = nullptr;
-
-    NS_ENSURE_TRUE(mScriptGlobal, NS_ERROR_FAILURE);
-
-    nsCOMPtr<nsPIWindowRoot> root = mScriptGlobal->GetTopWindowRoot();
-    NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
-
-    return root->GetControllerForCommand(aCommand, aResult);
-  }
-
-  NS_IMETHODIMP
-  DoCommand(const char* aCommand)
-  {
-    nsresult rv = NS_ERROR_FAILURE;
-
-    nsCOMPtr<nsIController> controller;
-    rv = GetControllerForCommand(aCommand, getter_AddRefs(controller));
-    if (controller) {
-      rv = controller->DoCommand(aCommand);
-    }
-
-    return rv;
-  }
-
 
   NS_IMETHOD Run() override
   {
@@ -274,6 +238,8 @@ public:
       handConfiguration = NULL;
     }
     pxcI32 numOfHands = 0;
+    bool bLastGestureIsThumbUp = false;
+    bool bLastGestureIsThumbDown = false;
     if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
     {
       // Acquiring frames from input device
@@ -301,6 +267,28 @@ public:
               std::wprintf(L"%s, Gesture: %s was fired at frame %d \n", Definitions::GestureStateToString(gestureData.state), gestureData.name, gestureData.frameNumber);
             }
           }
+          if (handDataOutput->IsGestureFired(L"thumb_up", gestureData)) {
+            // handle tap gesture
+            if (!bLastGestureIsThumbUp) {
+              ErrorResult er;
+              mScriptGlobal->BackOuter(er);
+              NS_WARN_IF(er.Failed());
+              bLastGestureIsThumbUp = true;
+              bLastGestureIsThumbDown = false;
+
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"thumb_down", gestureData)) {
+            // handle tap gesture
+            if (!bLastGestureIsThumbDown) {
+              ErrorResult er;
+              mScriptGlobal->ForwardOuter(er);
+              NS_WARN_IF(er.Failed());
+              bLastGestureIsThumbDown = true;
+              bLastGestureIsThumbUp = false;
+            }
+          }
+
           /*
           // Display joints
           PXCHandData::IHand *hand;

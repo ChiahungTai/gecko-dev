@@ -782,13 +782,13 @@ const CustomizableWidgets = [
       if (gGestureToggle == false) {
   	    gGestureToggle = true;
       	if (!!allowGesture) {
-      		dump("@@@@ start gesture!");
-      		gGesture.start()
+          dump("@@@@ start gesture!");
+      	  gGesture.start()
       	}
       } else {
 	    gGestureToggle = false;
 	    if (!!allowGesture) {
-          dump("@@@@ stop gesture!");
+      	  dump("@@@@ stop gesture!");
           gGesture.stop()
         }
 	  }
