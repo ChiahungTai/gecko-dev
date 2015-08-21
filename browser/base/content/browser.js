@@ -57,6 +57,19 @@ XPCOMUtils.defineLazyModuleGetter(this, "Pocket",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabURL",
                                   "resource:///modules/NewTabURL.jsm");
 
+// Project GLovePuppetry
+let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
+let gGesture;
+if (allowGesture) {
+  gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].
+    getService(Ci.nsIGestureRecognitionService);
+  if (!gGesture) {
+    dump("WTF, NO gesture service!\n")
+  } else {
+    dump("We have gesture service!\n")
+  }
+}
+
 // Can't use XPCOMUtils for these because the scripts try to define the variables
 // on window, and so the defineProperty inside defineLazyGetter fails.
 Object.defineProperty(window, "pktApi", {
@@ -1100,6 +1113,12 @@ var gBrowserInit = {
     this._boundDelayedStartup = this._delayedStartup.bind(this);
     window.addEventListener("MozAfterPaint", this._boundDelayedStartup);
 
+    // Project GlovePuppetry
+    if (!!allowGesture) {
+      dump("@@@@ start gesture!");
+      gGesture.start();
+    }
+
     this._loadHandled = true;
   },
 
@@ -1592,6 +1611,12 @@ var gBrowserInit = {
       IndexedDBPromptHelper.uninit();
       LightweightThemeListener.uninit();
       PanelUI.uninit();
+    }
+    
+    // Project GlovePuppetry
+    if (!!allowGesture) {
+      dump("@@@@ start gesture!");
+      gGesture.stop();
     }
 
     // Final window teardown, do this last.

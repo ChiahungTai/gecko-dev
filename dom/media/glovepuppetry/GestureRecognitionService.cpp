@@ -150,10 +150,7 @@ public:
   LaunchGestureRecognitionRunnable(PXCSession *aSession)
     : mSession(aSession)
     , mSenseManager(nullptr)
-    , mScriptGlobal(nullptr)
   {
-    mScriptGlobal = 
-    NS_NewScriptGlobalObject(false, false);
     MOZ_ASSERT(mSession);
   }
 
@@ -270,9 +267,6 @@ public:
           if (handDataOutput->IsGestureFired(L"thumb_up", gestureData)) {
             // handle tap gesture
             if (!bLastGestureIsThumbUp) {
-              ErrorResult er;
-              mScriptGlobal->BackOuter(er);
-              NS_WARN_IF(er.Failed());
               bLastGestureIsThumbUp = true;
               bLastGestureIsThumbDown = false;
 
@@ -281,9 +275,6 @@ public:
           if (handDataOutput->IsGestureFired(L"thumb_down", gestureData)) {
             // handle tap gesture
             if (!bLastGestureIsThumbDown) {
-              ErrorResult er;
-              mScriptGlobal->ForwardOuter(er);
-              NS_WARN_IF(er.Failed());
               bLastGestureIsThumbDown = true;
               bLastGestureIsThumbUp = false;
             }
@@ -332,7 +323,6 @@ public:
 private:
   PXCSession *mSession;
   PXCSenseManager* mSenseManager;
-  nsRefPtr<nsGlobalWindow> mScriptGlobal;
 };
 
 
