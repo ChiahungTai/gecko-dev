@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_GestureRecognitionService_h
-#define mozilla_dom_GestureRecognitionService_h
+#ifndef mozilla_dom_RealSenseGestureRecognitionService_h
+#define mozilla_dom_RealSenseGestureRecognitionService_h
 
 #include "nsIGestureRecognitionService.h"
 
@@ -16,15 +16,16 @@ class PXCHandData;
 class PXCHandConfiguration;
 
 namespace mozilla {
+using namespace dom;
 
-class GestureRecognitionService final : public nsIGestureRecognitionService
+class RealSenseGestureRecognitionService final : public nsIGestureRecognitionService
 {
 public:
   // Add XPCOM glue code
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGESTURERECOGNITIONSERVICE
 
-  static already_AddRefed<GestureRecognitionService> FactoryCreate();
+  static already_AddRefed<RealSenseGestureRecognitionService> FactoryCreate();
 
 private:
   class LaunchGestureRecognitionRunnable;
@@ -32,14 +33,16 @@ private:
   /**
    * Private destructor to prevent bypassing of reference counting
    */
-  GestureRecognitionService();
-  virtual ~GestureRecognitionService();
+  RealSenseGestureRecognitionService();
+  virtual ~RealSenseGestureRecognitionService();
   void ReleaseAll();
 
   PXCSession* mSession;
 
   nsCOMPtr<nsIThread> mThread;
+  /** The associated SpeechRecognition */
+  nsTArray<WeakPtr<GestureRecognition>> mGestureRecognitions;
 };
 
 } // namespace mozilla
-#endif // mozilla_dom_GestureRecognitionSwervice_h
+#endif // mozilla_dom_RealSenseGestureRecognitionService_h

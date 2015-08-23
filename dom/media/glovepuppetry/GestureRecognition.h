@@ -9,6 +9,8 @@
 
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/Logging.h"
+#include "mozilla/WeakPtr.h"
+#include "nsIGestureRecognitionService.h"
 
 namespace mozilla {
 
@@ -17,21 +19,45 @@ extern PRLogModuleInfo* GetGestureRecognitionLog();
 
 namespace dom {
 
-class GestureRecognition final : public DOMEventTargetHelper 
+class GestureRecognition final : public DOMEventTargetHelper
+                               , public SupportsWeakPtr<GestureRecognition>
 {
 public:
+  MOZ_DECLARE_WEAKREFERENCE_TYPENAME(GestureRecognition)
+  explicit GestureRecognition(nsPIDOMWindow* aOwnerWindow, ErrorResult& aRv);
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(GestureRecognition, DOMEventTargetHelper)
+
   nsISupports* GetParentObject() const;
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
 
-  // WebIDL:
-  void Start();
+  virtual void NotifyThumbUp();
+  virtual void NotifyThumbDown();
+  virtual void NotifySwipeUp();
+  virtual void NotifySwipeDown();
+  virtual void NotifySwipeLeft();
+  virtual void NotifySwipeRight();
 
+  // WebIDL:
+  static already_AddRefed<GestureRecognition>
+  Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
+  void Start(ErrorResult& aRv);
   void Stop();
 
-protected:
-  GestureRecognition();
+  IMPL_EVENT_HANDLER(thumbup)
+  IMPL_EVENT_HANDLER(thumbdown)
+  IMPL_EVENT_HANDLER(swipeup)
+  IMPL_EVENT_HANDLER(swipedown)
+  IMPL_EVENT_HANDLER(swipeleft)
+  IMPL_EVENT_HANDLER(swiperight)
+
+private:
   ~GestureRecognition(){};
+  bool SetRecognitionService(ErrorResult& aRv);
+
+  nsCOMPtr<nsIGestureRecognitionService> mRecognitionService;
 };
 
 } // namespace dom

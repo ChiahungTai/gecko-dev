@@ -2237,6 +2237,14 @@ GK_ATOM(pages,      "pages")
 GK_ATOM(scrollbars, "scrollbars")
 GK_ATOM(other,      "other")
 
+// Project GlovePuppetry
+GK_ATOM(onthumbup, "onthumbup")
+GK_ATOM(onthumbdown, "onthumbdown")
+GK_ATOM(onswipeup, "onswipeup")
+GK_ATOM(onswipedown, "onswipedown")
+GK_ATOM(onswipeleft, "onswipeleft")
+GK_ATOM(onswiperight, "onswiperight")
+
 #ifdef ACCESSIBILITY
 GK_ATOM(alert, "alert")
 GK_ATOM(alertdialog, "alertdialog")

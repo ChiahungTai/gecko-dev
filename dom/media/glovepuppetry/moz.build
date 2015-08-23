@@ -13,9 +13,18 @@ EXPORTS.mozilla.dom += [
     'GestureRecognition.h',
 ]
 
+# Intel Real Sense SDK
+EXPORTS.mozilla += [
+    'RealSenseGestureRecognitionService.h',
+]
+
 UNIFIED_SOURCES += [
     'GestureRecognition.cpp',
-    'GestureRecognitionService.cpp',
+]
+
+# Intel Real Sense SDK
+UNIFIED_SOURCES += [
+    'RealSenseGestureRecognitionService.cpp',
 ]
 
 # /dom/base needed for nsGlobalWindow.h in MediaChild.cpp

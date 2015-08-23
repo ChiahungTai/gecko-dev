@@ -5,8 +5,24 @@
 
 #include "nsISupports.idl"
 
-[scriptable, uuid(62de4092-37a9-42da-a84b-67d564610245)]
+%{C++
+#include "mozilla/WeakPtr.h"
+
+namespace mozilla{
+  namespace dom{
+    class GestureRecognition;
+  }
+}
+%}
+
+native GestureRecognitionWeakPtr(mozilla::WeakPtr<mozilla::dom::GestureRecognition>);
+
+[scriptable, uuid(507802c5-4df8-46e7-bf7b-f8429d215e69)]
 interface nsIGestureRecognitionService : nsISupports {
-    void start();
-    void stop();
+  void start(in GestureRecognitionWeakPtr aGestureRecognition);
+  void stop(in GestureRecognitionWeakPtr aGestureRecognition);
 };
+
+%{C++
+#define NS_GESTURE_RECOGNITION_SERVICE_CONTRACTID_PREFIX "@mozilla.org/glovepuppetry/gestureservice;1?name="
+%}

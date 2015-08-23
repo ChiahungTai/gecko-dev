@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "GestureRecognitionService.h"
+#include "RealSenseGestureRecognitionService.h"
 
 #include "GestureRecognition.h"
 #include "mozilla/ClearOnShutdown.h"
@@ -19,34 +19,35 @@
 #include "pxcsensemanager.h"
 #include "pxcsession.h"
 
-
-#define NS_GESTURESERVICE_CID \
-  { 0xc8942aa4, 0xe421, 0x483f, \
-    { 0xac, 0xfc, 0x67, 0xe5, 0x10, 0x62, 0x60, 0xc7 } }
-#define NS_GESTURESERVICE_CONTRACTID "@mozilla.org/glovepuppetry/gestureservice;1"
+#define NS_REALSENSE_GESTURESERVICE_CID \
+{ 0x5a9704f3, 0xa685, 0x4e68, \
+    { 0x82, 0x55, 0x6a, 0x36, 0xba, 0x45, 0xa1, 0xaa } }
+#define NS_REALSENSE_GESTURESERVICE_CONTRACTID NS_GESTURE_RECOGNITION_SERVICE_CONTRACTID_PREFIX "real-sense"
 
 namespace mozilla {
 
-static GestureRecognitionService* gGestureService;
+using namespace dom;
+
+static RealSenseGestureRecognitionService* gGestureService;
 volatile bool g_stop = true;
 
-NS_IMPL_ISUPPORTS(GestureRecognitionService, nsIGestureRecognitionService)
+NS_IMPL_ISUPPORTS(RealSenseGestureRecognitionService, nsIGestureRecognitionService)
 
-already_AddRefed<GestureRecognitionService>
-GestureRecognitionService::FactoryCreate()
+already_AddRefed<RealSenseGestureRecognitionService>
+RealSenseGestureRecognitionService::FactoryCreate()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   if (!gGestureService) {
-    gGestureService = new GestureRecognitionService();
+    gGestureService = new RealSenseGestureRecognitionService();
     ClearOnShutdown(&gGestureService);
   }
 
-  nsRefPtr<GestureRecognitionService> service = gGestureService;
+  nsRefPtr<RealSenseGestureRecognitionService> service = gGestureService;
   return service.forget();
 }
 
-GestureRecognitionService::GestureRecognitionService()
+RealSenseGestureRecognitionService::RealSenseGestureRecognitionService()
   : mSession(nullptr)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -61,11 +62,11 @@ GestureRecognitionService::GestureRecognitionService()
   }
 }
 
-GestureRecognitionService::~GestureRecognitionService()
+RealSenseGestureRecognitionService::~RealSenseGestureRecognitionService()
 {
 	ReleaseAll();
 }
-void GestureRecognitionService::ReleaseAll()
+void RealSenseGestureRecognitionService::ReleaseAll()
 {
   if (mSession)
 	{
@@ -74,12 +75,13 @@ void GestureRecognitionService::ReleaseAll()
 	}
 }
 
-class GestureRecognitionService::LaunchGestureRecognitionRunnable final : public nsRunnable
+class RealSenseGestureRecognitionService::LaunchGestureRecognitionRunnable final : public nsRunnable
 {
 public:
-  LaunchGestureRecognitionRunnable(PXCSession *aSession)
+  LaunchGestureRecognitionRunnable(PXCSession *aSession, nsTArray<WeakPtr<GestureRecognition>>* aGestureRecognitions)
     : mSession(aSession)
     , mSenseManager(nullptr)
+    , mGestureRecognitions(aGestureRecognitions)
   {
     MOZ_ASSERT(mSession);
   }
@@ -195,18 +197,59 @@ public:
             }
           }
           if (handDataOutput->IsGestureFired(L"thumb_up", gestureData)) {
-            // handle tap gesture
             if (!bLastGestureIsThumbUp) {
               bLastGestureIsThumbUp = true;
               bLastGestureIsThumbDown = false;
-
+              for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+                WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+                if (recognition) {
+                  recognition->NotifyThumbUp();
+                }
+              }
             }
           }
           if (handDataOutput->IsGestureFired(L"thumb_down", gestureData)) {
-            // handle tap gesture
             if (!bLastGestureIsThumbDown) {
               bLastGestureIsThumbDown = true;
               bLastGestureIsThumbUp = false;
+              for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+                WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+                if (recognition) {
+                  recognition->NotifyThumbDown();
+                }
+              }
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"swipe_up", gestureData)) {
+            for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+              WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+              if (recognition) {
+                recognition->NotifySwipeUp();
+              }
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"swipe_down", gestureData)) {
+            for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+              WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+              if (recognition) {
+                recognition->NotifySwipeDown();
+              }
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"swipe_left", gestureData)) {
+            for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+              WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+              if (recognition) {
+                recognition->NotifySwipeLeft();
+              }
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"swipe_right", gestureData)) {
+            for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+              WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+              if (recognition) {
+                recognition->NotifySwipeRight();
+              }
             }
           }
 
@@ -253,64 +296,75 @@ public:
 private:
   PXCSession *mSession;
   PXCSenseManager* mSenseManager;
+  nsTArray<WeakPtr<GestureRecognition>>* mGestureRecognitions;
 };
 
 
 /* void start (); */
-NS_IMETHODIMP GestureRecognitionService::Start()
+NS_IMETHODIMP RealSenseGestureRecognitionService::Start(WeakPtr<GestureRecognition> aGestureRecognition)
 {
+  std::printf("\nmGestureListenter.Length() = %d\n", mGestureRecognitions.Length());
+  if (mGestureRecognitions.IsEmpty()) {
     std::printf("\nPXCSenseManager Initializing OK\n========================\n");
-
+    std::printf("\n========================\n");
+    std::printf("\n========================\n");
     nsresult rv = NS_NewNamedThread("GRThread", getter_AddRefs(mThread));
     if (NS_FAILED(rv)) {
       NS_WARNING("Can't create gesture recognition worker thread.");
       return rv;
     }
     g_stop = false;
-    rv = mThread->Dispatch(new LaunchGestureRecognitionRunnable(mSession),
-                           nsIEventTarget::DISPATCH_NORMAL);
+    rv = mThread->Dispatch(new LaunchGestureRecognitionRunnable(mSession, &mGestureRecognitions),
+                            nsIEventTarget::DISPATCH_NORMAL);
     if (NS_FAILED(rv)) {
       return rv;
     }
+  }
+  mGestureRecognitions.AppendElement(aGestureRecognition);
+  std::printf("\nmGestureListenter.Length() = %d\n", mGestureRecognitions.Length());
   return NS_OK;
 }
 
 /* void stop (); */
-NS_IMETHODIMP GestureRecognitionService::Stop()
+NS_IMETHODIMP RealSenseGestureRecognitionService::Stop(WeakPtr<GestureRecognition> aGestureRecognition)
 {
-  std::printf("\n GestureRecognitionService::Stop() \n========================\n");
-  std::printf("\n========================\n");
-  std::printf("\n========================\n");
-  std::printf("\n========================\n");
-  g_stop = true;
-  MOZ_ASSERT(mThread);
+  std::printf("\nmGestureListenter.Length() = %d\n", mGestureRecognitions.Length());
 
-  mThread->Shutdown();
-  mThread = nullptr; // deletes GR worker thread
+  mGestureRecognitions.RemoveElement(aGestureRecognition);
+  if (mGestureRecognitions.IsEmpty()) {
+    std::printf("\n RealSenseGestureRecognitionService::Stop() \n========================\n");
+    std::printf("\n========================\n");
+    std::printf("\n========================\n");
 
+    g_stop = true;
+    MOZ_ASSERT(mThread);
+
+    mThread->Shutdown();
+    mThread = nullptr; // deletes GR worker thread
+  }
   return NS_OK;
 }
 
 
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(GestureRecognitionService,
-                                         GestureRecognitionService::FactoryCreate)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(RealSenseGestureRecognitionService,
+                                         RealSenseGestureRecognitionService::FactoryCreate)
 
-NS_DEFINE_NAMED_CID(NS_GESTURESERVICE_CID);
+NS_DEFINE_NAMED_CID(NS_REALSENSE_GESTURESERVICE_CID);
 
-static const mozilla::Module::CIDEntry kGestureServiceCIDs[] = {
-  { &kNS_GESTURESERVICE_CID, false, nullptr, GestureRecognitionServiceConstructor },
+static const mozilla::Module::CIDEntry kRealSenseGestureServiceCIDs[] = {
+  { &kNS_REALSENSE_GESTURESERVICE_CID, false, nullptr, RealSenseGestureRecognitionServiceConstructor },
   { nullptr }
 };
 
-static const mozilla::Module::ContractIDEntry kGestureServiceContracts[] = {
-  { NS_GESTURESERVICE_CONTRACTID, &kNS_GESTURESERVICE_CID },
+static const mozilla::Module::ContractIDEntry kRealSenseGestureServiceContracts[] = {
+  { NS_REALSENSE_GESTURESERVICE_CONTRACTID, &kNS_REALSENSE_GESTURESERVICE_CID },
   { nullptr }
 };
 
 static const mozilla::Module kGestureServiceModule = {
   mozilla::Module::kVersion,
-  kGestureServiceCIDs,
-  kGestureServiceContracts,
+  kRealSenseGestureServiceCIDs,
+  kRealSenseGestureServiceContracts,
   nullptr
 };
 

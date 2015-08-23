@@ -61,14 +61,19 @@ XPCOMUtils.defineLazyModuleGetter(this, "NewTabURL",
 let allowGesture = Services.prefs.getBoolPref("glovepuppetry.enabled");
 let gGesture;
 if (allowGesture) {
+/*
   gGesture = Cc["@mozilla.org/glovepuppetry/gestureservice;1"].
     getService(Ci.nsIGestureRecognitionService);
+*/
+  gGesture = new GestureRecognition();
   if (!gGesture) {
-    dump("WTF, NO gesture service!\n")
+    dump("WTF, NO gesture recognition!\n");
   } else {
-    dump("We have gesture service!\n")
+    dump("We have gesture recognition!\n");
+    dump("gGesture = " + gGesture + "\n");
   }
 }
+
 
 // Can't use XPCOMUtils for these because the scripts try to define the variables
 // on window, and so the defineProperty inside defineLazyGetter fails.
@@ -1117,6 +1122,24 @@ var gBrowserInit = {
     if (!!allowGesture) {
       dump("@@@@ start gesture!");
       gGesture.start();
+      gGesture.onthumbup = function () { BrowserBack(); };
+      gGesture.onthumbdown = function () { BrowserForward(); };
+      gGesture.onswipeup = function () { 
+        dump("\n cmd_movePageUp\n");
+        goDoCommand("cmd_movePageUp"); 
+      };
+      gGesture.onswipedown = function () {
+        dump("\n cmd_movePageDown\n");
+        goDoCommand("cmd_movePageDown"); 
+      };
+      gGesture.onswipeleft = function () {
+        dump("\n cmd_scrollLeft\n");
+        goDoCommand("cmd_scrollLeft"); 
+      };
+      gGesture.onswiperight = function () {
+        dump("\n cmd_scrollRight\n");
+        goDoCommand("cmd_scrollRight"); 
+      };
     }
 
     this._loadHandled = true;
@@ -1862,9 +1885,11 @@ function gotoHistoryIndex(aEvent) {
 
 function BrowserForward(aEvent) {
   let where = whereToOpenLink(aEvent, false, true);
-
+  dump("\n--------------\n");
+  dump("where:" + where);
   if (where == "current") {
     try {
+      dump("\ngBrowser.goForward()\n");
       gBrowser.goForward();
     }
     catch(ex) {
