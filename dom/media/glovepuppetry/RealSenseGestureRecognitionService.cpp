@@ -221,6 +221,9 @@ public:
             }
           }
           if (handDataOutput->IsGestureFired(L"swipe_up", gestureData)) {
+            // Clear thumb gesture when swipe is triggered.
+            bLastGestureIsThumbUp = false;
+            bLastGestureIsThumbDown = false;
             for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
               WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
               if (recognition) {
@@ -229,6 +232,9 @@ public:
             }
           }
           if (handDataOutput->IsGestureFired(L"swipe_down", gestureData)) {
+            // Clear thumb gesture when swipe is triggered.
+            bLastGestureIsThumbUp = false;
+            bLastGestureIsThumbDown = false;
             for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
               WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
               if (recognition) {
@@ -237,6 +243,9 @@ public:
             }
           }
           if (handDataOutput->IsGestureFired(L"swipe_left", gestureData)) {
+            // Clear thumb gesture when swipe is triggered.
+            bLastGestureIsThumbUp = false;
+            bLastGestureIsThumbDown = false;
             for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
               WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
               if (recognition) {
@@ -245,6 +254,9 @@ public:
             }
           }
           if (handDataOutput->IsGestureFired(L"swipe_right", gestureData)) {
+            // Clear thumb gesture when swipe is triggered.
+            bLastGestureIsThumbUp = false;
+            bLastGestureIsThumbDown = false;
             for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
               WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
               if (recognition) {

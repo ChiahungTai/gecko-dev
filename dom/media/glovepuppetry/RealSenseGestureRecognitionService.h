@@ -40,7 +40,7 @@ private:
   PXCSession* mSession;
 
   nsCOMPtr<nsIThread> mThread;
-  /** The associated SpeechRecognition */
+  /** The associated GestureRecognition */
   nsTArray<WeakPtr<GestureRecognition>> mGestureRecognitions;
 };
 
