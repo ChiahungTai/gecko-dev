@@ -35,6 +35,7 @@ DIRS += [
     'webspeech',
     'webvtt',
     'standalone',
+    'textrecognition',
 ]
 
 if CONFIG['MOZ_RAW']:

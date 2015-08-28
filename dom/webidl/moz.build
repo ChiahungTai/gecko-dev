@@ -529,6 +529,7 @@ WEBIDL_FILES = [
     'Text.webidl',
     'TextDecoder.webidl',
     'TextEncoder.webidl',
+    'TextRecognition.webidl',
     'TextTrack.webidl',
     'TextTrackCue.webidl',
     'TextTrackCueList.webidl',

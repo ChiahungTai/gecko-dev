@@ -26,6 +26,7 @@ class ErrorResult;
 
 namespace gfx {
 class SourceSurface;
+class DrawTarget;
 }
 
 namespace layers {

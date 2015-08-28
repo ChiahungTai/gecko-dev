@@ -1,0 +1,28 @@
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+EXPORTS.mozilla.dom += [
+    'TextRecognition.h',
+]
+
+UNIFIED_SOURCES += [
+    'TextRecognition.cpp',
+]
+
+LOCAL_INCLUDES += [
+    '/dom/base',
+]
+
+OS_LIBS += [
+    'opencv_core',
+    'opencv_text',
+    'opencv_imgproc',
+]
+
+LDFLAGS += ['-L/usr/local/lib']
+
+FINAL_LIBRARY = 'xul'
+
+FAIL_ON_WARNINGS = True
