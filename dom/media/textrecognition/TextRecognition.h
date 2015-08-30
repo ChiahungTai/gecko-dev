@@ -11,20 +11,13 @@
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/WeakPtr.h"
 
-#include "opencv2/core/utility.hpp"
-#include "opencv2/text.hpp"
-
-#include <string>
-
-using std::string;
-
 namespace mozilla {
 namespace dom {
 
 class ImageBitmap;
 
 class TextRecognition final : public DOMEventTargetHelper,
-                                public SupportsWeakPtr<TextRecognition>
+                              public SupportsWeakPtr<TextRecognition>
 {
 public:
   MOZ_DECLARE_WEAKREFERENCE_TYPENAME(TextRecognition)
@@ -48,12 +41,6 @@ public:
 
 private:
   virtual ~TextRecognition(){}
-
-  //Draw ER's in an image via floodFill
-  void er_draw(std::vector<cv::Mat> &channels,
-               std::vector<std::vector<cv::text::ERStat> > &regions,
-               std::vector<cv::Vec2i> group, cv::Mat& segmentation);
-  bool isRepetitive(const string& s);
 
   nsString mLang;
 };

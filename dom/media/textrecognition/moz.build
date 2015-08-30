@@ -3,12 +3,29 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+XPIDL_MODULE = 'xpcom_textrecognition'
+
+XPIDL_SOURCES = [
+  'nsITextRecognitionService.idl'
+]
+
 EXPORTS.mozilla.dom += [
     'TextRecognition.h',
 ]
 
+# Tesseract
+EXPORTS.mozilla += [
+    'TesseractTextRecognitionService.h',
+]
+
+
 UNIFIED_SOURCES += [
     'TextRecognition.cpp',
+]
+
+# Tesseract
+UNIFIED_SOURCES += [
+    'TesseractTextRecognitionService.cpp',
 ]
 
 LOCAL_INCLUDES += [
