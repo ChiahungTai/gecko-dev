@@ -5,3 +5,5 @@
 browser.jar:
 *       content/browser/setDesktopBackground.xul              (content/setDesktopBackground.xul)
 *       content/browser/setDesktopBackground.js               (content/setDesktopBackground.js)
+*       content/browser/showRecognitizedText.xul              (content/showRecognitizedText.xul)
+*       content/browser/showRecognitizedText.js               (content/showRecognitizedText.js)

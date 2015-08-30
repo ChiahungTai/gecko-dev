@@ -249,6 +249,11 @@ nsContextMenu.prototype = {
               .disabled = gContextMenuContentData.disableSetDesktopBackground;
     }
 
+    // Project Cangjie
+    var haveRunTextRecognitionAnalysis = Services.prefs.getBoolPref("media.text.recognition.enable");
+    this.showItem("context-runTextRecognitionAnalysis",
+                  haveRunTextRecognitionAnalysis && this.onLoadedImage);
+
     // Reload image depends on an image that's not fully loaded
     this.showItem("context-reloadimage", (this.onImage && !this.onCompletedImage));
 
@@ -256,7 +261,6 @@ nsContextMenu.prototype = {
     // (or is in a frame), or a canvas.
     this.showItem("context-viewimage", (this.onImage &&
                   (!this.inSyntheticDoc || this.inFrame)) || this.onCanvas);
-
     // View video depends on not having a standalone video.
     this.showItem("context-viewvideo", this.onVideo && (!this.inSyntheticDoc || this.inFrame));
     this.setItemAttr("context-viewvideo",  "disabled", !this.mediaURL);
@@ -1137,6 +1141,32 @@ nsContextMenu.prototype = {
                      Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
     openUILink(this.bgImageURL, e, { disallowInheritPrincipal: true,
                                      referrerURI: gContextMenuContentData.documentURIObject });
+  },
+
+  // Project Cangjie
+  runTextRecognitionAnalysis: function() {
+    dump("\n@@|runTextRecognitionAnalysis|\n");
+    dump("\n@@this.target = " + this.target);
+    let onMessage = (message) => {
+      dump("\n@@|runTextRecognitionAnalysis::onMessage|\n");
+
+      // Confirm since it's annoying if you hit this accidentally.
+      const kShowRecognitizedTextURL =
+                    "chrome://browser/content/showRecognitizedText.xul";
+
+      var text = message.data.text;
+#ifdef XP_MACOSX
+      openDialog(kShowRecognitizedTextURL, "",
+                 "centerscreen,chrome,dialog=no,dependent,resizable=no",
+                 text);
+#else
+      // On non-Mac platforms, the Set Wallpaper dialog is modal.
+      openDialog(kShowRecognitizedTextURL, "",
+                 "centerscreen,chrome,dialog,modal,dependent",
+                 text);
+#endif
+    };
+    onMessage({"data":{"text":"This is a test."}});
   },
 
   setDesktopBackground: function() {

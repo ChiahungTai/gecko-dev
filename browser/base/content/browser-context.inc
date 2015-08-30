@@ -211,6 +211,10 @@
                 label="&emailImageCmd.label;"
                 accesskey="&emailImageCmd.accesskey;"
                 oncommand="gContextMenu.sendMedia();"/>
+      <menuitem id="context-runTextRecognitionAnalysis"
+                label="&runTextRecognitionAnalysisCmd.label;"
+                accesskey="&runTextRecognitionAnalysisCmd.accesskey;"
+                oncommand="gContextMenu.runTextRecognitionAnalysis();"/>
       <menuitem id="context-setDesktopBackground"
                 label="&setDesktopBackgroundCmd.label;"
                 accesskey="&setDesktopBackgroundCmd.accesskey;"

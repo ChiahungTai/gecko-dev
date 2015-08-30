@@ -19,7 +19,7 @@
  *  - Computed values (e.g. 50 * 1024) don't work.
  */
 
-pref("media.text.recognition.enable", false);
+pref("media.text.recognition.enable", true);
 
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
