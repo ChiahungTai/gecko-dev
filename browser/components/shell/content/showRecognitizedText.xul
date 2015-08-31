@@ -21,7 +21,7 @@
 #else
         buttons="accept"
 #endif
-        buttonlabelaccept="&showRecognitizedText.title;"
+        buttonlabelaccept="Search on the Web"
         onload="gShowRecognitizedText.load();"
         ondialogaccept="gShowRecognitizedText.goSearch();"
         title="&showRecognitizedText.title;"
@@ -32,13 +32,12 @@
     <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
     <script type="application/javascript" src="chrome://browser/content/showRecognitizedText.js"/>
     <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
+    <button id="textResult" label=""/>
 
     <groupbox align="center">
-      <caption label="&preview.label;"/>
       <stack>
         <!-- if width and height are not present, they default to 300x150 and stretch the stack -->
         <html:canvas id="screen" width="1" height="1"/>
-        <image id="monitor"/>
       </stack>
     </groupbox>
     

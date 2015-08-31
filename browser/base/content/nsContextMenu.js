@@ -1145,28 +1145,37 @@ nsContextMenu.prototype = {
 
   // Project Cangjie
   runTextRecognitionAnalysis: function() {
-    dump("\n@@|runTextRecognitionAnalysis|\n");
-    dump("\n@@this.target = " + this.target);
+    dump("\n@@this.target = " + this.target + "\n");
+    
     let onMessage = (message) => {
-      dump("\n@@|runTextRecognitionAnalysis::onMessage|\n");
-
+      
       // Confirm since it's annoying if you hit this accidentally.
       const kShowRecognitizedTextURL =
                     "chrome://browser/content/showRecognitizedText.xul";
 
-      var text = message.data.text;
 #ifdef XP_MACOSX
-      openDialog(kShowRecognitizedTextURL, "",
-                 "centerscreen,chrome,dialog=no,dependent,resizable=no",
-                 text);
+        // On Mac, the Set Desktop Background window is not modal.
+        // Don't open more than one Set Desktop Background window.
+        const wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+                   getService(Ci.nsIWindowMediator);
+        let dbWin = wm.getMostRecentWindow("Shell:SetDesktopBackground");
+        if (dbWin) {
+          dbWin.gSetBackground.init(image);
+          dbWin.focus();
+        }
+        else {
+          openDialog(kShowRecognitizedTextURL, "",
+                     "centerscreen,chrome,dialog=no,dependent,resizable=no",
+                     message.text);
+        }
 #else
       // On non-Mac platforms, the Set Wallpaper dialog is modal.
       openDialog(kShowRecognitizedTextURL, "",
                  "centerscreen,chrome,dialog,modal,dependent",
-                 text);
+                 message.text);
 #endif
     };
-    onMessage({"data":{"text":"This is a test."}});
+    onMessage({text:"Batman arkham knight"});
   },
 
   setDesktopBackground: function() {

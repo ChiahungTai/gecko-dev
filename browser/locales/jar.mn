@@ -95,6 +95,7 @@
     locale/browser/engineManager.dtd               (%chrome/browser/engineManager.dtd)
     locale/browser/engineManager.properties        (%chrome/browser/engineManager.properties)
     locale/browser/setDesktopBackground.dtd        (%chrome/browser/setDesktopBackground.dtd)
+    locale/browser/showRecognitizedText.dtd        (%chrome/browser/showRecognitizedText.dtd)
     locale/browser/shellservice.properties         (%chrome/browser/shellservice.properties)
     locale/browser/tabbrowser.properties           (%chrome/browser/tabbrowser.properties)
     locale/browser/tabview.properties              (%chrome/browser/tabview.properties)
