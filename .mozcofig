@@ -1,5 +1,0 @@
-mk_add_options MOZ_MAKE_FLAGS="-j16"
-
-ac_add_options --enable-debug 
-mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/../debug-@CONFIG_GUESS@
-
