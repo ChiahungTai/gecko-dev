@@ -26,6 +26,34 @@ NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(TextRecognition, DOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(TextRecognition, DOMEventTargetHelper)
 
+#define DEFAULT_TEXT_RECOGNITION_SERVICE "tesseract"
+
+already_AddRefed<nsITextRecognitionService>
+GetGestureRecognitionService()
+{
+  nsAutoCString textRecognitionServiceCID;
+
+//  nsAdoptingCString prefValue =
+//    Preferences::GetCString(PREFERENCE_DEFAULT_TEXT_RECOGNITION_SERVICE);
+  nsAutoCString textRecognitionService;
+
+//  if (!prefValue.IsEmpty()) {
+//    gestureRecognitionService = prefValue;
+//  }
+//  else {
+  textRecognitionService = DEFAULT_TEXT_RECOGNITION_SERVICE;
+//  }
+
+  textRecognitionServiceCID =
+    NS_LITERAL_CSTRING(NS_TEXT_RECOGNITION_SERVICE_CONTRACTID_PREFIX) +
+    textRecognitionService;
+
+  nsresult rv;
+  nsCOMPtr<nsITextRecognitionService> recognitionService;
+  recognitionService = do_GetService(textRecognitionServiceCID.get(), &rv);
+  return recognitionService.forget();
+}
+
 TextRecognition::TextRecognition(nsPIDOMWindow* aOwnerWindow)
   : DOMEventTargetHelper(aOwnerWindow)
 {

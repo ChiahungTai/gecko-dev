@@ -10,6 +10,7 @@
 
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/WeakPtr.h"
+#include "nsITextRecognitionService.h"
 
 namespace mozilla {
 namespace dom {

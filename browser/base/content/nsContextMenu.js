@@ -1146,9 +1146,13 @@ nsContextMenu.prototype = {
   // Project Cangjie
   runTextRecognitionAnalysis: function() {
     dump("\n@@this.target = " + this.target + "\n");
-    
+    var textRecognition = new TextRecognition();
+    createImageBitmap(this.target).then(function(image) {
+      textRecognition.analysis(image);
+    });
+
     let onMessage = (message) => {
-      
+
       // Confirm since it's annoying if you hit this accidentally.
       const kShowRecognitizedTextURL =
                     "chrome://browser/content/showRecognitizedText.xul";

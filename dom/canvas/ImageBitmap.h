@@ -111,6 +111,22 @@ public:
   friend CreateImageBitmapFromBlobTask;
   friend CreateImageBitmapFromBlobWorkerTask;
 
+  /*
+   * The mData is the data buffer of an ImageBitmap, so the mData must not be
+   * null.
+   *
+   * The mSurface is a cache for drawing the ImageBitmap onto a
+   * HTMLCanvasElement. The mSurface is null while the ImageBitmap is created
+   * and then will be initialized while the PrepareForDrawTarget() method is
+   * called first time.
+   *
+   * The mSurface might just be a reference to the same data buffer of the mData
+   * if the are of mPictureRect is just the same as the mData's size. Or, it is
+   * a independent data buffer which is copied and cropped form the mData's data
+   * buffer.
+   */
+  nsRefPtr<layers::Image> mData;
+
 protected:
 
   ImageBitmap(nsIGlobalObject* aGlobal, layers::Image* aData);
@@ -145,21 +161,6 @@ protected:
 
   nsCOMPtr<nsIGlobalObject> mParent;
 
-  /*
-   * The mData is the data buffer of an ImageBitmap, so the mData must not be
-   * null.
-   *
-   * The mSurface is a cache for drawing the ImageBitmap onto a
-   * HTMLCanvasElement. The mSurface is null while the ImageBitmap is created
-   * and then will be initialized while the PrepareForDrawTarget() method is
-   * called first time.
-   *
-   * The mSurface might just be a reference to the same data buffer of the mData
-   * if the are of mPictureRect is just the same as the mData's size. Or, it is
-   * a independent data buffer which is copied and cropped form the mData's data
-   * buffer.
-   */
-  nsRefPtr<layers::Image> mData;
   RefPtr<gfx::SourceSurface> mSurface;
 
   /*

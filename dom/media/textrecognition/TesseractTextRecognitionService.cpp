@@ -12,6 +12,10 @@
 #include "nsGlobalWindow.h"
 #include "nsIController.h"
 #include "nsPIWindowRoot.h"
+#include "mozilla/dom/ImageBitmap.h"
+#include "mozilla/gfx/2D.h"
+//#include "mozilla/gfx/Types.h"
+#include "ImageContainer.h"
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/core/utility.hpp"
@@ -24,6 +28,10 @@
 using namespace cv;
 using namespace cv::text;
 using namespace std;
+
+using mozilla::gfx::SurfaceFormat;
+using mozilla::gfx::DataSourceSurface;
+using namespace mozilla::layers;
 
 #define NS_TESSERACT_TEXTRECOGNITIONSERVICE_CID \
 { 0x1792181a, 0x91b8, 0x4845, \
@@ -107,7 +115,22 @@ public:
 
   NS_IMETHOD Run() override
   {
-    Mat image;
+    nsRefPtr<layers::Image> layerImage = mSourceImage->mData;
+    gfx::IntSize size = layerImage->GetSize();
+    nsRefPtr<gfx::SourceSurface> sourceSurface = layerImage->GetAsSourceSurface();
+    nsRefPtr<gfx::DataSourceSurface> dataSurface = sourceSurface->GetDataSurface();
+
+    const SurfaceFormat format = SurfaceFormat::B8G8R8A8;
+    const int bytesPerPixel = BytesPerPixel(format);
+    // Copy the raw data into the newly created DataSourceSurface.
+    DataSourceSurface::ScopedMap srcMap(dataSurface, DataSourceSurface::READ);
+    if (NS_WARN_IF(!srcMap.IsMapped())) {
+      return NS_ERROR_FAILURE;
+    }
+
+    uint8_t* srcBufferPtr = srcMap.GetData();
+
+    Mat image(size.height, size.width, CV_8UC4, srcBufferPtr);
     // Extract channels to be processed individually
     vector<Mat> channels;
 
