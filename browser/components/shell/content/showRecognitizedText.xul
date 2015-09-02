@@ -40,7 +40,7 @@
         <html:canvas id="screen" width="1" height="1"/>
       </stack>
     </groupbox>
-    
+
 #ifdef XP_MACOSX
     <separator/>
     <hbox align="right">

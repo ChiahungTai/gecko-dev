@@ -1,0 +1,8 @@
+MODELTEXT_KEEP_PATH := 0
+
+MODELTEXT_FILES := \
+ models/trained_classifierNM1.xml \
+ models/trained_classifierNM2.xml
+
+MODELTEXT_DEST := $(DIST)/bin
+INSTALL_TARGETS += MODELTEXT

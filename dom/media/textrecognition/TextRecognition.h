@@ -27,6 +27,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TextRecognition, DOMEventTargetHelper)
 
+  IMPL_EVENT_HANDLER(textrecognitized)
+
   nsISupports* GetParentObject() const;
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto) override;
@@ -40,10 +42,16 @@ public:
 
   void Analysis(ImageBitmap& image);
 
+  void GetRecognitizedResult(const nsAString& aResult);
+
 private:
   virtual ~TextRecognition(){}
+  bool SetRecognitionService(ErrorResult& aRv);
 
   nsString mLang;
+  nsCOMPtr<nsITextRecognitionService> mRecognitionService;
+  // Fixme: This is a work around. We should not need it.
+  nsRefPtr<ImageBitmap> mSourceImage;
 };
 
 } // namespace dom

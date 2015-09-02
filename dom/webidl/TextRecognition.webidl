@@ -19,5 +19,5 @@ interface TextRecognition : EventTarget {
     void analysis(ImageBitmap image);
 
     // event methods
-//    attribute EventHandler ontextrecognitized;
+    attribute EventHandler ontextrecognitized;
 };

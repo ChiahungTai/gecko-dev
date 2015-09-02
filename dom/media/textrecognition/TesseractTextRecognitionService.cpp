@@ -130,12 +130,14 @@ public:
 
     uint8_t* srcBufferPtr = srcMap.GetData();
 
-    Mat image(size.height, size.width, CV_8UC4, srcBufferPtr);
+    Mat sourceImage(size.height, size.width, CV_8UC4, srcBufferPtr);
     // Extract channels to be processed individually
     vector<Mat> channels;
 
+    Mat image;
+    cvtColor(sourceImage,image,COLOR_BGRA2BGR);
     Mat grey;
-    cvtColor(image,grey,COLOR_RGB2GRAY);
+    cvtColor(image,grey,COLOR_BGRA2GRAY);
 
     // Notice here we are only using grey channel, see textdetection.cpp for example with more channels
     channels.push_back(grey);
@@ -143,8 +145,8 @@ public:
 
     double t_d = (double)getTickCount();
     // Create ERFilter objects with the 1st and 2nd stage default classifiers
-    Ptr<ERFilter> er_filter1 = createERFilterNM1(loadClassifierNM1("trained_classifierNM1.xml"),8,0.00015f,0.13f,0.2f,true,0.1f);
-    Ptr<ERFilter> er_filter2 = createERFilterNM2(loadClassifierNM2("trained_classifierNM2.xml"),0.5);
+    Ptr<ERFilter> er_filter1 = createERFilterNM1(loadClassifierNM1("/home/ctai/github/gecko-dev/dom/media/textrecognition/models/trained_classifierNM1.xml"),8,0.00015f,0.13f,0.2f,true,0.1f);
+    Ptr<ERFilter> er_filter2 = createERFilterNM2(loadClassifierNM2("/home/ctai/github/gecko-dev/dom/media/textrecognition/models/trained_classifierNM2.xml"),0.5);
 
     vector<vector<ERStat> > regions(channels.size());
     // Apply the default cascade classifier to each independent channel (could be done in parallel)
@@ -209,7 +211,7 @@ public:
       ocr->run(group_img, output, &boxes, &words, &confidences, OCR_LEVEL_WORD);
 
       output.erase(remove(output.begin(), output.end(), '\n'), output.end());
-      //cout << "OCR output = \"" << output << "\" lenght = " << output.size() << endl;
+      cout << "OCR output = \"" << output << "\" lenght = " << output.size() << endl;
       if (output.size() < 3)
         continue;
 
@@ -218,19 +220,29 @@ public:
         boxes[j].x += nm_boxes[i].x-15;
         boxes[j].y += nm_boxes[i].y-15;
 
-        //cout << "  word = " << words[j] << "\t confidence = " << confidences[j] << endl;
+        cout << "  word = " << words[j] << "\t confidence = " << confidences[j] << endl;
         if ((words[j].size() < 2) || (confidences[j] < 51) ||
                 ((words[j].size()==2) && (words[j][0] == words[j][1])) ||
                 ((words[j].size()< 4) && (confidences[j] < 60)) ||
                 isRepetitive(words[j]))
             continue;
         words_detection.push_back(words[j]);
-        rectangle(out_img, boxes[j].tl(), boxes[j].br(), Scalar(255,0,255),3);
-        Size word_size = getTextSize(words[j], FONT_HERSHEY_SIMPLEX, (double)scale_font, (int)(3*scale_font), NULL);
-        rectangle(out_img, boxes[j].tl()-Point(3,word_size.height+3), boxes[j].tl()+Point(word_size.width,0), Scalar(255,0,255),-1);
-        putText(out_img, words[j], boxes[j].tl()-Point(1,1), FONT_HERSHEY_SIMPLEX, scale_font, Scalar(255,255,255),(int)(3*scale_font));
-        out_img_segmentation = out_img_segmentation | group_segmentation;
+//        rectangle(out_img, boxes[j].tl(), boxes[j].br(), Scalar(255,0,255),3);
+//        Size word_size = getTextSize(words[j], FONT_HERSHEY_SIMPLEX, (double)scale_font, (int)(3*scale_font), NULL);
+//        rectangle(out_img, boxes[j].tl()-Point(3,word_size.height+3), boxes[j].tl()+Point(word_size.width,0), Scalar(255,0,255),-1);
+//        putText(out_img, words[j], boxes[j].tl()-Point(1,1), FONT_HERSHEY_SIMPLEX, scale_font, Scalar(255,255,255),(int)(3*scale_font));
+//        out_img_segmentation = out_img_segmentation | group_segmentation;
       }
+    }
+    nsAutoString tmp;
+    for (int i = 0; i < words_detection.size(); ++i ) {
+      cout << i << ": word = " << words_detection[i] << endl;
+      tmp.Append(NS_ConvertASCIItoUTF16(words_detection[i].c_str()));
+      tmp.Append(NS_LITERAL_STRING(" "));
+    }
+    if (mTextRecognition) {
+      printf_stderr("@@@ %s \n", NS_LossyConvertUTF16toASCII(tmp).get());
+      mTextRecognition->GetRecognitizedResult(tmp);
     }
     return NS_OK;
   }

@@ -1152,7 +1152,7 @@ nsContextMenu.prototype = {
     });
 
     let onMessage = (message) => {
-
+      dump("|onMessage| message.text = " + message.text);
       // Confirm since it's annoying if you hit this accidentally.
       const kShowRecognitizedTextURL =
                     "chrome://browser/content/showRecognitizedText.xul";
@@ -1179,7 +1179,11 @@ nsContextMenu.prototype = {
                  message.text);
 #endif
     };
-    onMessage({text:"Batman arkham knight"});
+    textRecognition.ontextrecognitized = function (event) {
+        dump(event + "\n");
+        dump(event.recognitizedText + "\n");
+        onMessage({"text":event.recognitizedText});
+    }
   },
 
   setDesktopBackground: function() {
