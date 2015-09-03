@@ -71,10 +71,10 @@ class TesseractTextRecognitionService::DoingTextRecognitionRunnable final : publ
 {
 public:
   DoingTextRecognitionRunnable(ImageBitmap *aSourceImage, WeakPtr<TextRecognition> aTextRecognition)
-    : mSourceImage(aSourceImage)
-    , mTextRecognition(aTextRecognition)
+    : mTextRecognition(aTextRecognition)
   {
-    MOZ_ASSERT(mSourceImage);
+    MOZ_ASSERT(aSourceImage);
+    mSourceImage.swap(aSourceImage);
   }
 
   ~DoingTextRecognitionRunnable()
@@ -113,6 +113,28 @@ public:
     return false;
   }
 
+  class ClearSourceImageBitmapAtMainThread : public nsRunnable
+  {
+  public:
+    ClearSourceImageBitmapAtMainThread(nsRefPtr<ImageBitmap>& aSource)
+      : mSource(nullptr)
+    {
+      // Extend the life cycle.
+      mSource.swap(aSource);
+    }
+
+    NS_IMETHOD
+    Run(void) override
+    {
+      mSource = nullptr;
+      return NS_OK;
+    }
+
+  private:
+    nsRefPtr<ImageBitmap> mSource;
+  };
+
+
   NS_IMETHOD Run() override
   {
     nsRefPtr<layers::Image> layerImage = mSourceImage->mData;
@@ -145,8 +167,8 @@ public:
 
     double t_d = (double)getTickCount();
     // Create ERFilter objects with the 1st and 2nd stage default classifiers
-    Ptr<ERFilter> er_filter1 = createERFilterNM1(loadClassifierNM1("/home/ctai/github/gecko-dev/dom/media/textrecognition/models/trained_classifierNM1.xml"),8,0.00015f,0.13f,0.2f,true,0.1f);
-    Ptr<ERFilter> er_filter2 = createERFilterNM2(loadClassifierNM2("/home/ctai/github/gecko-dev/dom/media/textrecognition/models/trained_classifierNM2.xml"),0.5);
+    Ptr<ERFilter> er_filter1 = createERFilterNM1(loadClassifierNM1("/home/ctai/Cangjie/models/trained_classifierNM1.xml"),8,0.00015f,0.13f,0.2f,true,0.1f);
+    Ptr<ERFilter> er_filter2 = createERFilterNM2(loadClassifierNM2("/home/ctai/Cangjie/models/trained_classifierNM2.xml"),0.5);
 
     vector<vector<ERStat> > regions(channels.size());
     // Apply the default cascade classifier to each independent channel (could be done in parallel)
@@ -234,6 +256,10 @@ public:
 //        out_img_segmentation = out_img_segmentation | group_segmentation;
       }
     }
+    nsRefPtr<ClearSourceImageBitmapAtMainThread> clearRunnable =
+      new ClearSourceImageBitmapAtMainThread(mSourceImage);
+    NS_DispatchToMainThread(clearRunnable);
+
     nsAutoString tmp;
     for (int i = 0; i < words_detection.size(); ++i ) {
       cout << i << ": word = " << words_detection[i] << endl;
