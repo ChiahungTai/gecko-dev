@@ -45,7 +45,7 @@ public:
   void GetRecognitizedResult(const nsAString& aResult);
 
 private:
-  virtual ~TextRecognition(){}
+  virtual ~TextRecognition();
   bool SetRecognitionService(ErrorResult& aRv);
 
   nsString mLang;

@@ -64,6 +64,10 @@ TextRecognition::TextRecognition(nsPIDOMWindow* aOwnerWindow)
   }
 }
 
+TextRecognition::~TextRecognition()
+{
+}
+
 JSObject*
 TextRecognition::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
@@ -146,7 +150,6 @@ void
 TextRecognition::Analysis(ImageBitmap& aImage)
 {
   nsresult rv;
-  mSourceImage = &aImage;
   // TODO: Should pass media stream as argument in the future.
   rv = mRecognitionService->Analysis(this, &aImage);
   if (NS_WARN_IF(NS_FAILED(rv))) {

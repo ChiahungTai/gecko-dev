@@ -21,6 +21,8 @@
 #include "opencv2/core/utility.hpp"
 #include "opencv2/text.hpp"
 
+#include "nsProxyRelease.h"
+
 #include <string>
 #include <vector>
 #include <iostream>
@@ -74,7 +76,7 @@ public:
     : mTextRecognition(aTextRecognition)
   {
     MOZ_ASSERT(aSourceImage);
-    mSourceImage.swap(aSourceImage);
+    mSourceImage = aSourceImage;
   }
 
   ~DoingTextRecognitionRunnable()
@@ -112,28 +114,6 @@ public:
     }
     return false;
   }
-
-  class ClearSourceImageBitmapAtMainThread : public nsRunnable
-  {
-  public:
-    ClearSourceImageBitmapAtMainThread(nsRefPtr<ImageBitmap>& aSource)
-      : mSource(nullptr)
-    {
-      // Extend the life cycle.
-      mSource.swap(aSource);
-    }
-
-    NS_IMETHOD
-    Run(void) override
-    {
-      mSource = nullptr;
-      return NS_OK;
-    }
-
-  private:
-    nsRefPtr<ImageBitmap> mSource;
-  };
-
 
   NS_IMETHOD Run() override
   {
@@ -256,9 +236,11 @@ public:
 //        out_img_segmentation = out_img_segmentation | group_segmentation;
       }
     }
-    nsRefPtr<ClearSourceImageBitmapAtMainThread> clearRunnable =
-      new ClearSourceImageBitmapAtMainThread(mSourceImage);
-    NS_DispatchToMainThread(clearRunnable);
+
+    nsCOMPtr<nsIThread> mainThread;
+      NS_GetMainThread(getter_AddRefs(mainThread));
+    NS_ProxyRelease(mainThread,
+                    mSourceImage);
 
     nsAutoString tmp;
     for (int i = 0; i < words_detection.size(); ++i ) {
