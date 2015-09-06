@@ -1125,12 +1125,12 @@ var gBrowserInit = {
       gGesture.onthumbup = function () { BrowserBack(); };
       gGesture.onthumbdown = function () { BrowserForward(); };
       gGesture.onswipeup = function () { 
-        dump("\n cmd_movePageUp\n");
-        goDoCommand("cmd_movePageUp"); 
+        dump("\n cmd_scrollPageUp\n");
+        goDoCommand("cmd_scrollPageUp"); 
       };
       gGesture.onswipedown = function () {
-        dump("\n cmd_movePageDown\n");
-        goDoCommand("cmd_movePageDown"); 
+        dump("\n cmd_scrollPageDown\n");
+        goDoCommand("cmd_scrollPageDown"); 
       };
       gGesture.onswipeleft = function () {
         dump("\n cmd_scrollLeft\n");
