@@ -28,6 +28,7 @@ public:
   static already_AddRefed<RealSenseGestureRecognitionService> FactoryCreate();
 
 private:
+  class TouchlessGestureRecognitionRunnable;
   class LaunchGestureRecognitionRunnable;
 
   /**

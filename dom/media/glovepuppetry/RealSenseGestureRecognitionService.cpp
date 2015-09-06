@@ -18,6 +18,7 @@
 #include "pxchanddata.h"
 #include "pxcsensemanager.h"
 #include "pxcsession.h"
+#include "pxctouchlesscontroller.h"
 
 #define NS_REALSENSE_GESTURESERVICE_CID \
 { 0x5a9704f3, 0xa685, 0x4e68, \
@@ -75,6 +76,8 @@ void RealSenseGestureRecognitionService::ReleaseAll()
 	}
 }
 
+
+
 class RealSenseGestureRecognitionService::LaunchGestureRecognitionRunnable final : public nsRunnable
 {
 public:
@@ -108,14 +111,14 @@ public:
     if (!mSenseManager)
     {
       ReleaseAll();
-      GR_LOG(("Failed Creating PXCSenseManager"));
+      std::printf(("Failed Creating PXCSenseManager"));
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
     if (mSenseManager->EnableHand() != PXC_STATUS_NO_ERROR)
     {
       ReleaseAll();
-      GR_LOG(("Failed Enabling Hand Module"));
+      std::printf(("Failed Enabling Hand Module"));
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
@@ -123,7 +126,7 @@ public:
     if (!handModule)
     {
       ReleaseAll();
-      GR_LOG(("Failed Creating PXCHandModule"));
+      std::printf(("Failed Creating PXCHandModule"));
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
@@ -131,7 +134,7 @@ public:
     if (!handDataOutput)
     {
       ReleaseAll();
-      GR_LOG(("Failed Creating PXCHandData"));
+      std::printf(("Failed Creating PXCHandData"));
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
@@ -139,7 +142,7 @@ public:
     if (!handConfiguration)
     {
       ReleaseAll();
-      GR_LOG(("Failed Creating PXCHandConfiguration"));
+      std::printf(("Failed Creating PXCHandConfiguration"));
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
@@ -312,6 +315,277 @@ private:
 };
 
 
+class RealSenseGestureRecognitionService::TouchlessGestureRecognitionRunnable final : public nsRunnable
+{
+public:
+  TouchlessGestureRecognitionRunnable(PXCSession *aSession, nsTArray<WeakPtr<GestureRecognition>>* aGestureRecognitions)
+    : mSession(aSession)
+    , mSenseManager(nullptr)
+    , mGestureRecognitions(aGestureRecognitions)
+  {
+    MOZ_ASSERT(mSession);
+  }
+
+  ~TouchlessGestureRecognitionRunnable()
+  {
+    ReleaseAll();
+  }
+
+  void ReleaseAll()
+  {
+    MOZ_ASSERT(gGestureService);
+    if (mSenseManager)
+    {
+      mSenseManager->Close();
+      mSenseManager->Release();
+      mSenseManager = NULL;
+    }
+  }
+
+  class EventHandler : public PXCTouchlessController::UXEventHandler
+  {
+  public:
+    EventHandler(nsTArray<WeakPtr<GestureRecognition>>* aGestureRecognitions)
+      : mGestureRecognitions(aGestureRecognitions)
+    {
+    }
+
+    virtual void PXCAPI OnFiredUXEvent(const PXCTouchlessController::UXEventData *uxEventData) {
+      switch (uxEventData->type) {
+      case PXCTouchlessController::UXEventData::UXEvent_StartScroll:
+        std::printf("@@ UXEvent_StartScroll\n");
+        break;
+      case PXCTouchlessController::UXEventData::UXEvent_ScrollUp:
+        std::printf("@@ UXEvent_ScrollUp\n");
+        for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+          WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+          if (recognition) {
+            recognition->NotifySwipeUp();
+          }
+        }
+        break;
+      case PXCTouchlessController::UXEventData::UXEvent_ScrollDown:
+        std::printf("@@ UXEvent_ScrollDown\n");
+        for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+          WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+          if (recognition) {
+            recognition->NotifySwipeDown();
+          }
+        }
+        break;
+      case PXCTouchlessController::UXEventData::UXEvent_ScrollLeft:
+        std::printf("@@ UXEvent_ScrollLeft\n");
+        for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+          WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+          if (recognition) {
+            recognition->NotifySwipeLeft();
+          }
+        }
+        break;
+      case PXCTouchlessController::UXEventData::UXEvent_ScrollRight:
+        std::printf("@@ UXEvent_ScrollRight\n");
+        for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+          WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+          if (recognition) {
+            recognition->NotifySwipeRight();
+          }
+        }
+        break;
+      case PXCTouchlessController::UXEventData::UXEvent_EndScroll:
+        std::printf("@@ UXEvent_EndScroll\n");
+        break;
+        // handle all events
+      }
+    }
+  private:
+    nsTArray<WeakPtr<GestureRecognition>>* mGestureRecognitions;
+  };
+
+  NS_IMETHOD Run() override
+  {
+    mSenseManager = mSession->CreateSenseManager();
+    if (!mSenseManager)
+    {
+      ReleaseAll();
+      std::printf(("\n@@@Failed Creating PXCSenseManager\n@@@"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+#if 0
+    if (mSenseManager->EnableHand() != PXC_STATUS_NO_ERROR)
+    {
+      ReleaseAll();
+      std::printf(("Failed Enabling Hand Module"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCHandModule* handModule = mSenseManager->QueryHand();
+    if (!handModule)
+    {
+      ReleaseAll();
+      std::printf(("Failed Creating PXCHandModule"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCHandData* handDataOutput = handModule->CreateOutput();
+    if (!handDataOutput)
+    {
+      ReleaseAll();
+      std::printf(("Failed Creating PXCHandData"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCHandConfiguration* handConfiguration = handModule->CreateActiveConfiguration();
+    if (!handConfiguration)
+    {
+      ReleaseAll();
+      std::printf(("Failed Creating PXCHandConfiguration"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    // Enable some gestures.
+    handConfiguration->DisableAllGestures();
+    handConfiguration->EnableGesture(L"thumb_up", true);
+    handConfiguration->EnableGesture(L"thumb_down", true);
+    handConfiguration->ApplyChanges();
+
+    // Enable all alerts.
+    //    handConfiguration->EnableAllAlerts();
+    handConfiguration->DisableAllAlerts();
+    // Apply configuration setup
+    handConfiguration->ApplyChanges();
+    handConfiguration->Update();
+
+    if (handConfiguration)
+    {
+      handConfiguration->Release();
+      handConfiguration = NULL;
+    }
+#endif
+    pxcI32 numOfHands = 0;
+    bool bLastGestureIsThumbUp = false;
+    bool bLastGestureIsThumbDown = false;
+    
+    // Touchless controller
+    if (mSenseManager->EnableTouchlessController() != PXC_STATUS_NO_ERROR)
+    {
+      ReleaseAll();
+      std::printf(("\n@@@Failed Enabling Touchless Contorller Module\n@@@"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    PXCTouchlessController * touchlessModule = mSenseManager->QueryTouchlessController();
+    if (!touchlessModule)
+    {
+      ReleaseAll();
+      std::printf(("\n@@@Failed Creating PXCTouchlessController\n@@@"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    // register for ux events
+    EventHandler eventHandler(mGestureRecognitions);
+    if (touchlessModule->SubscribeEvent(&eventHandler) != PXC_STATUS_NO_ERROR)
+    {
+      ReleaseAll();
+      std::printf(("\n@@@Failed SubscribeEvent\n@@@"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    // Configure Touchless Controller
+    PXCTouchlessController::ProfileInfo profInfo;
+    touchlessModule->QueryProfile(&profInfo);
+    profInfo.config |= (PXCTouchlessController::ProfileInfo::Configuration_Scroll_Horizontally
+                        | PXCTouchlessController::ProfileInfo::Configuration_Scroll_Vertically
+                        //| PXCTouchlessController::ProfileInfo::Configuration_Enable_Injection
+                        );
+
+    if (touchlessModule->SetProfile(&profInfo) != PXC_STATUS_NO_ERROR)
+    {
+      ReleaseAll();
+      std::printf(("\n@@@Failed SetProfile\n@@@"));
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+
+    if (mSenseManager->Init() == PXC_STATUS_NO_ERROR)
+    {
+      // Acquiring frames from input device
+      while (mSenseManager->AcquireFrame(true) == PXC_STATUS_NO_ERROR && !g_stop)
+      {
+        // Get current hand outputs
+#if 0
+        if (handDataOutput->Update() == PXC_STATUS_NO_ERROR)
+        {
+          // Display alerts
+          PXCHandData::AlertData alertData;
+          for (int i = 0; i < handDataOutput->QueryFiredAlertsNumber(); ++i)
+          {
+            if (handDataOutput->QueryFiredAlertData(i, alertData) == PXC_STATUS_NO_ERROR)
+            {
+              std::printf("%s was fired at frame %d \n", Definitions::AlertToString(alertData.label).c_str(), alertData.frameNumber);
+            }
+          }
+
+          // Display gestures
+          PXCHandData::GestureData gestureData;
+          for (int i = 0; i < handDataOutput->QueryFiredGesturesNumber(); ++i)
+          {
+            if (handDataOutput->QueryFiredGestureData(i, gestureData) == PXC_STATUS_NO_ERROR)
+            {
+              std::wprintf(L"%s, Gesture: %s was fired at frame %d \n", Definitions::GestureStateToString(gestureData.state), gestureData.name, gestureData.frameNumber);
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"thumb_up", gestureData)) {
+            if (!bLastGestureIsThumbUp) {
+              bLastGestureIsThumbUp = true;
+              bLastGestureIsThumbDown = false;
+              for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+                WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+                if (recognition) {
+                  recognition->NotifyThumbUp();
+                }
+              }
+            }
+          }
+          if (handDataOutput->IsGestureFired(L"thumb_down", gestureData)) {
+            if (!bLastGestureIsThumbDown) {
+              bLastGestureIsThumbDown = true;
+              bLastGestureIsThumbUp = false;
+              for (size_t i = 0; i < mGestureRecognitions->Length(); ++i) {
+                WeakPtr<GestureRecognition> recognition = (*mGestureRecognitions)[i];
+                if (recognition) {
+                  recognition->NotifyThumbDown();
+                }
+              }
+            }
+          }
+
+          // Display number of hands
+          if (numOfHands != handDataOutput->QueryNumberOfHands())
+          {
+            numOfHands = handDataOutput->QueryNumberOfHands();
+            std::printf("Number of hands: %d\n", numOfHands);
+          }
+        }
+#endif
+        mSenseManager->ReleaseFrame();
+      } // end while acquire frame
+//      handDataOutput->Release();
+    } // end if Init
+    else
+    {
+      ReleaseAll();
+      std::printf("Failed Initializing PXCSenseManager\n");
+      return NS_ERROR_DOM_NOT_FOUND_ERR;
+    }
+    return NS_OK;
+  }
+
+private:
+  PXCSession *mSession;
+  PXCSenseManager* mSenseManager;
+  nsTArray<WeakPtr<GestureRecognition>>* mGestureRecognitions;
+};
+
+
 /* void start (); */
 NS_IMETHODIMP RealSenseGestureRecognitionService::Start(WeakPtr<GestureRecognition> aGestureRecognition)
 {
@@ -326,8 +600,13 @@ NS_IMETHODIMP RealSenseGestureRecognitionService::Start(WeakPtr<GestureRecogniti
       return rv;
     }
     g_stop = false;
+#if 1   
     rv = mThread->Dispatch(new LaunchGestureRecognitionRunnable(mSession, &mGestureRecognitions),
-                            nsIEventTarget::DISPATCH_NORMAL);
+                           nsIEventTarget::DISPATCH_NORMAL);
+#else
+    rv = mThread->Dispatch(new TouchlessGestureRecognitionRunnable(mSession, &mGestureRecognitions),
+                           nsIEventTarget::DISPATCH_NORMAL);
+#endif
     if (NS_FAILED(rv)) {
       return rv;
     }
