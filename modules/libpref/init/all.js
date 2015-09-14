@@ -497,7 +497,7 @@ pref("media.encoder.webm.enabled", true);
 pref("media.encoder.omx.enabled", true);
 #endif
 
-pref("glovepuppetry.enabled", false);
+pref("glovepuppetry.enabled", true);
 pref("glovepuppetry.gesture.recognition.service.default", "real-sense");
 
 // Whether to autostart a media element with an |autoplay| attribute
